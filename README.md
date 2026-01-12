@@ -4,6 +4,14 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
 
+> [!WARNING]
+> **Experimental / Proof-of-Concept Project**
+>
+> This repository is intended **for experimental and evaluation purposes only**.
+> It is **not designed, reviewed, or supported for production use**.
+>
+> Do **NOT** use this code in production environments.
+
 rustrospective is a fast, CLI-first static analysis tool for JVM class and JAR files.
 It focuses on CI/CD speed, deterministic output, and SARIF-only reporting for global
 standard compatibility.
