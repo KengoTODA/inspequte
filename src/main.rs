@@ -7,6 +7,8 @@ mod ir;
 mod opcodes;
 mod rules;
 mod scan;
+#[cfg(test)]
+mod test_harness;
 
 use std::collections::BTreeMap;
 use std::fs::File;

@@ -72,6 +72,12 @@ fn is_trivial_opcode(opcode: u8) -> bool {
     matches!(
         opcode,
         opcodes::NOP
+            | opcodes::ASTORE
+            | opcodes::ASTORE_0
+            | opcodes::ASTORE_1
+            | opcodes::ASTORE_2
+            | opcodes::ASTORE_3
+            | opcodes::POP
             | opcodes::GOTO
             | opcodes::JSR
             | opcodes::IRETURN
@@ -87,6 +93,7 @@ fn is_trivial_opcode(opcode: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_harness::{JvmTestHarness, Language, SourceFile};
     use crate::classpath::resolve_classpath;
     use crate::engine::build_context;
     use crate::descriptor::method_param_count;
@@ -139,6 +146,45 @@ mod tests {
     fn context_for(classes: Vec<Class>) -> crate::engine::AnalysisContext {
         let classpath = resolve_classpath(&classes).expect("classpath build");
         build_context(classes, classpath, &[])
+    }
+
+    #[test]
+    fn empty_catch_from_compiled_java() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "example/EmptyCatchSample.java".to_string(),
+            contents: r#"
+package example;
+
+public class EmptyCatchSample {
+    public void run() {
+        try {
+            throw new RuntimeException("boom");
+        } catch (RuntimeException ex) {
+        }
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let analysis = harness
+            .compile_and_analyze(Language::Java, &sources, &[])
+            .expect("compile and analyze");
+
+        let has_empty_catch = analysis
+            .results
+            .iter()
+            .any(|result| result.rule_id.as_deref() == Some("EMPTY_CATCH"));
+        if !has_empty_catch {
+            let messages = analysis
+                .results
+                .iter()
+                .filter_map(|result| result.message.text.as_deref())
+                .collect::<Vec<_>>()
+                .join("\n");
+            panic!("expected EMPTY_CATCH result, got:\n{messages}");
+        }
     }
 
     #[test]
