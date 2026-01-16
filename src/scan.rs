@@ -1210,7 +1210,7 @@ mod tests {
     #[test]
     fn scan_inputs_rejects_invalid_class_file() {
         let temp_dir = std::env::temp_dir().join(format!(
-            "rtro-test-{}",
+            "inspequte-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("time")
@@ -1249,7 +1249,7 @@ mod tests {
         let class_bytes = extract_first_class(&jar_path).expect("extract class");
 
         let temp_dir = std::env::temp_dir().join(format!(
-            "rtro-test-{}",
+            "inspequte-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("time")
@@ -1269,7 +1269,7 @@ mod tests {
     #[test]
     fn scan_inputs_resolves_manifest_classpath() {
         let temp_dir = std::env::temp_dir().join(format!(
-            "rtro-test-{}",
+            "inspequte-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("time")
@@ -1291,7 +1291,7 @@ mod tests {
     #[test]
     fn scan_inputs_errors_on_missing_manifest_classpath_entry() {
         let temp_dir = std::env::temp_dir().join(format!(
-            "rtro-test-{}",
+            "inspequte-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("time")

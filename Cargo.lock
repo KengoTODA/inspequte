@@ -475,6 +475,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "inspequte"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jclassfile",
+ "jdescriptor",
+ "serde",
+ "serde-sarif",
+ "serde_json",
+ "tempfile",
+ "ureq",
+ "zip",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -790,22 +806,6 @@ dependencies = [
  "ring",
  "rustls-pki-types",
  "untrusted",
-]
-
-[[package]]
-name = "rustrospective"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "jclassfile",
- "jdescriptor",
- "serde",
- "serde-sarif",
- "serde_json",
- "tempfile",
- "ureq",
- "zip",
 ]
 
 [[package]]
