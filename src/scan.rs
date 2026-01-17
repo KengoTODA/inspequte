@@ -88,7 +88,7 @@ fn scan_path(
     let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
     let roles = if is_input {
         Some(vec![
-            serde_json::to_value(ArtifactRoles::AnalysisTarget).expect("serialize artifact role")
+            serde_json::to_value(ArtifactRoles::AnalysisTarget).expect("serialize artifact role"),
         ])
     } else {
         None
@@ -435,9 +435,8 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
     };
     let mut interfaces = Vec::new();
     for interface in class_file.interfaces() {
-        interfaces.push(
-            resolve_class_name(constant_pool, *interface).context("resolve interface name")?,
-        );
+        interfaces
+            .push(resolve_class_name(constant_pool, *interface).context("resolve interface name")?);
     }
 
     let mut referenced = std::collections::BTreeSet::new();
@@ -524,8 +523,7 @@ fn parse_class_bytes_minimal(data: &[u8]) -> Result<ParsedClass> {
         )
     };
 
-    let interfaces =
-        parse_interfaces_minimal(data, &mut offset, &cp_entries, &class_entries)?;
+    let interfaces = parse_interfaces_minimal(data, &mut offset, &cp_entries, &class_entries)?;
     skip_fields(data, &mut offset)?;
     skip_methods(data, &mut offset)?;
     skip_attributes(data, &mut offset)?;
@@ -727,7 +725,7 @@ fn parse_methods(
             &descriptor,
             default_nullness,
         )
-            .context("parse method nullness")?;
+        .context("parse method nullness")?;
         let code = method
             .attributes()
             .iter()
@@ -743,8 +741,8 @@ fn parse_methods(
         let Some((code, exception_table, code_attributes)) = code else {
             continue;
         };
-        let line_numbers = parse_line_numbers(code_attributes, constant_pool)
-            .context("parse line numbers")?;
+        let line_numbers =
+            parse_line_numbers(code_attributes, constant_pool).context("parse line numbers")?;
         let (instructions, calls, string_literals) =
             parse_bytecode(code, constant_pool).context("parse bytecode")?;
         let exception_handlers =
@@ -915,8 +913,8 @@ fn annotation_class_name(
     constant_pool: &[ConstantPool],
     annotation: &jclassfile::attributes::Annotation,
 ) -> Result<String> {
-    let descriptor = resolve_utf8(constant_pool, annotation.type_index())
-        .context("resolve annotation type")?;
+    let descriptor =
+        resolve_utf8(constant_pool, annotation.type_index()).context("resolve annotation type")?;
     let trimmed = descriptor
         .strip_prefix('L')
         .and_then(|value| value.strip_suffix(';'))
@@ -1129,11 +1127,7 @@ fn wide_length(code: &[u8], offset: usize) -> Result<usize> {
         .get(offset + 1)
         .copied()
         .context("missing wide opcode")?;
-    if opcode == 0x84 {
-        Ok(6)
-    } else {
-        Ok(4)
-    }
+    if opcode == 0x84 { Ok(6) } else { Ok(4) }
 }
 
 pub(crate) fn padding(offset: usize) -> usize {
@@ -1204,8 +1198,8 @@ mod tests {
     use std::io::Write;
     use std::sync::OnceLock;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use zip::write::SimpleFileOptions;
     use zip::ZipArchive;
+    use zip::write::SimpleFileOptions;
 
     #[test]
     fn scan_inputs_rejects_invalid_class_file() {

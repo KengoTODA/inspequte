@@ -4,7 +4,7 @@ use serde_sarif::sarif::Result as SarifResult;
 use crate::engine::AnalysisContext;
 use crate::ir::Instruction;
 use crate::opcodes;
-use crate::rules::{method_location_with_line, result_message, Rule, RuleMetadata};
+use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects empty catch blocks.
 pub(crate) struct EmptyCatchRule;
@@ -93,14 +93,14 @@ fn is_trivial_opcode(opcode: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_harness::{JvmTestHarness, Language, SourceFile};
     use crate::classpath::resolve_classpath;
-    use crate::engine::build_context;
     use crate::descriptor::method_param_count;
+    use crate::engine::build_context;
     use crate::ir::{
         BasicBlock, Class, ControlFlowGraph, ExceptionHandler, Instruction, InstructionKind,
         Method, MethodAccess, MethodNullness,
     };
+    use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
     fn default_access() -> MethodAccess {
         MethodAccess {
@@ -120,9 +120,7 @@ mod tests {
             name: name.to_string(),
             descriptor: descriptor.to_string(),
             access: default_access(),
-            nullness: MethodNullness::unknown(
-                method_param_count(descriptor).expect("param count"),
-            ),
+            nullness: MethodNullness::unknown(method_param_count(descriptor).expect("param count")),
             bytecode: vec![0],
             line_numbers: Vec::new(),
             cfg,

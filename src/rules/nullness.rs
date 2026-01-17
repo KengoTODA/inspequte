@@ -3,11 +3,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use anyhow::Result;
 use serde_sarif::sarif::Result as SarifResult;
 
-use crate::descriptor::{method_param_count, method_return_kind, ReturnKind};
+use crate::descriptor::{ReturnKind, method_param_count, method_return_kind};
 use crate::engine::AnalysisContext;
 use crate::ir::{CallKind, Class, Method, Nullness};
 use crate::opcodes;
-use crate::rules::{method_location_with_line, result_message, Rule, RuleMetadata};
+use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 // TODO: refer Checkerframework stubs or somthing like it to handle nellness of standard APIs
 
@@ -39,13 +39,13 @@ impl Rule for NullnessRule {
                 if method.bytecode.is_empty() {
                     continue;
                 }
-            let artifact_uri = context.class_artifact_uri(class);
-            results.extend(check_method_flow(
-                class,
-                method,
-                &class_map,
-                artifact_uri.as_deref(),
-            )?);
+                let artifact_uri = context.class_artifact_uri(class);
+                results.extend(check_method_flow(
+                    class,
+                    method,
+                    &class_map,
+                    artifact_uri.as_deref(),
+                )?);
             }
         }
 
@@ -53,16 +53,12 @@ impl Rule for NullnessRule {
     }
 }
 
-fn check_overrides(
-    class: &Class,
-    class_map: &BTreeMap<String, &Class>,
-) -> Vec<SarifResult> {
+fn check_overrides(class: &Class, class_map: &BTreeMap<String, &Class>) -> Vec<SarifResult> {
     let mut results = Vec::new();
     let supertypes = collect_supertypes(class, class_map);
     for method in &class.methods {
         for super_class in &supertypes {
-            let Some(base_method) =
-                find_method(super_class, &method.name, &method.descriptor)
+            let Some(base_method) = find_method(super_class, &method.name, &method.descriptor)
             else {
                 continue;
             };
@@ -192,10 +188,7 @@ fn check_method_flow(
     let mut predecessors: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
     let mut successors: BTreeMap<u32, Vec<(u32, crate::ir::EdgeKind)>> = BTreeMap::new();
     for edge in &method.cfg.edges {
-        predecessors
-            .entry(edge.to)
-            .or_default()
-            .push(edge.from);
+        predecessors.entry(edge.to).or_default().push(edge.from);
         successors
             .entry(edge.from)
             .or_default()
@@ -541,7 +534,11 @@ fn join_states(left: &State, right: &State) -> State {
     let mut locals = Vec::with_capacity(max_locals);
     for index in 0..max_locals {
         let l = left.locals.get(index).copied().unwrap_or(Nullness::Unknown);
-        let r = right.locals.get(index).copied().unwrap_or(Nullness::Unknown);
+        let r = right
+            .locals
+            .get(index)
+            .copied()
+            .unwrap_or(Nullness::Unknown);
         locals.push(join_nullness(l, r));
     }
     let stack = if left.stack.len() == right.stack.len() {
@@ -621,11 +618,7 @@ mod tests {
         }
     }
 
-    fn class_with_methods(
-        name: &str,
-        super_name: Option<&str>,
-        methods: Vec<Method>,
-    ) -> Class {
+    fn class_with_methods(name: &str, super_name: Option<&str>, methods: Vec<Method>) -> Class {
         Class {
             name: name.to_string(),
             super_name: super_name.map(str::to_string),
@@ -770,8 +763,11 @@ public @interface NullnessUnspecified {}
             exception_handlers: Vec::new(),
         };
         let base = class_with_methods("com/example/Base", None, vec![base_method]);
-        let derived =
-            class_with_methods("com/example/Derived", Some("com/example/Base"), vec![override_method]);
+        let derived = class_with_methods(
+            "com/example/Derived",
+            Some("com/example/Base"),
+            vec![override_method],
+        );
         let context = context_for(vec![base, derived]);
 
         let results = NullnessRule.run(&context).expect("nullness rule run");
@@ -828,8 +824,11 @@ public @interface NullnessUnspecified {}
             exception_handlers: Vec::new(),
         };
         let base = class_with_methods("com/example/Base", None, vec![base_method]);
-        let derived =
-            class_with_methods("com/example/Derived", Some("com/example/Base"), vec![override_method]);
+        let derived = class_with_methods(
+            "com/example/Derived",
+            Some("com/example/Base"),
+            vec![override_method],
+        );
         let context = context_for(vec![base, derived]);
 
         let results = NullnessRule.run(&context).expect("nullness rule run");
@@ -960,9 +959,11 @@ public class Sample {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
-        assert!(messages
-            .iter()
-            .any(|msg| msg.contains("returns null but is @NonNull")));
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("returns null but is @NonNull"))
+        );
     }
 
     #[test]
@@ -1045,9 +1046,11 @@ public class Sample {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
-        assert!(messages
-            .iter()
-            .any(|msg| msg.contains("returns null but is @NonNull")));
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("returns null but is @NonNull"))
+        );
     }
 
     #[test]
@@ -1075,9 +1078,11 @@ public class Sample {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
-        assert!(messages
-            .iter()
-            .any(|msg| msg.contains("possible null receiver")));
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("possible null receiver"))
+        );
     }
 
     #[test]
@@ -1146,8 +1151,10 @@ public class Derived extends Base {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
-        assert!(messages
-            .iter()
-            .any(|msg| msg.contains("returns @Nullable but overrides @NonNull")));
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("returns @Nullable but overrides @NonNull"))
+        );
     }
 }

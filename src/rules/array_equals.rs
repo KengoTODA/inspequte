@@ -9,7 +9,7 @@ use crate::descriptor::method_param_count;
 use crate::engine::AnalysisContext;
 use crate::ir::Method;
 use crate::opcodes;
-use crate::rules::{method_location_with_line, result_message, Rule, RuleMetadata};
+use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that flags array comparisons using == or equals().
 pub(crate) struct ArrayEqualsRule;
@@ -71,11 +71,7 @@ fn analyze_method(
         match opcode {
             opcodes::ACONST_NULL => stack.push(ValueKind::Unknown),
             opcodes::ALOAD => {
-                let index = method
-                    .bytecode
-                    .get(offset + 1)
-                    .copied()
-                    .unwrap_or(0) as usize;
+                let index = method.bytecode.get(offset + 1).copied().unwrap_or(0) as usize;
                 ensure_local(&mut locals, index);
                 stack.push(locals[index]);
             }
@@ -85,11 +81,7 @@ fn analyze_method(
                 stack.push(locals[index]);
             }
             opcodes::ASTORE => {
-                let index = method
-                    .bytecode
-                    .get(offset + 1)
-                    .copied()
-                    .unwrap_or(0) as usize;
+                let index = method.bytecode.get(offset + 1).copied().unwrap_or(0) as usize;
                 ensure_local(&mut locals, index);
                 let value = stack.pop().unwrap_or(ValueKind::Unknown);
                 locals[index] = value;
@@ -281,7 +273,11 @@ public class Sample {
             .to_string(),
         }];
         let messages = analyze_sources(sources);
-        assert!(messages.iter().any(|msg| msg.contains("reference equality")));
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("reference equality"))
+        );
     }
 
     #[test]

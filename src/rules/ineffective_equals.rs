@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_sarif::sarif::Result as SarifResult;
 
 use crate::engine::AnalysisContext;
-use crate::rules::{class_location, result_message, Rule, RuleMetadata};
+use crate::rules::{Rule, RuleMetadata, class_location, result_message};
 
 /// Rule that flags classes overriding equals or hashCode alone.
 pub(crate) struct IneffectiveEqualsRule;
@@ -58,8 +58,8 @@ impl Rule for IneffectiveEqualsRule {
 mod tests {
     use super::*;
     use crate::classpath::resolve_classpath;
-    use crate::engine::build_context;
     use crate::descriptor::method_param_count;
+    use crate::engine::build_context;
     use crate::ir::{Class, ControlFlowGraph, Method, MethodAccess, MethodNullness};
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
@@ -79,9 +79,7 @@ mod tests {
                 is_static: false,
                 is_abstract: false,
             },
-            nullness: MethodNullness::unknown(
-                method_param_count(descriptor).expect("param count"),
-            ),
+            nullness: MethodNullness::unknown(method_param_count(descriptor).expect("param count")),
             bytecode: vec![0],
             line_numbers: Vec::new(),
             cfg: empty_cfg(),
@@ -113,8 +111,9 @@ mod tests {
         let classes = vec![class_with_methods("com/example/Value", vec![equals])];
         let context = context_for(classes);
 
-        let results =
-            IneffectiveEqualsRule.run(&context).expect("ineffective equals rule run");
+        let results = IneffectiveEqualsRule
+            .run(&context)
+            .expect("ineffective equals rule run");
 
         assert_eq!(1, results.len());
         let message = results[0].message.text.as_deref().unwrap_or("");
@@ -131,8 +130,9 @@ mod tests {
         )];
         let context = context_for(classes);
 
-        let results =
-            IneffectiveEqualsRule.run(&context).expect("ineffective equals rule run");
+        let results = IneffectiveEqualsRule
+            .run(&context)
+            .expect("ineffective equals rule run");
 
         assert!(results.is_empty());
     }
@@ -143,8 +143,9 @@ mod tests {
         let classes = vec![class_with_methods("com/example/Value", vec![equals])];
         let context = context_for(classes);
 
-        let results =
-            IneffectiveEqualsRule.run(&context).expect("ineffective equals rule run");
+        let results = IneffectiveEqualsRule
+            .run(&context)
+            .expect("ineffective equals rule run");
 
         assert!(results.is_empty());
     }
@@ -177,8 +178,10 @@ public class Value {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
-        assert!(messages
-            .iter()
-            .any(|msg| msg.contains("overrides equals without hashCode")));
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("overrides equals without hashCode"))
+        );
     }
 }

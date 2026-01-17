@@ -6,7 +6,7 @@ use serde_sarif::sarif::Result as SarifResult;
 use crate::callgraph::MethodId;
 use crate::engine::AnalysisContext;
 use crate::ir::Method;
-use crate::rules::{method_location_with_line, result_message, Rule, RuleMetadata};
+use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects unreachable methods.
 pub(crate) struct DeadCodeRule;
@@ -35,10 +35,7 @@ impl Rule for DeadCodeRule {
                     descriptor: method.descriptor.clone(),
                 };
                 let artifact_uri = context.class_artifact_uri(class);
-                method_map.insert(
-                    id.clone(),
-                    (class.name.clone(), method, artifact_uri),
-                );
+                method_map.insert(id.clone(), (class.name.clone(), method, artifact_uri));
                 if is_entry_method(method) {
                     entry_points.push(id);
                 }
@@ -132,11 +129,9 @@ fn method_has_body(method: &Method) -> bool {
 mod tests {
     use super::*;
     use crate::classpath::resolve_classpath;
-    use crate::engine::build_context;
     use crate::descriptor::method_param_count;
-    use crate::ir::{
-        CallKind, CallSite, Class, ControlFlowGraph, MethodAccess, MethodNullness,
-    };
+    use crate::engine::build_context;
+    use crate::ir::{CallKind, CallSite, Class, ControlFlowGraph, MethodAccess, MethodNullness};
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
     fn empty_cfg() -> ControlFlowGraph {
@@ -157,9 +152,7 @@ mod tests {
             name: name.to_string(),
             descriptor: descriptor.to_string(),
             access,
-            nullness: MethodNullness::unknown(
-                method_param_count(descriptor).expect("param count"),
-            ),
+            nullness: MethodNullness::unknown(method_param_count(descriptor).expect("param count")),
             bytecode,
             line_numbers: Vec::new(),
             cfg: empty_cfg(),

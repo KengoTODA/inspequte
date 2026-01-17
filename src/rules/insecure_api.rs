@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_sarif::sarif::Result as SarifResult;
 
 use crate::engine::AnalysisContext;
-use crate::rules::{method_location_with_line, result_message, Rule, RuleMetadata};
+use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects insecure API usage.
 pub(crate) struct InsecureApiRule;
@@ -65,8 +65,8 @@ fn is_insecure_call(owner: &str, name: &str) -> bool {
 mod tests {
     use super::*;
     use crate::classpath::resolve_classpath;
-    use crate::engine::build_context;
     use crate::descriptor::method_param_count;
+    use crate::engine::build_context;
     use crate::ir::{
         CallKind, CallSite, Class, ControlFlowGraph, Method, MethodAccess, MethodNullness,
     };
@@ -88,9 +88,7 @@ mod tests {
                 is_static: false,
                 is_abstract: false,
             },
-            nullness: MethodNullness::unknown(
-                method_param_count("()V").expect("param count"),
-            ),
+            nullness: MethodNullness::unknown(method_param_count("()V").expect("param count")),
             bytecode: vec![0],
             line_numbers: Vec::new(),
             cfg: empty_cfg(),
@@ -131,7 +129,9 @@ mod tests {
         let classes = vec![class_with_methods("com/example/App", vec![method])];
         let context = context_for(classes);
 
-        let results = InsecureApiRule.run(&context).expect("insecure api rule run");
+        let results = InsecureApiRule
+            .run(&context)
+            .expect("insecure api rule run");
 
         assert_eq!(1, results.len());
         let message = results[0].message.text.as_deref().unwrap_or("");
@@ -153,7 +153,9 @@ mod tests {
         let classes = vec![class_with_methods("com/example/App", vec![method])];
         let context = context_for(classes);
 
-        let results = InsecureApiRule.run(&context).expect("insecure api rule run");
+        let results = InsecureApiRule
+            .run(&context)
+            .expect("insecure api rule run");
 
         assert!(results.is_empty());
     }
@@ -185,6 +187,10 @@ public class Runner {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
-        assert!(messages.iter().any(|msg| msg.contains("java/lang/Runtime.exec")));
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("java/lang/Runtime.exec"))
+        );
     }
 }

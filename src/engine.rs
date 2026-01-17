@@ -4,13 +4,13 @@ use anyhow::Result;
 use serde_sarif::sarif::Artifact;
 use serde_sarif::sarif::{MultiformatMessageString, ReportingDescriptor, Result as SarifResult};
 
-use crate::callgraph::{build_call_graph, CallGraph};
+use crate::callgraph::{CallGraph, build_call_graph};
 use crate::classpath::ClasspathIndex;
 use crate::ir::Class;
 use crate::rules::{
-    array_equals::ArrayEqualsRule, dead_code::DeadCodeRule, empty_catch::EmptyCatchRule,
-    ineffective_equals::IneffectiveEqualsRule, insecure_api::InsecureApiRule,
-    nullness::NullnessRule, Rule, RuleMetadata,
+    Rule, RuleMetadata, array_equals::ArrayEqualsRule, dead_code::DeadCodeRule,
+    empty_catch::EmptyCatchRule, ineffective_equals::IneffectiveEqualsRule,
+    insecure_api::InsecureApiRule, nullness::NullnessRule,
 };
 
 /// Inputs shared by analysis rules.
@@ -83,8 +83,7 @@ pub(crate) fn build_context(
     artifacts: &[Artifact],
 ) -> AnalysisContext {
     let call_graph = build_call_graph(&classes);
-    let (analysis_target_artifacts, artifact_parents, artifact_uris) =
-        analyze_artifacts(artifacts);
+    let (analysis_target_artifacts, artifact_parents, artifact_uris) = analyze_artifacts(artifacts);
     AnalysisContext {
         classes,
         classpath,

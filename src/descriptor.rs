@@ -5,8 +5,7 @@ use jdescriptor::{MethodDescriptor, TypeDescriptor};
 
 /// Count parameters in a JVM method descriptor.
 pub(crate) fn method_param_count(descriptor: &str) -> Result<usize> {
-    let descriptor =
-        MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
+    let descriptor = MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
     Ok(descriptor.parameter_types().len())
 }
 
@@ -20,8 +19,7 @@ pub(crate) enum ReturnKind {
 
 /// Determine the return kind from a JVM method descriptor.
 pub(crate) fn method_return_kind(descriptor: &str) -> Result<ReturnKind> {
-    let descriptor =
-        MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
+    let descriptor = MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
     let kind = match descriptor.return_type() {
         TypeDescriptor::Void => ReturnKind::Void,
         TypeDescriptor::Object(_) | TypeDescriptor::Array(_, _) => ReturnKind::Reference,

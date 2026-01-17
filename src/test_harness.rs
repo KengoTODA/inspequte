@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use tempfile::TempDir;
 
 use crate::classpath::resolve_classpath;
-use crate::engine::{build_context, Engine, EngineOutput};
+use crate::engine::{Engine, EngineOutput, build_context};
 use crate::scan::scan_inputs;
 
 /// Supported JVM source languages for the harness.
