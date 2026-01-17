@@ -19,5 +19,9 @@ We follow Conventional Commits 1.0.0. Examples:
 - `scripts/bench-classpath.sh <input> [repeat] [classpath...]` captures timing baselines for a single input.
 - `scripts/bench-spotbugs.sh [repeat]` benchmarks SpotBugs libraries (downloads if needed).
 
+### Rule authoring skill
+When adding or updating rules, mention `rule-authoring` in your request to trigger the repo-scoped skill in `.codex/skills/rule-authoring`.
+Example: `rule-authoring: add a rule to detect empty catch blocks`
+
 ## License
 By contributing, you agree that your contributions will be licensed under AGPL-3.0.
