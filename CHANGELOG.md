@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.2.1...inspequte-v0.3.0) (2026-01-17)
+
+
+### Features
+
+* **cli:** add baseline command ([1a4753c](https://github.com/KengoTODA/inspequte/commit/1a4753cca2ca5116b3a7d652fe42fdaa8726c4ed))
+* detect array equality pitfalls ([de7b6e7](https://github.com/KengoTODA/inspequte/commit/de7b6e76038ac13bceda6193c4d42e80e7caa1e8))
+* flag record components with array types ([0dba179](https://github.com/KengoTODA/inspequte/commit/0dba179d9f266f71a29c9b3e1514984aa8caefc6))
+
 ## [0.2.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.2.0...inspequte-v0.2.1) (2026-01-17)
 
 
