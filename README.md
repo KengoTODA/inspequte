@@ -38,6 +38,10 @@ inspequte --input app.jar --classpath lib/ --output results.sarif
 ## Environment variables
 - `INSPEQUTE_VALIDATE_SARIF=1` validates SARIF output against the bundled schema (dev only).
 
+## Benchmarks
+- `scripts/bench-classpath.sh <input> [repeat] [classpath...]` captures timing baselines for a single input.
+- `scripts/bench-spotbugs.sh [repeat]` benchmarks SpotBugs libraries (downloads if needed).
+
 ## SARIF output (example)
 ```json
 {

@@ -39,7 +39,7 @@
 - [x] Stable output ordering and exit codes.
 - [x] Optional SARIF schema validation.
 - [ ] Caching for classpath resolution.
-- [ ] Benchmarks and performance baselines.
+- [x] Benchmarks and performance baselines.
 - [ ] CI integration examples.
 
 ## Milestone 6 - 1.0 Release

@@ -29,5 +29,4 @@
 
 ## Next focus (Milestone 5)
 - Caching for classpath resolution.
-- Benchmarks and performance baselines.
 - CI integration examples.
