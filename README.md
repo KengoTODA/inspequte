@@ -69,9 +69,11 @@ inspequte --input app.jar --classpath lib/ --output results.sarif
 
 ## CI integration (GitHub Actions)
 ```yaml
+- name: Install inspequte
+  run: cargo install inspequte --locked
 - name: Run inspequte
   run: |
-    cargo run --release -- \
+    inspequte \
       --input app.jar \
       --classpath lib/ \
       --output results.sarif
@@ -89,7 +91,7 @@ inspequte --input app.jar --classpath lib/ --output results.sarif
 ```yaml
 - name: Run inspequte with schema validation
   run: |
-    INSPEQUTE_VALIDATE_SARIF=1 cargo run --release -- \
+    INSPEQUTE_VALIDATE_SARIF=1 inspequte \
       --input app.jar \
       --classpath lib/ \
       --output results.sarif
