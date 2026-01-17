@@ -12,6 +12,7 @@
 - Add documentation comments to each struct.
 - Use Java 21 for the test harness via `JAVA_HOME`.
 - Use release-please with crates.io trusted publisher (OIDC).
+- Run `cargo fmt` after each code modification.
 
 ## Current scaffold
 - `README.md` includes goals, planned analyses, CLI usage, SARIF example, and CI snippet.
