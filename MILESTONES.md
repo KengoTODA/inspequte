@@ -46,4 +46,4 @@
 - Tag `v1.0.0` with release notes.
 - Publish usage examples and SARIF viewer guidance.
 - Document bytecode/JDK compatibility.
-- Setup `release-please` to publish changes to GitHub Releases that enables release immutability.
+- [x] Setup `release-please` to publish changes to GitHub Releases that enables release immutability.
