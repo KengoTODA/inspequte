@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.2.0...inspequte-v0.2.1) (2026-01-17)
+
+
+### Bug Fixes
+
+* add description to Cargo.toml to publish to crates.io ([f256109](https://github.com/KengoTODA/inspequte/commit/f2561091d9e86b5d96f1acc1d60135a98b112b74))
+
 ## [0.2.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.1.0...inspequte-v0.2.0) (2026-01-17)
 
 
