@@ -8,19 +8,10 @@
 - Commit style: Conventional Commits v1.0.0.
 
 ## Decisions
-- `inspequte` is the CLI command name.
-- Keep `--timing` option in Milestone 1.
 - Do not document multithreading for now.
 - Add documentation comments to each struct.
 - Use Java 21 for the test harness via `JAVA_HOME`.
 - Use release-please with crates.io trusted publisher (OIDC).
-
-## Planned analyses (pre-1.0)
-- Dead code: unreachable methods/classes, unused private methods/fields.
-- Nullness checks guided by JSpecify annotations.
-- Empty catch blocks.
-- Insecure API usage: `Runtime.exec`, `ProcessBuilder`, reflective sinks.
-- Ineffective equals/hashCode.
 
 ## Current scaffold
 - `README.md` includes goals, planned analyses, CLI usage, SARIF example, and CI snippet.
@@ -28,6 +19,3 @@
 - `MILESTONES.md` tracks milestones.
 - `Cargo.toml` declares the crate and `inspequte` binary.
 - `.github/workflows/ci.yml` builds, tests, and uploads release artifacts.
-
-## Next focus (Milestone 5)
-- Caching for classpath resolution.
