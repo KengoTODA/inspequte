@@ -1,3 +1,4 @@
+mod baseline;
 mod callgraph;
 mod cfg;
 mod classpath;
@@ -17,35 +18,75 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 use jsonschema::JSONSchema;
 use serde_json::json;
+use serde_sarif::sarif::Result as SarifResult;
 use serde_sarif::sarif::{
-    Artifact, Invocation, PropertyBag, Run, Sarif, Tool, ToolComponent, SCHEMA_URL,
+    Artifact, Invocation, PropertyBag, ReportingDescriptor, Run, SCHEMA_URL, Sarif, Tool,
+    ToolComponent,
 };
 
+use crate::baseline::{load_baseline, write_baseline};
 use crate::classpath::resolve_classpath;
-use crate::engine::{build_context, Engine};
+use crate::engine::{Engine, build_context};
 use crate::scan::scan_inputs;
+
+const DEFAULT_BASELINE_PATH: &str = ".inspequte/baseline.json";
 
 /// CLI arguments for inspequte execution.
 #[derive(Parser, Debug)]
 #[command(
     name = "inspequte",
     about = "Fast, deterministic SARIF output for JVM class files and JAR files analysis.",
-    version
+    version,
+    subcommand_negates_reqs = true
 )]
 struct Cli {
-    #[arg(long, value_name = "PATH")]
-    input: PathBuf,
-    #[arg(long, value_name = "PATH")]
-    classpath: Vec<PathBuf>,
+    #[command(flatten)]
+    scan: ScanArgs,
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+/// Options for running a scan.
+#[derive(Args, Debug, Clone)]
+struct ScanArgs {
+    #[command(flatten)]
+    input: InputArgs,
     #[arg(long, value_name = "PATH")]
     output: Option<PathBuf>,
     #[arg(long)]
     quiet: bool,
     #[arg(long)]
     timing: bool,
+    #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
+    baseline: PathBuf,
+}
+
+/// Input configuration shared by all commands.
+#[derive(Args, Debug, Clone)]
+struct InputArgs {
+    #[arg(long, value_name = "PATH")]
+    input: PathBuf,
+    #[arg(long, value_name = "PATH")]
+    classpath: Vec<PathBuf>,
+}
+
+/// Subcommands supported by the CLI.
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Create a baseline file containing all current findings.
+    Baseline(BaselineArgs),
+}
+
+/// Arguments for creating a baseline file.
+#[derive(Args, Debug, Clone)]
+struct BaselineArgs {
+    #[command(flatten)]
+    input: InputArgs,
+    #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
+    output: PathBuf,
 }
 
 fn main() -> std::process::ExitCode {
@@ -60,18 +101,86 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    if !cli.input.exists() {
-        anyhow::bail!("input not found: {}", cli.input.display());
+    match cli.command {
+        Some(Command::Baseline(args)) => run_baseline(args),
+        None => run_scan(cli.scan),
     }
-    for entry in &cli.classpath {
+}
+
+fn run_scan(args: ScanArgs) -> Result<()> {
+    ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
+
+    let started_at = Instant::now();
+    let mut analysis = analyze(&args.input.input, &args.input.classpath)?;
+    if let Some(baseline) = load_baseline(&args.baseline)? {
+        analysis.results = baseline.filter(analysis.results);
+    }
+
+    let invocation = build_invocation(&analysis.invocation_stats);
+    let sarif = build_sarif(
+        analysis.artifacts,
+        invocation,
+        analysis.rules,
+        analysis.results,
+    );
+    if should_validate_sarif() {
+        validate_sarif(&sarif)?;
+    }
+
+    let write_started_at = Instant::now();
+    let mut writer = output_writer(args.output.as_deref())?;
+    serde_json::to_writer_pretty(&mut writer, &sarif)
+        .context("failed to serialize SARIF output")?;
+    writer
+        .write_all(b"\n")
+        .context("failed to write SARIF output")?;
+    let write_duration_ms = write_started_at.elapsed().as_millis();
+
+    if args.timing && !args.quiet {
+        eprintln!(
+            "timing: total_ms={} scan_ms={} classpath_ms={} write_ms={} (classes={} artifacts={})",
+            started_at.elapsed().as_millis(),
+            analysis.invocation_stats.scan_duration_ms,
+            analysis.invocation_stats.classpath_duration_ms,
+            write_duration_ms,
+            analysis.invocation_stats.class_count,
+            analysis.invocation_stats.artifact_count
+        );
+    }
+
+    Ok(())
+}
+
+fn run_baseline(args: BaselineArgs) -> Result<()> {
+    ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
+    let analysis = analyze(&args.input.input, &args.input.classpath)?;
+    write_baseline(&args.output, &analysis.results)?;
+    Ok(())
+}
+
+fn ensure_inputs_exist(input: &Path, classpath: &[PathBuf]) -> Result<()> {
+    if !input.exists() {
+        anyhow::bail!("input not found: {}", input.display());
+    }
+    for entry in classpath {
         if !entry.exists() {
             anyhow::bail!("classpath entry not found: {}", entry.display());
         }
     }
+    Ok(())
+}
 
-    let started_at = Instant::now();
+/// Aggregated analysis output before SARIF serialization.
+struct AnalysisOutput {
+    artifacts: Vec<Artifact>,
+    invocation_stats: InvocationStats,
+    rules: Vec<ReportingDescriptor>,
+    results: Vec<SarifResult>,
+}
+
+fn analyze(input: &Path, classpath: &[PathBuf]) -> Result<AnalysisOutput> {
     let scan_started_at = Instant::now();
-    let scan = scan_inputs(&cli.input, &cli.classpath)?;
+    let scan = scan_inputs(input, classpath)?;
     let scan_duration_ms = scan_started_at.elapsed().as_millis();
     let artifact_count = scan.artifacts.len();
     let classpath_started_at = Instant::now();
@@ -89,34 +198,13 @@ fn run(cli: Cli) -> Result<()> {
         artifact_count,
         classpath_class_count,
     };
-    let invocation = build_invocation(&invocation_stats);
-    let sarif = build_sarif(artifacts, invocation, analysis.rules, analysis.results);
-    if should_validate_sarif() {
-        validate_sarif(&sarif)?;
-    }
 
-    let write_started_at = Instant::now();
-    let mut writer = output_writer(cli.output.as_deref())?;
-    serde_json::to_writer_pretty(&mut writer, &sarif)
-        .context("failed to serialize SARIF output")?;
-    writer
-        .write_all(b"\n")
-        .context("failed to write SARIF output")?;
-    let write_duration_ms = write_started_at.elapsed().as_millis();
-
-    if cli.timing && !cli.quiet {
-        eprintln!(
-            "timing: total_ms={} scan_ms={} classpath_ms={} write_ms={} (classes={} artifacts={})",
-            started_at.elapsed().as_millis(),
-            scan_duration_ms,
-            classpath_duration_ms,
-            write_duration_ms,
-            scan.class_count,
-            artifact_count
-        );
-    }
-
-    Ok(())
+    Ok(AnalysisOutput {
+        artifacts,
+        invocation_stats,
+        rules: analysis.rules,
+        results: analysis.results,
+    })
 }
 
 fn output_writer(output: Option<&Path>) -> Result<Box<dyn Write>> {
@@ -144,12 +232,18 @@ fn build_invocation(stats: &InvocationStats) -> Invocation {
     let arguments: Vec<String> = std::env::args().collect();
     let command_line = arguments.join(" ");
     let mut properties = BTreeMap::new();
-    properties.insert("inspequte.scan_ms".to_string(), json!(stats.scan_duration_ms));
+    properties.insert(
+        "inspequte.scan_ms".to_string(),
+        json!(stats.scan_duration_ms),
+    );
     properties.insert(
         "inspequte.classpath_ms".to_string(),
         json!(stats.classpath_duration_ms),
     );
-    properties.insert("inspequte.class_count".to_string(), json!(stats.class_count));
+    properties.insert(
+        "inspequte.class_count".to_string(),
+        json!(stats.class_count),
+    );
     properties.insert(
         "inspequte.artifact_count".to_string(),
         json!(stats.artifact_count),
@@ -197,8 +291,8 @@ fn validate_sarif(sarif: &Sarif) -> Result<()> {
 fn build_sarif(
     artifacts: Vec<Artifact>,
     invocation: Invocation,
-    rules: Vec<serde_sarif::sarif::ReportingDescriptor>,
-    results: Vec<serde_sarif::sarif::Result>,
+    rules: Vec<ReportingDescriptor>,
+    results: Vec<SarifResult>,
 ) -> Sarif {
     let driver = if rules.is_empty() {
         ToolComponent::builder()
@@ -248,7 +342,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::classpath::resolve_classpath;
-    use crate::engine::{build_context, Engine};
+    use crate::engine::{Engine, build_context};
     use crate::scan::scan_inputs;
 
     #[test]
@@ -270,10 +364,12 @@ mod tests {
             value["runs"][0]["tool"]["driver"]["informationUri"],
             "https://github.com/KengoTODA/inspequte"
         );
-        assert!(value["runs"][0]["results"]
-            .as_array()
-            .expect("results array")
-            .is_empty());
+        assert!(
+            value["runs"][0]["results"]
+                .as_array()
+                .expect("results array")
+                .is_empty()
+        );
         assert_eq!(
             value["runs"][0]["invocations"][0]["executionSuccessful"],
             true

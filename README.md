@@ -41,6 +41,17 @@ The name combines "inspect" and "qute". The CLI command is `inspequte`.
 inspequte --input app.jar --classpath lib/ --output results.sarif
 ```
 
+Create a baseline of current findings to suppress them in future runs:
+```
+inspequte baseline --input app.jar --classpath lib/ --output inspequte.baseline.json
+```
+
+Run with a baseline to emit only new issues:
+```
+inspequte --input app.jar --classpath lib/ --output results.sarif --baseline inspequte.baseline.json
+```
+If you omit `--baseline` output/input paths, `.inspequte/baseline.json` is used by default; missing files are ignored.
+
 ## Environment variables
 - `INSPEQUTE_VALIDATE_SARIF=1` validates SARIF output against the bundled schema (dev only).
 
