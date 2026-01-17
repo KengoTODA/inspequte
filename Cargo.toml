@@ -2,7 +2,13 @@
 name = "inspequte"
 version = "0.2.0"
 edition = "2021"
+description = "Fast, CLI-first static analysis for JVM class and JAR files."
 license = "AGPL-3.0-only"
+readme = "README.md"
+repository = "https://github.com/KengoTODA/inspequte"
+homepage = "https://github.com/KengoTODA/inspequte"
+keywords = ["sarif", "jvm", "static-analysis", "bytecode-analysis"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 anyhow = "1"
