@@ -15,6 +15,13 @@
           "name": "inspequte",
           "rules": [
             {
+              "id": "ARRAY_EQUALS",
+              "name": "Array equals",
+              "shortDescription": {
+                "text": "Array comparisons using == or equals()"
+              }
+            },
+            {
               "id": "DEAD_CODE",
               "name": "Dead code",
               "shortDescription": {

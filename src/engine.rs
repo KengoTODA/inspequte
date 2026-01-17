@@ -8,7 +8,7 @@ use crate::callgraph::{build_call_graph, CallGraph};
 use crate::classpath::ClasspathIndex;
 use crate::ir::Class;
 use crate::rules::{
-    dead_code::DeadCodeRule, empty_catch::EmptyCatchRule,
+    array_equals::ArrayEqualsRule, dead_code::DeadCodeRule, empty_catch::EmptyCatchRule,
     ineffective_equals::IneffectiveEqualsRule, insecure_api::InsecureApiRule,
     nullness::NullnessRule, Rule, RuleMetadata,
 };
@@ -32,6 +32,7 @@ pub(crate) struct Engine {
 impl Engine {
     pub(crate) fn new() -> Self {
         let mut rules: Vec<Box<dyn Rule>> = vec![
+            Box::new(ArrayEqualsRule),
             Box::new(DeadCodeRule),
             Box::new(NullnessRule),
             Box::new(EmptyCatchRule),
