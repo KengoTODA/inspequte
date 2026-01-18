@@ -1,6 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
+use std::time::Instant;
 
-use crate::ir::{CallKind, CallSite, Class};
+use crate::ir::{CallKind, Class};
 
 /// Unique identifier for a method in the classpath.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -13,8 +15,8 @@ pub(crate) struct MethodId {
 /// Directed call edge between caller and callee.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct CallEdge {
-    pub(crate) caller: MethodId,
-    pub(crate) callee: MethodId,
+    pub(crate) caller: Arc<MethodId>,
+    pub(crate) callee: Arc<MethodId>,
     pub(crate) kind: CallKind,
     pub(crate) offset: u32,
 }
@@ -22,83 +24,104 @@ pub(crate) struct CallEdge {
 /// Call graph built from CHA on the parsed classpath.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CallGraph {
-    pub(crate) edges: BTreeSet<CallEdge>,
+    pub(crate) edges: Vec<CallEdge>,
 }
 
-/// Build a call graph using a CHA baseline.
-pub(crate) fn build_call_graph(classes: &[Class]) -> CallGraph {
+/// Timing breakdown for call graph construction.
+pub(crate) struct CallGraphTimings {
+    pub(crate) hierarchy_duration_ms: u128,
+    pub(crate) index_duration_ms: u128,
+    pub(crate) edges_duration_ms: u128,
+}
+
+pub(crate) fn build_call_graph_with_timings(classes: &[Class]) -> (CallGraph, CallGraphTimings) {
+    let hierarchy_started_at = Instant::now();
     let hierarchy = build_hierarchy(classes);
+    let hierarchy_duration_ms = hierarchy_started_at.elapsed().as_millis();
+    let index_started_at = Instant::now();
     let methods = index_methods(classes);
+    let index_duration_ms = index_started_at.elapsed().as_millis();
+    let edges_started_at = Instant::now();
     let edges = build_edges(classes, &hierarchy, &methods);
-    CallGraph { edges }
+    let edges_duration_ms = edges_started_at.elapsed().as_millis();
+    let timings = CallGraphTimings {
+        hierarchy_duration_ms,
+        index_duration_ms,
+        edges_duration_ms,
+    };
+    (CallGraph { edges }, timings)
 }
 
 fn build_edges(
     classes: &[Class],
     hierarchy: &BTreeMap<String, Vec<String>>,
-    methods: &BTreeMap<MethodId, ()>,
-) -> BTreeSet<CallEdge> {
-    let mut edges = BTreeSet::new();
+    methods: &MethodIndex,
+) -> Vec<CallEdge> {
+    let estimated_edges = classes
+        .iter()
+        .map(|class| {
+            class
+                .methods
+                .iter()
+                .map(|method| method.calls.len())
+                .sum::<usize>()
+        })
+        .sum();
+    let mut edges = Vec::with_capacity(estimated_edges);
     for class in classes {
         for method in &class.methods {
-            let caller = MethodId {
-                class_name: class.name.clone(),
-                name: method.name.clone(),
-                descriptor: method.descriptor.clone(),
+            let Some(caller) =
+                lookup_method(methods, &class.name, &method.name, &method.descriptor)
+            else {
+                continue;
             };
             for call in &method.calls {
-                let targets = resolve_targets(call, hierarchy, methods);
-                for callee in targets {
-                    edges.insert(CallEdge {
-                        caller: caller.clone(),
-                        callee,
-                        kind: call.kind,
-                        offset: call.offset,
-                    });
+                match call.kind {
+                    CallKind::Static | CallKind::Special => {
+                        if let Some(callee) =
+                            lookup_method(methods, &call.owner, &call.name, &call.descriptor)
+                        {
+                            edges.push(CallEdge {
+                                caller: caller.clone(),
+                                callee,
+                                kind: call.kind,
+                                offset: call.offset,
+                            });
+                        }
+                    }
+                    CallKind::Virtual | CallKind::Interface => {
+                        if let Some(owner_candidate) =
+                            lookup_method(methods, &call.owner, &call.name, &call.descriptor)
+                        {
+                            edges.push(CallEdge {
+                                caller: caller.clone(),
+                                callee: owner_candidate,
+                                kind: call.kind,
+                                offset: call.offset,
+                            });
+                        }
+                        if let Some(descendants) = hierarchy.get(&call.owner) {
+                            for class_name in descendants {
+                                if let Some(candidate) =
+                                    lookup_method(methods, class_name, &call.name, &call.descriptor)
+                                {
+                                    edges.push(CallEdge {
+                                        caller: caller.clone(),
+                                        callee: candidate,
+                                        kind: call.kind,
+                                        offset: call.offset,
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+    edges.sort();
+    edges.dedup();
     edges
-}
-
-fn resolve_targets(
-    call: &CallSite,
-    hierarchy: &BTreeMap<String, Vec<String>>,
-    methods: &BTreeMap<MethodId, ()>,
-) -> Vec<MethodId> {
-    let mut targets = Vec::new();
-    let base = MethodId {
-        class_name: call.owner.clone(),
-        name: call.name.clone(),
-        descriptor: call.descriptor.clone(),
-    };
-    match call.kind {
-        CallKind::Static | CallKind::Special => {
-            if methods.contains_key(&base) {
-                targets.push(base);
-            }
-        }
-        CallKind::Virtual | CallKind::Interface => {
-            let mut candidates = vec![call.owner.clone()];
-            if let Some(descendants) = hierarchy.get(&call.owner) {
-                candidates.extend(descendants.iter().cloned());
-            }
-            candidates.sort();
-            candidates.dedup();
-            for class_name in candidates {
-                let candidate = MethodId {
-                    class_name,
-                    name: call.name.clone(),
-                    descriptor: call.descriptor.clone(),
-                };
-                if methods.contains_key(&candidate) {
-                    targets.push(candidate);
-                }
-            }
-        }
-    }
-    targets
 }
 
 fn build_hierarchy(classes: &[Class]) -> BTreeMap<String, Vec<String>> {
@@ -118,21 +141,40 @@ fn build_hierarchy(classes: &[Class]) -> BTreeMap<String, Vec<String>> {
     hierarchy
 }
 
-fn index_methods(classes: &[Class]) -> BTreeMap<MethodId, ()> {
-    let mut map = BTreeMap::new();
+type MethodIndex = HashMap<String, HashMap<String, HashMap<String, Arc<MethodId>>>>;
+
+fn index_methods(classes: &[Class]) -> MethodIndex {
+    let mut map = HashMap::new();
     for class in classes {
+        let class_entry = map.entry(class.name.clone()).or_insert_with(HashMap::new);
         for method in &class.methods {
-            map.insert(
-                MethodId {
+            let name_entry = class_entry
+                .entry(method.name.clone())
+                .or_insert_with(HashMap::new);
+            name_entry.insert(
+                method.descriptor.clone(),
+                Arc::new(MethodId {
                     class_name: class.name.clone(),
                     name: method.name.clone(),
                     descriptor: method.descriptor.clone(),
-                },
-                (),
+                }),
             );
         }
     }
     map
+}
+
+fn lookup_method(
+    methods: &MethodIndex,
+    class_name: &str,
+    method_name: &str,
+    descriptor: &str,
+) -> Option<Arc<MethodId>> {
+    methods
+        .get(class_name)
+        .and_then(|by_name| by_name.get(method_name))
+        .and_then(|by_descriptor| by_descriptor.get(descriptor))
+        .cloned()
 }
 
 #[cfg(test)]
@@ -210,7 +252,7 @@ mod tests {
             ),
         ];
 
-        let graph = build_call_graph(&classes);
+        let (graph, _) = build_call_graph_with_timings(&classes);
 
         assert!(!graph.edges.is_empty());
     }

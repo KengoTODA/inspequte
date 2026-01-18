@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde_sarif::sarif::Artifact;
 use serde_sarif::sarif::{MultiformatMessageString, ReportingDescriptor, Result as SarifResult};
 
-use crate::callgraph::{CallGraph, build_call_graph};
+use crate::callgraph::{CallGraph, build_call_graph_with_timings};
 use crate::classpath::ClasspathIndex;
 use crate::ir::Class;
 use crate::rules::{
@@ -30,6 +30,9 @@ pub(crate) struct AnalysisContext {
 pub(crate) struct ContextTimings {
     pub(crate) call_graph_duration_ms: u128,
     pub(crate) artifact_duration_ms: u128,
+    pub(crate) call_graph_hierarchy_duration_ms: u128,
+    pub(crate) call_graph_index_duration_ms: u128,
+    pub(crate) call_graph_edges_duration_ms: u128,
 }
 
 /// Analysis engine that executes configured rules.
@@ -102,7 +105,7 @@ pub(crate) fn build_context_with_timings(
     artifacts: &[Artifact],
 ) -> (AnalysisContext, ContextTimings) {
     let call_graph_started_at = Instant::now();
-    let call_graph = build_call_graph(&classes);
+    let (call_graph, call_graph_timings) = build_call_graph_with_timings(&classes);
     let call_graph_duration_ms = call_graph_started_at.elapsed().as_millis();
     let artifact_started_at = Instant::now();
     let (analysis_target_artifacts, artifact_parents, artifact_uris) = analyze_artifacts(artifacts);
@@ -110,6 +113,9 @@ pub(crate) fn build_context_with_timings(
     let timings = ContextTimings {
         call_graph_duration_ms,
         artifact_duration_ms,
+        call_graph_hierarchy_duration_ms: call_graph_timings.hierarchy_duration_ms,
+        call_graph_index_duration_ms: call_graph_timings.index_duration_ms,
+        call_graph_edges_duration_ms: call_graph_timings.edges_duration_ms,
     };
     let context = AnalysisContext {
         classes,

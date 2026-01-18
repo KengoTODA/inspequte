@@ -140,11 +140,20 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 
     if args.timing && !args.quiet {
         eprintln!(
-            "timing: total_ms={} scan_ms={} classpath_ms={} analysis_callgraph_ms={} analysis_artifact_ms={} analysis_rules_ms={} baseline_ms={} write_ms={} (classes={} artifacts={})",
+            "timing: total_ms={} scan_ms={} classpath_ms={} analysis_callgraph_ms={} analysis_callgraph_hierarchy_ms={} analysis_callgraph_index_ms={} analysis_callgraph_edges_ms={} analysis_artifact_ms={} analysis_rules_ms={} baseline_ms={} write_ms={} (classes={} artifacts={})",
             started_at.elapsed().as_millis(),
             analysis.invocation_stats.scan_duration_ms,
             analysis.invocation_stats.classpath_duration_ms,
             analysis.invocation_stats.analysis_call_graph_duration_ms,
+            analysis
+                .invocation_stats
+                .analysis_call_graph_hierarchy_duration_ms,
+            analysis
+                .invocation_stats
+                .analysis_call_graph_index_duration_ms,
+            analysis
+                .invocation_stats
+                .analysis_call_graph_edges_duration_ms,
             analysis.invocation_stats.analysis_artifact_duration_ms,
             analysis.invocation_stats.analysis_rules_duration_ms,
             baseline_duration_ms,
@@ -206,6 +215,9 @@ fn analyze(input: &Path, classpath: &[PathBuf]) -> Result<AnalysisOutput> {
         classpath_duration_ms,
         analysis_call_graph_duration_ms: context_timings.call_graph_duration_ms,
         analysis_artifact_duration_ms: context_timings.artifact_duration_ms,
+        analysis_call_graph_hierarchy_duration_ms: context_timings.call_graph_hierarchy_duration_ms,
+        analysis_call_graph_index_duration_ms: context_timings.call_graph_index_duration_ms,
+        analysis_call_graph_edges_duration_ms: context_timings.call_graph_edges_duration_ms,
         analysis_rules_duration_ms,
         class_count: scan.class_count,
         artifact_count,
@@ -238,6 +250,9 @@ struct InvocationStats {
     classpath_duration_ms: u128,
     analysis_call_graph_duration_ms: u128,
     analysis_artifact_duration_ms: u128,
+    analysis_call_graph_hierarchy_duration_ms: u128,
+    analysis_call_graph_index_duration_ms: u128,
+    analysis_call_graph_edges_duration_ms: u128,
     analysis_rules_duration_ms: u128,
     class_count: usize,
     artifact_count: usize,
@@ -259,6 +274,18 @@ fn build_invocation(stats: &InvocationStats) -> Invocation {
     properties.insert(
         "inspequte.analysis_callgraph_ms".to_string(),
         json!(stats.analysis_call_graph_duration_ms),
+    );
+    properties.insert(
+        "inspequte.analysis_callgraph_hierarchy_ms".to_string(),
+        json!(stats.analysis_call_graph_hierarchy_duration_ms),
+    );
+    properties.insert(
+        "inspequte.analysis_callgraph_index_ms".to_string(),
+        json!(stats.analysis_call_graph_index_duration_ms),
+    );
+    properties.insert(
+        "inspequte.analysis_callgraph_edges_ms".to_string(),
+        json!(stats.analysis_call_graph_edges_duration_ms),
     );
     properties.insert(
         "inspequte.analysis_artifact_ms".to_string(),
@@ -380,6 +407,9 @@ mod tests {
             classpath_duration_ms: 0,
             analysis_call_graph_duration_ms: 0,
             analysis_artifact_duration_ms: 0,
+            analysis_call_graph_hierarchy_duration_ms: 0,
+            analysis_call_graph_index_duration_ms: 0,
+            analysis_call_graph_edges_duration_ms: 0,
             analysis_rules_duration_ms: 0,
             class_count: 0,
             artifact_count: 0,

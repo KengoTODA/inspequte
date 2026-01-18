@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Arc;
 
 use anyhow::Result;
 use serde_sarif::sarif::Result as SarifResult;
@@ -29,11 +30,11 @@ impl Rule for DeadCodeRule {
                 continue;
             }
             for method in &class.methods {
-                let id = MethodId {
+                let id = Arc::new(MethodId {
                     class_name: class.name.clone(),
                     name: method.name.clone(),
                     descriptor: method.descriptor.clone(),
-                };
+                });
                 let artifact_uri = context.class_artifact_uri(class);
                 method_map.insert(id.clone(), (class.name.clone(), method, artifact_uri));
                 if is_entry_method(method) {
@@ -82,8 +83,8 @@ impl Rule for DeadCodeRule {
 }
 
 fn build_adjacency(
-    edges: &BTreeSet<crate::callgraph::CallEdge>,
-) -> BTreeMap<MethodId, Vec<MethodId>> {
+    edges: &[crate::callgraph::CallEdge],
+) -> BTreeMap<Arc<MethodId>, Vec<Arc<MethodId>>> {
     let mut adjacency = BTreeMap::new();
     for edge in edges {
         adjacency
@@ -95,9 +96,9 @@ fn build_adjacency(
 }
 
 fn walk_graph(
-    entries: &[MethodId],
-    adjacency: &BTreeMap<MethodId, Vec<MethodId>>,
-) -> BTreeSet<MethodId> {
+    entries: &[Arc<MethodId>],
+    adjacency: &BTreeMap<Arc<MethodId>, Vec<Arc<MethodId>>>,
+) -> BTreeSet<Arc<MethodId>> {
     let mut visited = BTreeSet::new();
     let mut queue = VecDeque::new();
     for entry in entries {
