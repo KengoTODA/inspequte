@@ -17,7 +17,7 @@ pub(crate) struct Slf4jPlaceholderMismatchRule;
 impl Rule for Slf4jPlaceholderMismatchRule {
     fn metadata(&self) -> RuleMetadata {
         RuleMetadata {
-            id: "SLF4J_PLACE_HOLDER_MISMATCH",
+            id: "SLF4J_PLACEHOLDER_MISMATCH",
             name: "SLF4J placeholder mismatch",
             description: "SLF4J placeholder count does not match arguments",
         }
@@ -292,7 +292,7 @@ mod tests {
         output
             .results
             .iter()
-            .filter(|result| result.rule_id.as_deref() == Some("SLF4J_PLACE_HOLDER_MISMATCH"))
+            .filter(|result| result.rule_id.as_deref() == Some("SLF4J_PLACEHOLDER_MISMATCH"))
             .filter_map(|result| result.message.text.clone())
             .collect()
     }
