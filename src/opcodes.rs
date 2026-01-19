@@ -1,6 +1,15 @@
 /// JVM opcode constants shared across analysis rules.
 pub(crate) const NOP: u8 = 0x00;
 pub(crate) const ACONST_NULL: u8 = 0x01;
+pub(crate) const ICONST_M1: u8 = 0x02;
+pub(crate) const ICONST_0: u8 = 0x03;
+pub(crate) const ICONST_1: u8 = 0x04;
+pub(crate) const ICONST_2: u8 = 0x05;
+pub(crate) const ICONST_3: u8 = 0x06;
+pub(crate) const ICONST_4: u8 = 0x07;
+pub(crate) const ICONST_5: u8 = 0x08;
+pub(crate) const BIPUSH: u8 = 0x10;
+pub(crate) const SIPUSH: u8 = 0x11;
 pub(crate) const GOTO: u8 = 0xa7;
 pub(crate) const JSR: u8 = 0xa8;
 pub(crate) const GOTO_W: u8 = 0xc8;
@@ -24,6 +33,7 @@ pub(crate) const ASTORE_2: u8 = 0x4d;
 pub(crate) const ASTORE_3: u8 = 0x4e;
 pub(crate) const POP: u8 = 0x57;
 pub(crate) const DUP: u8 = 0x59;
+pub(crate) const AASTORE: u8 = 0x53;
 pub(crate) const IF_ACMPEQ: u8 = 0xa5;
 pub(crate) const IF_ACMPNE: u8 = 0xa6;
 pub(crate) const NEW: u8 = 0xbb;

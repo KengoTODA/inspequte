@@ -62,6 +62,13 @@
               "shortDescription": {
                 "text": "Records should not use array-typed components"
               }
+            },
+            {
+              "id": "SLF4J_PLACEHOLDER_MISMATCH",
+              "name": "SLF4J placeholder mismatch",
+              "shortDescription": {
+                "text": "SLF4J placeholder count does not match arguments"
+              }
             }
           ]
         }

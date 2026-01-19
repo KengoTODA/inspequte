@@ -49,6 +49,8 @@ impl Rule for Slf4jPlaceholderMismatchRule {
 enum ValueKind {
     Unknown,
     FormatString { placeholders: usize },
+    IntConst { value: usize },
+    Array { len: Option<usize> },
 }
 
 fn analyze_method(
@@ -78,6 +80,38 @@ fn analyze_method(
         let opcode = method.bytecode[offset];
         match opcode {
             opcodes::ACONST_NULL => stack.push(ValueKind::Unknown),
+            opcodes::ICONST_M1 => stack.push(ValueKind::Unknown),
+            opcodes::ICONST_0
+            | opcodes::ICONST_1
+            | opcodes::ICONST_2
+            | opcodes::ICONST_3
+            | opcodes::ICONST_4
+            | opcodes::ICONST_5 => {
+                let value = (opcode - opcodes::ICONST_0) as usize;
+                stack.push(ValueKind::IntConst { value });
+            }
+            opcodes::BIPUSH => {
+                let value = method.bytecode.get(offset + 1).copied().unwrap_or(0) as i8 as i32;
+                if value >= 0 {
+                    stack.push(ValueKind::IntConst {
+                        value: value as usize,
+                    });
+                } else {
+                    stack.push(ValueKind::Unknown);
+                }
+            }
+            opcodes::SIPUSH => {
+                let high = method.bytecode.get(offset + 1).copied().unwrap_or(0);
+                let low = method.bytecode.get(offset + 2).copied().unwrap_or(0);
+                let value = i16::from_be_bytes([high, low]) as i32;
+                if value >= 0 {
+                    stack.push(ValueKind::IntConst {
+                        value: value as usize,
+                    });
+                } else {
+                    stack.push(ValueKind::Unknown);
+                }
+            }
             opcodes::ALOAD => {
                 let index = method.bytecode.get(offset + 1).copied().unwrap_or(0) as usize;
                 ensure_local(&mut locals, index);
@@ -113,6 +147,19 @@ fn analyze_method(
                 if let Some(value) = stack.last().copied() {
                     stack.push(value);
                 }
+            }
+            opcodes::NEWARRAY | opcodes::ANEWARRAY => {
+                let count = stack.pop().unwrap_or(ValueKind::Unknown);
+                let len = match count {
+                    ValueKind::IntConst { value } => Some(value),
+                    _ => None,
+                };
+                stack.push(ValueKind::Array { len });
+            }
+            opcodes::AASTORE => {
+                stack.pop();
+                stack.pop();
+                stack.pop();
             }
             opcodes::POP => {
                 stack.pop();
@@ -203,6 +250,7 @@ fn is_slf4j_logger_call(call: &crate::ir::CallSite) -> bool {
     )
 }
 
+/// Placeholder/argument count mismatch details.
 struct PlaceholderMismatch {
     expected: usize,
     found: usize,
@@ -222,23 +270,34 @@ fn placeholder_mismatch(
     }
     let format = match args.get(0).copied().unwrap_or(ValueKind::Unknown) {
         ValueKind::FormatString { placeholders } => placeholders,
-        ValueKind::Unknown => return None,
+        ValueKind::Unknown | ValueKind::IntConst { .. } | ValueKind::Array { .. } => return None,
     };
+
+    if param_types.len() == 2 {
+        if let jdescriptor::TypeDescriptor::Array(inner, _) = &param_types[1] {
+            if matches!(inner.as_ref(), jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "java/lang/Object")
+            {
+                let arg_count = match args.get(1).copied().unwrap_or(ValueKind::Unknown) {
+                    ValueKind::Array { len: Some(len) } => len,
+                    _ => return None,
+                };
+                return if format == arg_count {
+                    None
+                } else {
+                    Some(PlaceholderMismatch {
+                        expected: format,
+                        found: arg_count,
+                    })
+                };
+            }
+        }
+    }
 
     let mut arg_count = param_types.len().saturating_sub(1);
     if let Some(last_param) = param_types.last() {
         if matches!(last_param, jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "java/lang/Throwable")
         {
             arg_count = arg_count.saturating_sub(1);
-        }
-    }
-
-    if param_types.len() == 2 {
-        if let jdescriptor::TypeDescriptor::Array(inner, _) = &param_types[1] {
-            if matches!(inner.as_ref(), jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "java/lang/Object")
-            {
-                return None;
-            }
         }
     }
 
@@ -281,7 +340,6 @@ fn count_placeholders(text: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
     fn analyze_sources(sources: Vec<SourceFile>) -> Vec<String> {
@@ -365,5 +423,30 @@ public class Runner {
         let messages = analyze_sources(sources);
 
         assert!(messages.is_empty());
+    }
+
+    #[test]
+    fn slf4j_placeholder_mismatch_handles_varargs() {
+        let sources = slf4j_sources(
+            r#"
+package com.example;
+import org.slf4j.Logger;
+public class Runner {
+    private final Logger logger;
+    public Runner(Logger logger) {
+        this.logger = logger;
+    }
+    public void run() {
+        logger.info("Varargs {} {} {}", "one", "two", "three");
+        logger.info("Mismatch {} {}", "one", "two", "three");
+    }
+}
+"#,
+        );
+
+        let messages = analyze_sources(sources);
+
+        assert_eq!(messages.len(), 1);
+        assert!(messages.iter().any(|msg| msg.contains("expected 2")));
     }
 }
