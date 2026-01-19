@@ -13,6 +13,8 @@ use crate::rules::{
     empty_catch::EmptyCatchRule, ineffective_equals::IneffectiveEqualsRule,
     insecure_api::InsecureApiRule, nullness::NullnessRule,
     record_array_field::RecordArrayFieldRule,
+    slf4j_format_should_be_const::Slf4jFormatShouldBeConstRule,
+    slf4j_place_holder_mismatch::Slf4jPlaceHolderMismatchRule,
 };
 
 /// Inputs shared by analysis rules.
@@ -50,6 +52,8 @@ impl Engine {
             Box::new(InsecureApiRule),
             Box::new(IneffectiveEqualsRule),
             Box::new(RecordArrayFieldRule),
+            Box::new(Slf4jFormatShouldBeConstRule),
+            Box::new(Slf4jPlaceHolderMismatchRule),
         ];
         rules.sort_by(|a, b| a.metadata().id.cmp(b.metadata().id));
         Self { rules }

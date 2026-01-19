@@ -62,6 +62,20 @@
               "shortDescription": {
                 "text": "Records should not use array-typed components"
               }
+            },
+            {
+              "id": "SLF4J_FORMAT_SHOULD_BE_CONST",
+              "name": "SLF4J format should be constant",
+              "shortDescription": {
+                "text": "SLF4J format string should be a constant literal"
+              }
+            },
+            {
+              "id": "SLF4J_PLACE_HOLDER_MISMATCH",
+              "name": "SLF4J placeholder mismatch",
+              "shortDescription": {
+                "text": "SLF4J placeholder count mismatches argument count"
+              }
             }
           ]
         }
