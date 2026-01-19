@@ -263,21 +263,36 @@ fn placeholder_mismatch(
     if param_types.is_empty() || args.is_empty() {
         return None;
     }
-    let first_param = &param_types[0];
-    let is_string = matches!(first_param, jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "java/lang/String");
+    let mut format_index = 0usize;
+    if let Some(first_param) = param_types.first() {
+        if matches!(first_param, jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "org/slf4j/Marker")
+        {
+            format_index = 1;
+        }
+    }
+    let format_param = param_types.get(format_index)?;
+    let is_string = matches!(format_param, jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "java/lang/String");
     if !is_string {
         return None;
     }
-    let format = match args.get(0).copied().unwrap_or(ValueKind::Unknown) {
+    let format = match args
+        .get(format_index)
+        .copied()
+        .unwrap_or(ValueKind::Unknown)
+    {
         ValueKind::FormatString { placeholders } => placeholders,
         ValueKind::Unknown | ValueKind::IntConst { .. } | ValueKind::Array { .. } => return None,
     };
 
-    if param_types.len() == 2 {
-        if let jdescriptor::TypeDescriptor::Array(inner, _) = &param_types[1] {
+    if param_types.len() == format_index + 2 {
+        if let jdescriptor::TypeDescriptor::Array(inner, _) = &param_types[format_index + 1] {
             if matches!(inner.as_ref(), jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "java/lang/Object")
             {
-                let arg_count = match args.get(1).copied().unwrap_or(ValueKind::Unknown) {
+                let arg_count = match args
+                    .get(format_index + 1)
+                    .copied()
+                    .unwrap_or(ValueKind::Unknown)
+                {
                     ValueKind::Array { len: Some(len) } => len,
                     _ => return None,
                 };
@@ -293,7 +308,7 @@ fn placeholder_mismatch(
         }
     }
 
-    let mut arg_count = param_types.len().saturating_sub(1);
+    let mut arg_count = param_types.len().saturating_sub(format_index + 1);
     if let Some(last_param) = param_types.last() {
         if matches!(last_param, jdescriptor::TypeDescriptor::Object(class) if class.as_str() == "java/lang/Throwable")
         {
@@ -358,6 +373,14 @@ mod tests {
     fn slf4j_sources(contents: &str) -> Vec<SourceFile> {
         vec![
             SourceFile {
+                path: "org/slf4j/Marker.java".to_string(),
+                contents: r#"
+package org.slf4j;
+public interface Marker {}
+"#
+                .to_string(),
+            },
+            SourceFile {
                 path: "org/slf4j/Logger.java".to_string(),
                 contents: r#"
 package org.slf4j;
@@ -367,6 +390,11 @@ public interface Logger {
     void info(String format, Object arg1, Object arg2);
     void info(String format, Object... args);
     void info(String msg, Throwable t);
+    void debug(Marker marker, String msg);
+    void debug(Marker marker, String format, Object arg);
+    void debug(Marker marker, String format, Object arg1, Object arg2);
+    void debug(Marker marker, String format, Object... args);
+    void debug(Marker marker, String msg, Throwable t);
 }
 "#
                 .to_string(),
@@ -448,5 +476,60 @@ public class Runner {
 
         assert_eq!(messages.len(), 1);
         assert!(messages.iter().any(|msg| msg.contains("expected 2")));
+    }
+
+    #[test]
+    fn slf4j_placeholder_mismatch_handles_marker_varargs() {
+        let sources = slf4j_sources(
+            r#"
+package com.example;
+import org.slf4j.Logger;
+import org.slf4j.Marker;
+public class Runner {
+    private final Logger logger;
+    private final Marker marker;
+    public Runner(Logger logger, Marker marker) {
+        this.logger = logger;
+        this.marker = marker;
+    }
+    public void run() {
+        logger.debug(marker, "Marker {} {}", "one", "two");
+        logger.debug(marker, "Marker {} {}", "one", "two", "three");
+    }
+}
+"#,
+        );
+
+        let messages = analyze_sources(sources);
+
+        assert_eq!(messages.len(), 1);
+        assert!(messages.iter().any(|msg| msg.contains("expected 2")));
+    }
+
+    #[test]
+    fn slf4j_placeholder_mismatch_allows_marker_matched_and_throwable() {
+        let sources = slf4j_sources(
+            r#"
+package com.example;
+import org.slf4j.Logger;
+import org.slf4j.Marker;
+public class Runner {
+    private final Logger logger;
+    private final Marker marker;
+    public Runner(Logger logger, Marker marker) {
+        this.logger = logger;
+        this.marker = marker;
+    }
+    public void run() {
+        logger.debug(marker, "Marker {} {}", "one", "two");
+        logger.debug(marker, "Marker {}", "one", new RuntimeException("boom"));
+    }
+}
+"#,
+        );
+
+        let messages = analyze_sources(sources);
+
+        assert!(messages.is_empty());
     }
 }
