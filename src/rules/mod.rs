@@ -13,6 +13,7 @@ pub(crate) mod ineffective_equals;
 pub(crate) mod insecure_api;
 pub(crate) mod nullness;
 pub(crate) mod record_array_field;
+pub(crate) mod slf4j_placeholder_mismatch;
 
 /// Metadata describing an analysis rule.
 #[derive(Clone, Debug)]
