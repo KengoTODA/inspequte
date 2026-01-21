@@ -20,10 +20,14 @@ serde-sarif = "0.8.0"
 serde_json = "1"
 zip = "7.1.0"
 jsonschema = "0.17.1"
+opentelemetry = "0.31.0"
+opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace"] }
+opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
 
 [dev-dependencies]
 ureq = "=3.1.4"
 tempfile = "=3.23.0"
+testcontainers = { version = "0.26.3", features = ["blocking"] }
 
 [[bin]]
 name = "inspequte"

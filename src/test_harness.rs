@@ -8,6 +8,7 @@ use tempfile::TempDir;
 use crate::classpath::resolve_classpath;
 use crate::engine::{Engine, EngineOutput, build_context};
 use crate::scan::scan_inputs;
+use crate::telemetry::Telemetry;
 
 /// Supported JVM source languages for the harness.
 #[allow(dead_code)]
@@ -111,11 +112,12 @@ impl JvmTestHarness {
         classes_dir: &Path,
         classpath: &[PathBuf],
     ) -> Result<EngineOutput> {
-        let scan = scan_inputs(classes_dir, classpath).context("scan classes")?;
+        let telemetry = Telemetry::disabled();
+        let scan = scan_inputs(classes_dir, classpath, &telemetry).context("scan classes")?;
         let classpath_index = resolve_classpath(&scan.classes).context("resolve classpath")?;
         let context = build_context(scan.classes, classpath_index, &scan.artifacts);
         let engine = Engine::new();
-        engine.analyze(context).context("run analysis")
+        engine.analyze(context, &telemetry).context("run analysis")
     }
 
     pub(crate) fn compile_and_analyze(

@@ -8,6 +8,7 @@ mod ir;
 mod opcodes;
 mod rules;
 mod scan;
+mod telemetry;
 #[cfg(test)]
 mod test_harness;
 
@@ -20,6 +21,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use jsonschema::JSONSchema;
+use opentelemetry::KeyValue;
 use serde_json::json;
 use serde_sarif::sarif::Result as SarifResult;
 use serde_sarif::sarif::{
@@ -31,6 +33,7 @@ use crate::baseline::{load_baseline, write_baseline};
 use crate::classpath::resolve_classpath;
 use crate::engine::{Engine, build_context_with_timings};
 use crate::scan::scan_inputs;
+use crate::telemetry::Telemetry;
 
 const DEFAULT_BASELINE_PATH: &str = ".inspequte/baseline.json";
 
@@ -110,9 +113,18 @@ fn run(cli: Cli) -> Result<()> {
 fn run_scan(args: ScanArgs) -> Result<()> {
     ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
 
+    let telemetry = Telemetry::new().context("initialize telemetry")?;
+    let _execution_span = telemetry.span(
+        "inspequte.execution",
+        vec![
+            KeyValue::new("inspequte.command", "scan"),
+            KeyValue::new("inspequte.input", args.input.input.display().to_string()),
+        ],
+    );
     let started_at = Instant::now();
-    let mut analysis = analyze(&args.input.input, &args.input.classpath)?;
+    let mut analysis = analyze(&args.input.input, &args.input.classpath, &telemetry)?;
     let baseline_started_at = Instant::now();
+    let _baseline_span = telemetry.span("inspequte.baseline.filter", Vec::new());
     if let Some(baseline) = load_baseline(&args.baseline)? {
         analysis.results = baseline.filter(analysis.results);
     }
@@ -130,6 +142,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
     }
 
     let write_started_at = Instant::now();
+    let _write_span = telemetry.span("inspequte.write_sarif", Vec::new());
     let mut writer = output_writer(args.output.as_deref())?;
     serde_json::to_writer_pretty(&mut writer, &sarif)
         .context("failed to serialize SARIF output")?;
@@ -163,13 +176,23 @@ fn run_scan(args: ScanArgs) -> Result<()> {
         );
     }
 
+    telemetry.shutdown();
     Ok(())
 }
 
 fn run_baseline(args: BaselineArgs) -> Result<()> {
     ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
-    let analysis = analyze(&args.input.input, &args.input.classpath)?;
+    let telemetry = Telemetry::new().context("initialize telemetry")?;
+    let _execution_span = telemetry.span(
+        "inspequte.execution",
+        vec![
+            KeyValue::new("inspequte.command", "baseline"),
+            KeyValue::new("inspequte.input", args.input.input.display().to_string()),
+        ],
+    );
+    let analysis = analyze(&args.input.input, &args.input.classpath, &telemetry)?;
     write_baseline(&args.output, &analysis.results)?;
+    telemetry.shutdown();
     Ok(())
 }
 
@@ -193,22 +216,37 @@ struct AnalysisOutput {
     results: Vec<SarifResult>,
 }
 
-fn analyze(input: &Path, classpath: &[PathBuf]) -> Result<AnalysisOutput> {
+fn analyze(input: &Path, classpath: &[PathBuf], telemetry: &Telemetry) -> Result<AnalysisOutput> {
     let scan_started_at = Instant::now();
-    let scan = scan_inputs(input, classpath)?;
+    let _scan_span = telemetry.span(
+        "inspequte.scan_inputs",
+        vec![KeyValue::new(
+            "inspequte.input",
+            input.display().to_string(),
+        )],
+    );
+    let scan = scan_inputs(input, classpath, telemetry)?;
     let scan_duration_ms = scan_started_at.elapsed().as_millis();
     let artifact_count = scan.artifacts.len();
     let classpath_started_at = Instant::now();
+    let _classpath_span = telemetry.span(
+        "inspequte.resolve_classpath",
+        vec![KeyValue::new(
+            "inspequte.classpath.count",
+            classpath.len() as i64,
+        )],
+    );
     let classpath_index = resolve_classpath(&scan.classes)?;
     let classpath_duration_ms = classpath_started_at.elapsed().as_millis();
     let classpath_class_count = classpath_index.classes.len();
     let artifacts = scan.artifacts;
     let classes = scan.classes;
     let (context, context_timings) =
-        build_context_with_timings(classes, classpath_index, &artifacts);
+        build_context_with_timings(classes, classpath_index, &artifacts, telemetry);
     let analysis_rules_started_at = Instant::now();
+    let _rules_span = telemetry.span("inspequte.analyze_rules", Vec::new());
     let engine = Engine::new();
-    let analysis = engine.analyze(context)?;
+    let analysis = engine.analyze(context, telemetry)?;
     let analysis_rules_duration_ms = analysis_rules_started_at.elapsed().as_millis();
     let invocation_stats = InvocationStats {
         scan_duration_ms,
@@ -399,6 +437,7 @@ mod tests {
     use crate::classpath::resolve_classpath;
     use crate::engine::{Engine, build_context};
     use crate::scan::scan_inputs;
+    use crate::telemetry::Telemetry;
 
     #[test]
     fn sarif_is_minimal_and_valid_shape() {
@@ -453,12 +492,13 @@ mod tests {
         fs::write(temp_dir.join("A.class"), class_a).expect("write A.class");
         fs::write(temp_dir.join("B.class"), class_b).expect("write B.class");
 
-        let scan = scan_inputs(&temp_dir, &[]).expect("scan classes");
+        let telemetry = Telemetry::disabled();
+        let scan = scan_inputs(&temp_dir, &[], &telemetry).expect("scan classes");
         let classpath = resolve_classpath(&scan.classes).expect("resolve classpath");
         let artifacts = scan.artifacts.clone();
         let context = build_context(scan.classes.clone(), classpath, &artifacts);
         let engine = Engine::new();
-        let analysis = engine.analyze(context).expect("analysis");
+        let analysis = engine.analyze(context, &telemetry).expect("analysis");
         let invocation = Invocation::builder()
             .execution_successful(true)
             .arguments(Vec::<String>::new())

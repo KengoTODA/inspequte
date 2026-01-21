@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
 use anyhow::Result;
+use opentelemetry::KeyValue;
 use serde_sarif::sarif::Artifact;
 use serde_sarif::sarif::{MultiformatMessageString, ReportingDescriptor, Result as SarifResult};
 
@@ -15,6 +16,7 @@ use crate::rules::{
     record_array_field::RecordArrayFieldRule,
     slf4j_placeholder_mismatch::Slf4jPlaceholderMismatchRule,
 };
+use crate::telemetry::Telemetry;
 
 /// Inputs shared by analysis rules.
 pub(crate) struct AnalysisContext {
@@ -57,13 +59,24 @@ impl Engine {
         Self { rules }
     }
 
-    pub(crate) fn analyze(&self, context: AnalysisContext) -> Result<EngineOutput> {
+    pub(crate) fn analyze(
+        &self,
+        context: AnalysisContext,
+        telemetry: &Telemetry,
+    ) -> Result<EngineOutput> {
         let mut rules = Vec::new();
         let mut results = Vec::new();
 
         for rule in &self.rules {
             let metadata = rule.metadata();
             rules.push(rule_descriptor(&metadata));
+            let _rule_span = telemetry.span(
+                "inspequte.analysis.rule",
+                vec![
+                    KeyValue::new("inspequte.rule_id", metadata.id),
+                    KeyValue::new("inspequte.rule_name", metadata.name),
+                ],
+            );
             let mut rule_results = rule.run(&context)?;
             for result in &mut rule_results {
                 if result.rule_id.is_none() {
@@ -97,7 +110,8 @@ pub(crate) fn build_context(
     classpath: ClasspathIndex,
     artifacts: &[Artifact],
 ) -> AnalysisContext {
-    let (context, _) = build_context_with_timings(classes, classpath, artifacts);
+    let telemetry = Telemetry::disabled();
+    let (context, _) = build_context_with_timings(classes, classpath, artifacts, &telemetry);
     context
 }
 
@@ -105,11 +119,17 @@ pub(crate) fn build_context_with_timings(
     classes: Vec<Class>,
     classpath: ClasspathIndex,
     artifacts: &[Artifact],
+    telemetry: &Telemetry,
 ) -> (AnalysisContext, ContextTimings) {
     let call_graph_started_at = Instant::now();
-    let (call_graph, call_graph_timings) = build_call_graph_with_timings(&classes);
+    let _call_graph_span = telemetry.span(
+        "inspequte.analysis.call_graph",
+        vec![KeyValue::new("inspequte.class_count", classes.len() as i64)],
+    );
+    let (call_graph, call_graph_timings) = build_call_graph_with_timings(&classes, telemetry);
     let call_graph_duration_ms = call_graph_started_at.elapsed().as_millis();
     let artifact_started_at = Instant::now();
+    let _artifact_span = telemetry.span("inspequte.analysis.artifacts", Vec::new());
     let (analysis_target_artifacts, artifact_parents, artifact_uris) = analyze_artifacts(artifacts);
     let artifact_duration_ms = artifact_started_at.elapsed().as_millis();
     let timings = ContextTimings {

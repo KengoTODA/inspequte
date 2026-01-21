@@ -2,7 +2,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Instant;
 
+use opentelemetry::KeyValue;
+
 use crate::ir::{CallKind, Class};
+use crate::telemetry::Telemetry;
 
 /// Unique identifier for a method in the classpath.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -34,14 +37,29 @@ pub(crate) struct CallGraphTimings {
     pub(crate) edges_duration_ms: u128,
 }
 
-pub(crate) fn build_call_graph_with_timings(classes: &[Class]) -> (CallGraph, CallGraphTimings) {
+pub(crate) fn build_call_graph_with_timings(
+    classes: &[Class],
+    telemetry: &Telemetry,
+) -> (CallGraph, CallGraphTimings) {
     let hierarchy_started_at = Instant::now();
+    let _hierarchy_span = telemetry.span(
+        "inspequte.analysis.call_graph.hierarchy",
+        vec![KeyValue::new("inspequte.class_count", classes.len() as i64)],
+    );
     let hierarchy = build_hierarchy(classes);
     let hierarchy_duration_ms = hierarchy_started_at.elapsed().as_millis();
     let index_started_at = Instant::now();
+    let _index_span = telemetry.span(
+        "inspequte.analysis.call_graph.index",
+        vec![KeyValue::new("inspequte.class_count", classes.len() as i64)],
+    );
     let methods = index_methods(classes);
     let index_duration_ms = index_started_at.elapsed().as_millis();
     let edges_started_at = Instant::now();
+    let _edges_span = telemetry.span(
+        "inspequte.analysis.call_graph.edges",
+        vec![KeyValue::new("inspequte.class_count", classes.len() as i64)],
+    );
     let edges = build_edges(classes, &hierarchy, &methods);
     let edges_duration_ms = edges_started_at.elapsed().as_millis();
     let timings = CallGraphTimings {
@@ -181,6 +199,7 @@ fn lookup_method(
 mod tests {
     use super::*;
     use crate::ir::{CallSite, Method, MethodAccess, MethodNullness};
+    use crate::telemetry::Telemetry;
 
     fn class_with_method(name: &str, super_name: Option<&str>, method: &Method) -> Class {
         Class {
@@ -252,7 +271,8 @@ mod tests {
             ),
         ];
 
-        let (graph, _) = build_call_graph_with_timings(&classes);
+        let telemetry = Telemetry::disabled();
+        let (graph, _) = build_call_graph_with_timings(&classes, &telemetry);
 
         assert!(!graph.edges.is_empty());
     }
