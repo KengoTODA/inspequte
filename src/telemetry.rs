@@ -255,7 +255,7 @@ fn span_to_json(span: &SpanData) -> Result<SpanDataJson> {
         span_id,
         parent_span_id,
         name: span.name.to_string(),
-        kind: span_kind_to_string(span.span_kind),
+        kind: span_kind_to_string(&span.span_kind),
         start_time_unix_nano,
         end_time_unix_nano,
         attributes,
@@ -320,7 +320,7 @@ fn system_time_to_nanos(time: SystemTime) -> Result<String> {
     Ok(nanos.to_string())
 }
 
-fn span_kind_to_string(kind: SpanKind) -> String {
+fn span_kind_to_string(kind: &SpanKind) -> String {
     match kind {
         SpanKind::Internal => "SPAN_KIND_INTERNAL",
         SpanKind::Server => "SPAN_KIND_SERVER",
