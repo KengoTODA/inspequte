@@ -201,6 +201,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 
     if let Some(telemetry) = telemetry {
         if let Err(err) = telemetry.shutdown() {
+            eprintln!("telemetry shutdown failed: {err:?}");
             if result.is_ok() {
                 return Err(err);
             }
@@ -223,6 +224,7 @@ fn run_baseline(args: BaselineArgs) -> Result<()> {
     });
     if let Some(telemetry) = telemetry {
         if let Err(err) = telemetry.shutdown() {
+            eprintln!("telemetry shutdown failed: {err:?}");
             if result.is_ok() {
                 return Err(err);
             }
