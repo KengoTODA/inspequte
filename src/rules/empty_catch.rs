@@ -21,39 +21,45 @@ impl Rule for EmptyCatchRule {
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
         let mut results = Vec::new();
         for class in &context.classes {
-            for method in &class.methods {
-                for handler in &method.exception_handlers {
-                    let Some(block) = method
-                        .cfg
-                        .blocks
-                        .iter()
-                        .find(|block| block.start_offset == handler.handler_pc)
-                    else {
-                        continue;
-                    };
-                    if is_empty_handler(block.instructions.as_slice()) {
-                        let message = result_message(format!(
-                            "Empty catch block in {}.{}{}",
-                            class.name, method.name, method.descriptor
-                        ));
-                        let line = method.line_for_offset(handler.handler_pc);
-                        let artifact_uri = context.class_artifact_uri(class);
-                        let location = method_location_with_line(
-                            &class.name,
-                            &method.name,
-                            &method.descriptor,
-                            artifact_uri.as_deref(),
-                            line,
-                        );
-                        results.push(
-                            SarifResult::builder()
-                                .message(message)
-                                .locations(vec![location])
-                                .build(),
-                        );
+            let class_results =
+                context.with_class_span(class, || -> Result<Vec<SarifResult>> {
+                    let mut class_results = Vec::new();
+                    for method in &class.methods {
+                        for handler in &method.exception_handlers {
+                            let Some(block) = method
+                                .cfg
+                                .blocks
+                                .iter()
+                                .find(|block| block.start_offset == handler.handler_pc)
+                            else {
+                                continue;
+                            };
+                            if is_empty_handler(block.instructions.as_slice()) {
+                                let message = result_message(format!(
+                                    "Empty catch block in {}.{}{}",
+                                    class.name, method.name, method.descriptor
+                                ));
+                                let line = method.line_for_offset(handler.handler_pc);
+                                let artifact_uri = context.class_artifact_uri(class);
+                                let location = method_location_with_line(
+                                    &class.name,
+                                    &method.name,
+                                    &method.descriptor,
+                                    artifact_uri.as_deref(),
+                                    line,
+                                );
+                                class_results.push(
+                                    SarifResult::builder()
+                                        .message(message)
+                                        .locations(vec![location])
+                                        .build(),
+                                );
+                            }
+                        }
                     }
-                }
-            }
+                    Ok(class_results)
+                })?;
+            results.extend(class_results);
         }
         Ok(results)
     }

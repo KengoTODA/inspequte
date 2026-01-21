@@ -29,18 +29,20 @@ impl Rule for DeadCodeRule {
             if !context.is_analysis_target_class(class) {
                 continue;
             }
-            for method in &class.methods {
-                let id = Arc::new(MethodId {
-                    class_name: class.name.clone(),
-                    name: method.name.clone(),
-                    descriptor: method.descriptor.clone(),
-                });
-                let artifact_uri = context.class_artifact_uri(class);
-                method_map.insert(id.clone(), (class.name.clone(), method, artifact_uri));
-                if is_entry_method(method) {
-                    entry_points.push(id);
+            context.with_class_span(class, || {
+                for method in &class.methods {
+                    let id = Arc::new(MethodId {
+                        class_name: class.name.clone(),
+                        name: method.name.clone(),
+                        descriptor: method.descriptor.clone(),
+                    });
+                    let artifact_uri = context.class_artifact_uri(class);
+                    method_map.insert(id.clone(), (class.name.clone(), method, artifact_uri));
+                    if is_entry_method(method) {
+                        entry_points.push(id);
+                    }
                 }
-            }
+            });
         }
 
         if entry_points.is_empty() {

@@ -19,36 +19,42 @@ impl Rule for IneffectiveEqualsRule {
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
         let mut results = Vec::new();
         for class in &context.classes {
-            let mut has_equals = false;
-            let mut has_hashcode = false;
-            for method in &class.methods {
-                if method.name == "equals" && method.descriptor == "(Ljava/lang/Object;)Z" {
-                    has_equals = true;
-                }
-                if method.name == "hashCode" && method.descriptor == "()I" {
-                    has_hashcode = true;
-                }
-            }
-            if has_equals ^ has_hashcode {
-                let message = if has_equals {
-                    result_message(format!(
-                        "Class {} overrides equals without hashCode",
-                        class.name
-                    ))
-                } else {
-                    result_message(format!(
-                        "Class {} overrides hashCode without equals",
-                        class.name
-                    ))
-                };
-                let location = class_location(&class.name);
-                results.push(
-                    SarifResult::builder()
-                        .message(message)
-                        .locations(vec![location])
-                        .build(),
-                );
-            }
+            let class_results =
+                context.with_class_span(class, || -> Result<Vec<SarifResult>> {
+                    let mut class_results = Vec::new();
+                    let mut has_equals = false;
+                    let mut has_hashcode = false;
+                    for method in &class.methods {
+                        if method.name == "equals" && method.descriptor == "(Ljava/lang/Object;)Z" {
+                            has_equals = true;
+                        }
+                        if method.name == "hashCode" && method.descriptor == "()I" {
+                            has_hashcode = true;
+                        }
+                    }
+                    if has_equals ^ has_hashcode {
+                        let message = if has_equals {
+                            result_message(format!(
+                                "Class {} overrides equals without hashCode",
+                                class.name
+                            ))
+                        } else {
+                            result_message(format!(
+                                "Class {} overrides hashCode without equals",
+                                class.name
+                            ))
+                        };
+                        let location = class_location(&class.name);
+                        class_results.push(
+                            SarifResult::builder()
+                                .message(message)
+                                .locations(vec![location])
+                                .build(),
+                        );
+                    }
+                    Ok(class_results)
+                })?;
+            results.extend(class_results);
         }
         Ok(results)
     }

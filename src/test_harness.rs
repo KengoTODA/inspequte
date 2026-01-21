@@ -111,7 +111,7 @@ impl JvmTestHarness {
         classes_dir: &Path,
         classpath: &[PathBuf],
     ) -> Result<EngineOutput> {
-        let scan = scan_inputs(classes_dir, classpath).context("scan classes")?;
+        let scan = scan_inputs(classes_dir, classpath, None).context("scan classes")?;
         let classpath_index = resolve_classpath(&scan.classes).context("resolve classpath")?;
         let context = build_context(scan.classes, classpath_index, &scan.artifacts);
         let engine = Engine::new();

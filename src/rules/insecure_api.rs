@@ -19,31 +19,37 @@ impl Rule for InsecureApiRule {
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
         let mut results = Vec::new();
         for class in &context.classes {
-            for method in &class.methods {
-                for call in &method.calls {
-                    if is_insecure_call(&call.owner, &call.name) {
-                        let message = result_message(format!(
-                            "Insecure API usage: {}.{}",
-                            call.owner, call.name
-                        ));
-                        let line = method.line_for_offset(call.offset);
-                        let artifact_uri = context.class_artifact_uri(class);
-                        let location = method_location_with_line(
-                            &class.name,
-                            &method.name,
-                            &method.descriptor,
-                            artifact_uri.as_deref(),
-                            line,
-                        );
-                        results.push(
-                            SarifResult::builder()
-                                .message(message)
-                                .locations(vec![location])
-                                .build(),
-                        );
+            let class_results =
+                context.with_class_span(class, || -> Result<Vec<SarifResult>> {
+                    let mut class_results = Vec::new();
+                    for method in &class.methods {
+                        for call in &method.calls {
+                            if is_insecure_call(&call.owner, &call.name) {
+                                let message = result_message(format!(
+                                    "Insecure API usage: {}.{}",
+                                    call.owner, call.name
+                                ));
+                                let line = method.line_for_offset(call.offset);
+                                let artifact_uri = context.class_artifact_uri(class);
+                                let location = method_location_with_line(
+                                    &class.name,
+                                    &method.name,
+                                    &method.descriptor,
+                                    artifact_uri.as_deref(),
+                                    line,
+                                );
+                                class_results.push(
+                                    SarifResult::builder()
+                                        .message(message)
+                                        .locations(vec![location])
+                                        .build(),
+                                );
+                            }
+                        }
                     }
-                }
-            }
+                    Ok(class_results)
+                })?;
+            results.extend(class_results);
         }
         Ok(results)
     }

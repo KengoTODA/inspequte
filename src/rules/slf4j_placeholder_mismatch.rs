@@ -29,17 +29,23 @@ impl Rule for Slf4jPlaceholderMismatchRule {
             if !context.is_analysis_target_class(class) {
                 continue;
             }
-            for method in &class.methods {
-                if method.bytecode.is_empty() {
-                    continue;
-                }
-                let artifact_uri = context.class_artifact_uri(class);
-                results.extend(analyze_method(
-                    &class.name,
-                    method,
-                    artifact_uri.as_deref(),
-                )?);
-            }
+            let class_results =
+                context.with_class_span(class, || -> Result<Vec<SarifResult>> {
+                    let mut class_results = Vec::new();
+                    for method in &class.methods {
+                        if method.bytecode.is_empty() {
+                            continue;
+                        }
+                        let artifact_uri = context.class_artifact_uri(class);
+                        class_results.extend(analyze_method(
+                            &class.name,
+                            method,
+                            artifact_uri.as_deref(),
+                        )?);
+                    }
+                    Ok(class_results)
+                })?;
+            results.extend(class_results);
         }
         Ok(results)
     }

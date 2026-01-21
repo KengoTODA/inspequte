@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::Result;
+use opentelemetry::KeyValue;
 use serde_sarif::sarif::Artifact;
 use serde_sarif::sarif::{MultiformatMessageString, ReportingDescriptor, Result as SarifResult};
 
@@ -15,6 +17,7 @@ use crate::rules::{
     record_array_field::RecordArrayFieldRule,
     slf4j_placeholder_mismatch::Slf4jPlaceholderMismatchRule,
 };
+use crate::telemetry::{Telemetry, with_span};
 
 /// Inputs shared by analysis rules.
 pub(crate) struct AnalysisContext {
@@ -25,6 +28,7 @@ pub(crate) struct AnalysisContext {
     artifact_uris: BTreeMap<i64, String>,
     analysis_target_artifacts: BTreeSet<i64>,
     artifact_parents: BTreeMap<i64, i64>,
+    telemetry: Option<Arc<Telemetry>>,
 }
 
 /// Timing breakdown for context construction.
@@ -64,7 +68,11 @@ impl Engine {
         for rule in &self.rules {
             let metadata = rule.metadata();
             rules.push(rule_descriptor(&metadata));
-            let mut rule_results = rule.run(&context)?;
+            let rule_span_attributes = [KeyValue::new("inspequte.rule_id", metadata.id)];
+            let mut rule_results =
+                with_span(context.telemetry(), "rule", &rule_span_attributes, || {
+                    rule.run(&context)
+                })?;
             for result in &mut rule_results {
                 if result.rule_id.is_none() {
                     result.rule_id = Some(metadata.id.to_string());
@@ -97,7 +105,7 @@ pub(crate) fn build_context(
     classpath: ClasspathIndex,
     artifacts: &[Artifact],
 ) -> AnalysisContext {
-    let (context, _) = build_context_with_timings(classes, classpath, artifacts);
+    let (context, _) = build_context_with_timings(classes, classpath, artifacts, None);
     context
 }
 
@@ -105,12 +113,23 @@ pub(crate) fn build_context_with_timings(
     classes: Vec<Class>,
     classpath: ClasspathIndex,
     artifacts: &[Artifact],
+    telemetry: Option<Arc<Telemetry>>,
 ) -> (AnalysisContext, ContextTimings) {
     let call_graph_started_at = Instant::now();
-    let (call_graph, call_graph_timings) = build_call_graph_with_timings(&classes);
+    let (call_graph, call_graph_timings) = with_span(
+        telemetry.as_deref(),
+        "call_graph",
+        &[KeyValue::new("inspequte.phase", "call_graph")],
+        || build_call_graph_with_timings(&classes),
+    );
     let call_graph_duration_ms = call_graph_started_at.elapsed().as_millis();
     let artifact_started_at = Instant::now();
-    let (analysis_target_artifacts, artifact_parents, artifact_uris) = analyze_artifacts(artifacts);
+    let (analysis_target_artifacts, artifact_parents, artifact_uris) = with_span(
+        telemetry.as_deref(),
+        "artifact_analysis",
+        &[KeyValue::new("inspequte.phase", "artifact_analysis")],
+        || analyze_artifacts(artifacts),
+    );
     let artifact_duration_ms = artifact_started_at.elapsed().as_millis();
     let timings = ContextTimings {
         call_graph_duration_ms,
@@ -126,6 +145,7 @@ pub(crate) fn build_context_with_timings(
         artifact_uris,
         analysis_target_artifacts,
         artifact_parents,
+        telemetry,
     };
     (context, timings)
 }
@@ -143,6 +163,27 @@ fn rule_descriptor(metadata: &RuleMetadata) -> ReportingDescriptor {
 }
 
 impl AnalysisContext {
+    pub(crate) fn telemetry(&self) -> Option<&Telemetry> {
+        self.telemetry.as_deref()
+    }
+
+    pub(crate) fn with_class_span<T, F>(&self, class: &Class, f: F) -> T
+    where
+        F: FnOnce() -> T,
+    {
+        match self.telemetry() {
+            Some(telemetry) => {
+                let mut attributes = Vec::new();
+                attributes.push(KeyValue::new("inspequte.class", class.name.clone()));
+                if let Some(uri) = self.class_artifact_uri(class) {
+                    attributes.push(KeyValue::new("inspequte.artifact_uri", uri));
+                }
+                telemetry.in_span("class", &attributes, f)
+            }
+            None => f(),
+        }
+    }
+
     pub(crate) fn is_analysis_target_class(&self, class: &Class) -> bool {
         if self.analysis_target_artifacts.is_empty() {
             return true;

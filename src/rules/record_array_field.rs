@@ -22,24 +22,30 @@ impl Rule for RecordArrayFieldRule {
             if !context.is_analysis_target_class(class) || !class.is_record {
                 continue;
             }
-            for field in &class.fields {
-                if field.access.is_static {
-                    continue;
-                }
-                if field.descriptor.starts_with('[') {
-                    let message = result_message(format!(
-                        "Record component uses array type: {}.{} ({})",
-                        class.name, field.name, field.descriptor
-                    ));
-                    let location = class_location(&class.name);
-                    results.push(
-                        SarifResult::builder()
-                            .message(message)
-                            .locations(vec![location])
-                            .build(),
-                    );
-                }
-            }
+            let class_results =
+                context.with_class_span(class, || -> Result<Vec<SarifResult>> {
+                    let mut class_results = Vec::new();
+                    for field in &class.fields {
+                        if field.access.is_static {
+                            continue;
+                        }
+                        if field.descriptor.starts_with('[') {
+                            let message = result_message(format!(
+                                "Record component uses array type: {}.{} ({})",
+                                class.name, field.name, field.descriptor
+                            ));
+                            let location = class_location(&class.name);
+                            class_results.push(
+                                SarifResult::builder()
+                                    .message(message)
+                                    .locations(vec![location])
+                                    .build(),
+                            );
+                        }
+                    }
+                    Ok(class_results)
+                })?;
+            results.extend(class_results);
         }
         Ok(results)
     }

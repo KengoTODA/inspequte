@@ -8,6 +8,7 @@ mod ir;
 mod opcodes;
 mod rules;
 mod scan;
+mod telemetry;
 #[cfg(test)]
 mod test_harness;
 
@@ -15,11 +16,13 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use jsonschema::JSONSchema;
+use opentelemetry::KeyValue;
 use serde_json::json;
 use serde_sarif::sarif::Result as SarifResult;
 use serde_sarif::sarif::{
@@ -31,6 +34,7 @@ use crate::baseline::{load_baseline, write_baseline};
 use crate::classpath::resolve_classpath;
 use crate::engine::{Engine, build_context_with_timings};
 use crate::scan::scan_inputs;
+use crate::telemetry::{Telemetry, with_span};
 
 const DEFAULT_BASELINE_PATH: &str = ".inspequte/baseline.json";
 
@@ -60,6 +64,8 @@ struct ScanArgs {
     quiet: bool,
     #[arg(long)]
     timing: bool,
+    #[arg(long, value_name = "FILE")]
+    otel: Option<PathBuf>,
     #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
     baseline: PathBuf,
 }
@@ -87,6 +93,8 @@ struct BaselineArgs {
     input: InputArgs,
     #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
     output: PathBuf,
+    #[arg(long, value_name = "FILE")]
+    otel: Option<PathBuf>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -110,67 +118,117 @@ fn run(cli: Cli) -> Result<()> {
 fn run_scan(args: ScanArgs) -> Result<()> {
     ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
 
+    let telemetry = match &args.otel {
+        Some(path) => Some(Arc::new(Telemetry::new(path.clone())?)),
+        None => None,
+    };
     let started_at = Instant::now();
-    let mut analysis = analyze(&args.input.input, &args.input.classpath)?;
-    let baseline_started_at = Instant::now();
-    if let Some(baseline) = load_baseline(&args.baseline)? {
-        analysis.results = baseline.filter(analysis.results);
-    }
-    let baseline_duration_ms = baseline_started_at.elapsed().as_millis();
-
-    let invocation = build_invocation(&analysis.invocation_stats);
-    let sarif = build_sarif(
-        analysis.artifacts,
-        invocation,
-        analysis.rules,
-        analysis.results,
-    );
-    if should_validate_sarif() {
-        validate_sarif(&sarif)?;
-    }
-
-    let write_started_at = Instant::now();
-    let mut writer = output_writer(args.output.as_deref())?;
-    serde_json::to_writer_pretty(&mut writer, &sarif)
-        .context("failed to serialize SARIF output")?;
-    writer
-        .write_all(b"\n")
-        .context("failed to write SARIF output")?;
-    let write_duration_ms = write_started_at.elapsed().as_millis();
-
-    if args.timing && !args.quiet {
-        eprintln!(
-            "timing: total_ms={} scan_ms={} classpath_ms={} analysis_callgraph_ms={} analysis_callgraph_hierarchy_ms={} analysis_callgraph_index_ms={} analysis_callgraph_edges_ms={} analysis_artifact_ms={} analysis_rules_ms={} baseline_ms={} write_ms={} (classes={} artifacts={})",
-            started_at.elapsed().as_millis(),
-            analysis.invocation_stats.scan_duration_ms,
-            analysis.invocation_stats.classpath_duration_ms,
-            analysis.invocation_stats.analysis_call_graph_duration_ms,
-            analysis
-                .invocation_stats
-                .analysis_call_graph_hierarchy_duration_ms,
-            analysis
-                .invocation_stats
-                .analysis_call_graph_index_duration_ms,
-            analysis
-                .invocation_stats
-                .analysis_call_graph_edges_duration_ms,
-            analysis.invocation_stats.analysis_artifact_duration_ms,
-            analysis.invocation_stats.analysis_rules_duration_ms,
-            baseline_duration_ms,
-            write_duration_ms,
-            analysis.invocation_stats.class_count,
-            analysis.invocation_stats.artifact_count
+    let result = with_span(telemetry.as_deref(), "execution", &[], || {
+        let mut analysis = analyze(&args.input.input, &args.input.classpath, telemetry.clone())?;
+        let baseline_started_at = Instant::now();
+        let analysis_ref = &mut analysis;
+        let baseline_result = with_span(
+            telemetry.as_deref(),
+            "baseline",
+            &[KeyValue::new("inspequte.phase", "baseline")],
+            || -> Result<()> {
+                if let Some(baseline) = load_baseline(&args.baseline)? {
+                    let filtered = baseline.filter(std::mem::take(&mut analysis_ref.results));
+                    analysis_ref.results = filtered;
+                }
+                Ok(())
+            },
         );
+        baseline_result?;
+        let baseline_duration_ms = baseline_started_at.elapsed().as_millis();
+
+        let invocation = build_invocation(&analysis.invocation_stats);
+        let sarif = build_sarif(
+            analysis.artifacts,
+            invocation,
+            analysis.rules,
+            analysis.results,
+        );
+        if should_validate_sarif() {
+            validate_sarif(&sarif)?;
+        }
+
+        let write_started_at = Instant::now();
+        let write_result = with_span(
+            telemetry.as_deref(),
+            "write",
+            &[KeyValue::new("inspequte.phase", "write")],
+            || -> Result<()> {
+                let mut writer = output_writer(args.output.as_deref())?;
+                serde_json::to_writer_pretty(&mut writer, &sarif)
+                    .context("failed to serialize SARIF output")?;
+                writer
+                    .write_all(b"\n")
+                    .context("failed to write SARIF output")?;
+                Ok(())
+            },
+        );
+        write_result?;
+        let write_duration_ms = write_started_at.elapsed().as_millis();
+
+        if args.timing && !args.quiet {
+            eprintln!(
+                "timing: total_ms={} scan_ms={} classpath_ms={} analysis_callgraph_ms={} analysis_callgraph_hierarchy_ms={} analysis_callgraph_index_ms={} analysis_callgraph_edges_ms={} analysis_artifact_ms={} analysis_rules_ms={} baseline_ms={} write_ms={} (classes={} artifacts={})",
+                started_at.elapsed().as_millis(),
+                analysis.invocation_stats.scan_duration_ms,
+                analysis.invocation_stats.classpath_duration_ms,
+                analysis.invocation_stats.analysis_call_graph_duration_ms,
+                analysis
+                    .invocation_stats
+                    .analysis_call_graph_hierarchy_duration_ms,
+                analysis
+                    .invocation_stats
+                    .analysis_call_graph_index_duration_ms,
+                analysis
+                    .invocation_stats
+                    .analysis_call_graph_edges_duration_ms,
+                analysis.invocation_stats.analysis_artifact_duration_ms,
+                analysis.invocation_stats.analysis_rules_duration_ms,
+                baseline_duration_ms,
+                write_duration_ms,
+                analysis.invocation_stats.class_count,
+                analysis.invocation_stats.artifact_count
+            );
+        }
+
+        Ok(())
+    });
+
+    if let Some(telemetry) = telemetry {
+        if let Err(err) = telemetry.shutdown() {
+            if result.is_ok() {
+                return Err(err);
+            }
+        }
     }
 
-    Ok(())
+    result
 }
 
 fn run_baseline(args: BaselineArgs) -> Result<()> {
     ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
-    let analysis = analyze(&args.input.input, &args.input.classpath)?;
-    write_baseline(&args.output, &analysis.results)?;
-    Ok(())
+    let telemetry = match &args.otel {
+        Some(path) => Some(Arc::new(Telemetry::new(path.clone())?)),
+        None => None,
+    };
+    let result = with_span(telemetry.as_deref(), "execution", &[], || -> Result<()> {
+        let analysis = analyze(&args.input.input, &args.input.classpath, telemetry.clone())?;
+        write_baseline(&args.output, &analysis.results)?;
+        Ok(())
+    });
+    if let Some(telemetry) = telemetry {
+        if let Err(err) = telemetry.shutdown() {
+            if result.is_ok() {
+                return Err(err);
+            }
+        }
+    }
+    result
 }
 
 fn ensure_inputs_exist(input: &Path, classpath: &[PathBuf]) -> Result<()> {
@@ -193,22 +251,41 @@ struct AnalysisOutput {
     results: Vec<SarifResult>,
 }
 
-fn analyze(input: &Path, classpath: &[PathBuf]) -> Result<AnalysisOutput> {
+fn analyze(
+    input: &Path,
+    classpath: &[PathBuf],
+    telemetry: Option<Arc<Telemetry>>,
+) -> Result<AnalysisOutput> {
     let scan_started_at = Instant::now();
-    let scan = scan_inputs(input, classpath)?;
+    let scan = with_span(
+        telemetry.as_deref(),
+        "scan",
+        &[KeyValue::new("inspequte.phase", "scan")],
+        || scan_inputs(input, classpath, telemetry.as_deref()),
+    )?;
     let scan_duration_ms = scan_started_at.elapsed().as_millis();
     let artifact_count = scan.artifacts.len();
     let classpath_started_at = Instant::now();
-    let classpath_index = resolve_classpath(&scan.classes)?;
+    let classpath_index = with_span(
+        telemetry.as_deref(),
+        "classpath",
+        &[KeyValue::new("inspequte.phase", "classpath")],
+        || resolve_classpath(&scan.classes),
+    )?;
     let classpath_duration_ms = classpath_started_at.elapsed().as_millis();
     let classpath_class_count = classpath_index.classes.len();
     let artifacts = scan.artifacts;
     let classes = scan.classes;
     let (context, context_timings) =
-        build_context_with_timings(classes, classpath_index, &artifacts);
+        build_context_with_timings(classes, classpath_index, &artifacts, telemetry.clone());
     let analysis_rules_started_at = Instant::now();
     let engine = Engine::new();
-    let analysis = engine.analyze(context)?;
+    let analysis = with_span(
+        telemetry.as_deref(),
+        "analysis_rules",
+        &[KeyValue::new("inspequte.phase", "analysis_rules")],
+        || engine.analyze(context),
+    )?;
     let analysis_rules_duration_ms = analysis_rules_started_at.elapsed().as_millis();
     let invocation_stats = InvocationStats {
         scan_duration_ms,
@@ -453,7 +530,7 @@ mod tests {
         fs::write(temp_dir.join("A.class"), class_a).expect("write A.class");
         fs::write(temp_dir.join("B.class"), class_b).expect("write B.class");
 
-        let scan = scan_inputs(&temp_dir, &[]).expect("scan classes");
+        let scan = scan_inputs(&temp_dir, &[], None).expect("scan classes");
         let classpath = resolve_classpath(&scan.classes).expect("resolve classpath");
         let artifacts = scan.artifacts.clone();
         let context = build_context(scan.classes.clone(), classpath, &artifacts);

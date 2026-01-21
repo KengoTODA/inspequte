@@ -14,6 +14,8 @@ use serde_json::Value;
 use serde_sarif::sarif::{Artifact, ArtifactLocation, ArtifactRoles};
 use zip::ZipArchive;
 
+use opentelemetry::KeyValue;
+
 use crate::cfg::build_cfg;
 use crate::descriptor::method_param_count;
 use crate::ir::{
@@ -21,6 +23,7 @@ use crate::ir::{
     LineNumber, Method, MethodAccess, MethodNullness, Nullness,
 };
 use crate::opcodes;
+use crate::telemetry::Telemetry;
 
 /// Snapshot of parsed artifacts, classes, and counts for a scan.
 pub(crate) struct ScanOutput {
@@ -29,7 +32,11 @@ pub(crate) struct ScanOutput {
     pub(crate) classes: Vec<Class>,
 }
 
-pub(crate) fn scan_inputs(input: &Path, classpath: &[PathBuf]) -> Result<ScanOutput> {
+pub(crate) fn scan_inputs(
+    input: &Path,
+    classpath: &[PathBuf],
+    telemetry: Option<&Telemetry>,
+) -> Result<ScanOutput> {
     let mut artifacts = Vec::new();
     let mut class_count = 0;
     let mut classes = Vec::new();
@@ -38,6 +45,7 @@ pub(crate) fn scan_inputs(input: &Path, classpath: &[PathBuf]) -> Result<ScanOut
         input,
         true,
         true,
+        telemetry,
         &mut artifacts,
         &mut class_count,
         &mut classes,
@@ -60,6 +68,7 @@ pub(crate) fn scan_inputs(input: &Path, classpath: &[PathBuf]) -> Result<ScanOut
             &entry,
             false,
             true,
+            telemetry,
             &mut artifacts,
             &mut class_count,
             &mut classes,
@@ -77,12 +86,13 @@ fn scan_path(
     path: &Path,
     is_input: bool,
     strict: bool,
+    telemetry: Option<&Telemetry>,
     artifacts: &mut Vec<Artifact>,
     class_count: &mut usize,
     classes: &mut Vec<Class>,
 ) -> Result<()> {
     if path.is_dir() {
-        scan_dir(path, artifacts, class_count, classes)?;
+        scan_dir(path, telemetry, artifacts, class_count, classes)?;
         return Ok(());
     }
 
@@ -96,8 +106,8 @@ fn scan_path(
     };
 
     match extension {
-        "class" => scan_class_file(path, roles, artifacts, class_count, classes),
-        "jar" => scan_jar_file(path, roles, artifacts, class_count, classes),
+        "class" => scan_class_file(path, roles, telemetry, artifacts, class_count, classes),
+        "jar" => scan_jar_file(path, roles, telemetry, artifacts, class_count, classes),
         _ => {
             if strict {
                 anyhow::bail!("unsupported input file: {}", path.display())
@@ -110,6 +120,7 @@ fn scan_path(
 
 fn scan_dir(
     path: &Path,
+    telemetry: Option<&Telemetry>,
     artifacts: &mut Vec<Artifact>,
     class_count: &mut usize,
     classes: &mut Vec<Class>,
@@ -127,9 +138,17 @@ fn scan_dir(
 
     for entry in entries {
         if entry.is_dir() {
-            scan_dir(&entry, artifacts, class_count, classes)?;
+            scan_dir(&entry, telemetry, artifacts, class_count, classes)?;
         } else {
-            scan_path(&entry, false, false, artifacts, class_count, classes)?;
+            scan_path(
+                &entry,
+                false,
+                false,
+                telemetry,
+                artifacts,
+                class_count,
+                classes,
+            )?;
         }
     }
 
@@ -139,13 +158,37 @@ fn scan_dir(
 fn scan_class_file(
     path: &Path,
     roles: Option<Vec<Value>>,
+    telemetry: Option<&Telemetry>,
     artifacts: &mut Vec<Artifact>,
     class_count: &mut usize,
     classes: &mut Vec<Class>,
 ) -> Result<()> {
-    let data = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let parsed =
-        parse_class_bytes(&data).with_context(|| format!("failed to parse {}", path.display()))?;
+    let (data, parsed) = match telemetry {
+        Some(telemetry) => {
+            let span_attributes = [KeyValue::new(
+                "inspequte.class_path",
+                path.display().to_string(),
+            )];
+            telemetry.in_span(
+                "class.scan",
+                &span_attributes,
+                || -> Result<(Vec<u8>, ParsedClass)> {
+                    let data = fs::read(path)
+                        .with_context(|| format!("failed to read {}", path.display()))?;
+                    let parsed = parse_class_bytes(&data)
+                        .with_context(|| format!("failed to parse {}", path.display()))?;
+                    Ok((data, parsed))
+                },
+            )?
+        }
+        None => {
+            let data =
+                fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+            let parsed = parse_class_bytes(&data)
+                .with_context(|| format!("failed to parse {}", path.display()))?;
+            (data, parsed)
+        }
+    };
     *class_count += 1;
 
     let artifact_index = if roles.is_some() {
@@ -169,14 +212,34 @@ fn scan_class_file(
 fn scan_jar_file(
     path: &Path,
     roles: Option<Vec<Value>>,
+    telemetry: Option<&Telemetry>,
     artifacts: &mut Vec<Artifact>,
     class_count: &mut usize,
     classes: &mut Vec<Class>,
 ) -> Result<()> {
-    let file =
-        fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
-    let mut archive =
-        ZipArchive::new(file).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut archive = match telemetry {
+        Some(telemetry) => {
+            let jar_span_attributes = [KeyValue::new(
+                "inspequte.jar_path",
+                path.display().to_string(),
+            )];
+            telemetry.in_span(
+                "jar.scan",
+                &jar_span_attributes,
+                || -> Result<ZipArchive<fs::File>> {
+                    let file = fs::File::open(path)
+                        .with_context(|| format!("failed to open {}", path.display()))?;
+                    ZipArchive::new(file)
+                        .with_context(|| format!("failed to read {}", path.display()))
+                },
+            )?
+        }
+        None => {
+            let file = fs::File::open(path)
+                .with_context(|| format!("failed to open {}", path.display()))?;
+            ZipArchive::new(file).with_context(|| format!("failed to read {}", path.display()))?
+        }
+    };
 
     let jar_len = fs::metadata(path)
         .with_context(|| format!("failed to read {}", path.display()))?
@@ -207,15 +270,40 @@ fn scan_jar_file(
         if name.starts_with("META-INF/versions/") {
             continue;
         }
-        let mut entry = archive
-            .by_name(&name)
-            .with_context(|| format!("failed to read {}:{}", path.display(), name))?;
-        let mut data = Vec::new();
-        entry
-            .read_to_end(&mut data)
-            .with_context(|| format!("failed to read {}:{}", path.display(), name))?;
-        let parsed = parse_class_bytes(&data)
-            .with_context(|| format!("failed to parse {}:{}", path.display(), name))?;
+        let parsed = match telemetry {
+            Some(telemetry) => {
+                let class_span_attributes = [
+                    KeyValue::new("inspequte.jar_path", path.display().to_string()),
+                    KeyValue::new("inspequte.jar_entry", name.clone()),
+                ];
+                telemetry.in_span(
+                    "class.scan",
+                    &class_span_attributes,
+                    || -> Result<ParsedClass> {
+                        let mut entry = archive.by_name(&name).with_context(|| {
+                            format!("failed to read {}:{}", path.display(), name)
+                        })?;
+                        let mut data = Vec::new();
+                        entry.read_to_end(&mut data).with_context(|| {
+                            format!("failed to read {}:{}", path.display(), name)
+                        })?;
+                        parse_class_bytes(&data)
+                            .with_context(|| format!("failed to parse {}:{}", path.display(), name))
+                    },
+                )?
+            }
+            None => {
+                let mut entry = archive
+                    .by_name(&name)
+                    .with_context(|| format!("failed to read {}:{}", path.display(), name))?;
+                let mut data = Vec::new();
+                entry
+                    .read_to_end(&mut data)
+                    .with_context(|| format!("failed to read {}:{}", path.display(), name))?;
+                parse_class_bytes(&data)
+                    .with_context(|| format!("failed to parse {}:{}", path.display(), name))?
+            }
+        };
         *class_count += 1;
 
         classes.push(Class {
@@ -1251,7 +1339,7 @@ mod tests {
         let class_path = temp_dir.join("bad.class");
         fs::write(&class_path, b"nope").expect("write test class");
 
-        let result = scan_inputs(&class_path, &[]);
+        let result = scan_inputs(&class_path, &[], None);
 
         assert!(result.is_err());
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
@@ -1260,7 +1348,7 @@ mod tests {
     #[test]
     fn scan_inputs_accepts_valid_jar() {
         let jar_path = jspecify_jar_path().expect("download jar");
-        let result = scan_inputs(&jar_path, &[]).expect("scan jar");
+        let result = scan_inputs(&jar_path, &[], None).expect("scan jar");
 
         assert!(result.class_count > 0);
         assert_eq!(result.artifacts.len(), 1);
@@ -1290,7 +1378,7 @@ mod tests {
         let class_path = temp_dir.join("Sample.class");
         fs::write(&class_path, class_bytes).expect("write class file");
 
-        let result = scan_inputs(&class_path, &[]).expect("scan class");
+        let result = scan_inputs(&class_path, &[], None).expect("scan class");
 
         assert_eq!(result.class_count, 1);
         assert_eq!(result.artifacts.len(), 1);
@@ -1313,7 +1401,7 @@ mod tests {
         let jar_path = temp_dir.join("main.jar");
         create_manifest_jar(&jar_path, Some("dep.jar")).expect("create main jar");
 
-        let result = scan_inputs(&jar_path, &[]);
+        let result = scan_inputs(&jar_path, &[], None);
 
         assert!(result.is_ok());
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
@@ -1333,7 +1421,7 @@ mod tests {
         let jar_path = temp_dir.join("main.jar");
         create_manifest_jar(&jar_path, Some("missing.jar")).expect("create main jar");
 
-        let result = scan_inputs(&jar_path, &[]);
+        let result = scan_inputs(&jar_path, &[], None);
 
         assert!(result.is_err());
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
