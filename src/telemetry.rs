@@ -103,6 +103,7 @@ where
 }
 
 /// In-memory exporter that buffers spans for later JSON output.
+/// In-memory span exporter that buffers spans for file output.
 #[derive(Debug)]
 struct SpanStoreExporter {
     spans: Arc<Mutex<Vec<SpanData>>>,
@@ -120,12 +121,14 @@ impl SpanExporter for SpanStoreExporter {
 
 /// OTLP/JSON payload aligned with the OpenTelemetry file exporter spec:
 /// https://opentelemetry.io/docs/specs/otel/protocol/file-exporter/
+/// Root OTLP/JSON request containing all resource spans.
 #[derive(Serialize)]
 struct ExportTraceServiceRequest {
     #[serde(rename = "resourceSpans")]
     resource_spans: Vec<ResourceSpans>,
 }
 
+/// Resource-scoped spans payload.
 #[derive(Serialize)]
 struct ResourceSpans {
     resource: ResourceData,
@@ -133,17 +136,20 @@ struct ResourceSpans {
     scope_spans: Vec<ScopeSpans>,
 }
 
+/// Resource metadata for OTLP export.
 #[derive(Serialize)]
 struct ResourceData {
     attributes: Vec<KeyValueData>,
 }
 
+/// Spans grouped under a single instrumentation scope.
 #[derive(Serialize)]
 struct ScopeSpans {
     scope: ScopeData,
     spans: Vec<SpanDataJson>,
 }
 
+/// Instrumentation scope identity for exported spans.
 #[derive(Serialize)]
 struct ScopeData {
     name: String,
@@ -151,6 +157,7 @@ struct ScopeData {
     version: Option<String>,
 }
 
+/// OTLP/JSON span entry.
 #[derive(Serialize)]
 struct SpanDataJson {
     #[serde(rename = "traceId")]
@@ -169,12 +176,14 @@ struct SpanDataJson {
     attributes: Vec<KeyValueData>,
 }
 
+/// Key/value attribute for OTLP/JSON output.
 #[derive(Serialize)]
 struct KeyValueData {
     key: String,
     value: AnyValue,
 }
 
+/// OTLP/JSON attribute value.
 #[derive(Serialize)]
 struct AnyValue {
     #[serde(rename = "stringValue", skip_serializing_if = "Option::is_none")]
@@ -246,7 +255,7 @@ fn span_to_json(span: &SpanData) -> Result<SpanDataJson> {
         span_id,
         parent_span_id,
         name: span.name.to_string(),
-        kind: span_kind_to_string(span.span_kind.clone()),
+        kind: span_kind_to_string(span.span_kind),
         start_time_unix_nano,
         end_time_unix_nano,
         attributes,
