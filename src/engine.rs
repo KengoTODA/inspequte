@@ -167,21 +167,11 @@ impl AnalysisContext {
         self.telemetry.as_deref()
     }
 
-    pub(crate) fn with_class_span<T, F>(&self, class: &Class, f: F) -> T
+    pub(crate) fn with_span<T, F>(&self, name: &str, attributes: &[KeyValue], f: F) -> T
     where
         F: FnOnce() -> T,
     {
-        match self.telemetry() {
-            Some(telemetry) => {
-                let mut attributes = Vec::new();
-                attributes.push(KeyValue::new("inspequte.class", class.name.clone()));
-                if let Some(uri) = self.class_artifact_uri(class) {
-                    attributes.push(KeyValue::new("inspequte.artifact_uri", uri));
-                }
-                telemetry.in_span("class", &attributes, f)
-            }
-            None => f(),
-        }
+        with_span(self.telemetry(), name, attributes, f)
     }
 
     pub(crate) fn is_analysis_target_class(&self, class: &Class) -> bool {

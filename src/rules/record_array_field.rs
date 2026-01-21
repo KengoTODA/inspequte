@@ -1,4 +1,5 @@
 use anyhow::Result;
+use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
 
 use crate::engine::AnalysisContext;
@@ -22,8 +23,12 @@ impl Rule for RecordArrayFieldRule {
             if !context.is_analysis_target_class(class) || !class.is_record {
                 continue;
             }
+            let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
+            if let Some(uri) = context.class_artifact_uri(class) {
+                attributes.push(KeyValue::new("inspequte.artifact_uri", uri));
+            }
             let class_results =
-                context.with_class_span(class, || -> Result<Vec<SarifResult>> {
+                context.with_span("class", &attributes, || -> Result<Vec<SarifResult>> {
                     let mut class_results = Vec::new();
                     for field in &class.fields {
                         if field.access.is_static {

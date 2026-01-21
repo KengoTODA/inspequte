@@ -1,4 +1,5 @@
 use anyhow::Result;
+use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
 
 use crate::engine::AnalysisContext;
@@ -19,8 +20,12 @@ impl Rule for InsecureApiRule {
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
         let mut results = Vec::new();
         for class in &context.classes {
+            let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
+            if let Some(uri) = context.class_artifact_uri(class) {
+                attributes.push(KeyValue::new("inspequte.artifact_uri", uri));
+            }
             let class_results =
-                context.with_class_span(class, || -> Result<Vec<SarifResult>> {
+                context.with_span("class", &attributes, || -> Result<Vec<SarifResult>> {
                     let mut class_results = Vec::new();
                     for method in &class.methods {
                         for call in &method.calls {
