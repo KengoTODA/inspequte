@@ -64,6 +64,13 @@
               }
             },
             {
+              "id": "SLF4J_LOGGER_SHOULD_BE_PRIVATE",
+              "name": "SLF4J logger should be private",
+              "shortDescription": {
+                "text": "SLF4J Logger fields should be private"
+              }
+            },
+            {
               "id": "SLF4J_PLACEHOLDER_MISMATCH",
               "name": "SLF4J placeholder mismatch",
               "shortDescription": {

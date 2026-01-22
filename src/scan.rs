@@ -817,6 +817,7 @@ fn parse_fields(
         let access_flags = field.access_flags();
         let access = FieldAccess {
             is_static: access_flags.contains(FieldFlags::ACC_STATIC),
+            is_private: access_flags.contains(FieldFlags::ACC_PRIVATE),
         };
         parsed.push(Field {
             name,
