@@ -16,6 +16,7 @@
 - Use Java 21 for harness tests via `JAVA_HOME`.
 - Run `cargo fmt` after code changes.
 - Commit style: Conventional Commits v1.0.0.
+- Span naming convention: `scope.action` (e.g., `scan.jar`, `scan.class`).
 
 ## Rule authoring expectations
 - Add doc comments to any new structs.

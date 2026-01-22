@@ -213,7 +213,7 @@ fn scan_class_file(
                 path.display().to_string(),
             )];
             telemetry.in_span(
-                "class.scan",
+                "scan.class",
                 &span_attributes,
                 || -> Result<(Vec<u8>, ParsedClass)> {
                     let data = fs::read(path)
@@ -265,7 +265,7 @@ fn scan_jar_file(
         path.display().to_string(),
     )];
     let result = match telemetry {
-        Some(telemetry) => telemetry.in_span("jar.scan", &jar_span_attributes, || {
+        Some(telemetry) => telemetry.in_span("scan.jar", &jar_span_attributes, || {
             scan_jar_file_inner(
                 path,
                 roles,
@@ -413,10 +413,10 @@ fn parse_jar_classes(
                 };
                 match parent_cx {
                     Some(parent_cx) => telemetry
-                        .in_span_with_parent("class.scan", &class_span_attributes, parent_cx, parse)
+                        .in_span_with_parent("scan.class", &class_span_attributes, parent_cx, parse)
                         .map(|parsed| (name.clone(), parsed)),
                     None => telemetry
-                        .in_span("class.scan", &class_span_attributes, parse)
+                        .in_span("scan.class", &class_span_attributes, parse)
                         .map(|parsed| (name.clone(), parsed)),
                 }
             }
