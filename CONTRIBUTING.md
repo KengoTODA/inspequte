@@ -31,7 +31,7 @@ and `inspequte.jar_path`/`inspequte.jar_entry`. For example, to inspect a specif
 
 ### Rule authoring skill
 When adding or updating rules, mention `rule-authoring` in your request to trigger the repo-scoped skill in `.codex/skills/rule-authoring`.
-Example: `rule-authoring: add a rule to detect empty catch blocks`
+Example: `$rule-authoring add a rule to detect empty catch blocks`
 
 ## License
 By contributing, you agree that your contributions will be licensed under AGPL-3.0.
