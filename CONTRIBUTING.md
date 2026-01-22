@@ -29,9 +29,6 @@ and `inspequte.jar_path`/`inspequte.jar_entry`. For example, to inspect a specif
 - `jq '.resourceSpans[].scopeSpans[].spans[] | select(.attributes[]?.key=="inspequte.rule_id")' /tmp/inspequte-trace.json`
 - `jq '.resourceSpans[].scopeSpans[].spans[] | select(.attributes[]?.value.stringValue=="SLF4J_PLACEHOLDER_MISMATCH")' /tmp/inspequte-trace.json`
 
-For a GUI workflow, open the OTLP/JSON file in Jaeger using the OpenTelemetry file exporter format:
-- `jaeger-ui --otel-json /tmp/inspequte-trace.json`
-
 ### Rule authoring skill
 When adding or updating rules, mention `rule-authoring` in your request to trigger the repo-scoped skill in `.codex/skills/rule-authoring`.
 Example: `rule-authoring: add a rule to detect empty catch blocks`
