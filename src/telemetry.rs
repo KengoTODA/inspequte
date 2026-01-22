@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow};
-use base64::Engine;
 use futures_util::future::BoxFuture;
 use opentelemetry::trace::{
     SpanId, SpanKind, TraceContextExt, TraceId, Tracer, TracerProvider as OtelTracerProvider,
@@ -77,8 +76,7 @@ impl Telemetry {
         let file = File::create(&self.file_path)
             .with_context(|| format!("failed to open {}", self.file_path.display()))?;
         let mut writer = BufWriter::new(file);
-        serde_json::to_writer_pretty(&mut writer, &export)
-            .context("failed to serialize OTLP JSON")?;
+        serde_json::to_writer(&mut writer, &export).context("failed to serialize OTLP JSON")?;
         writer
             .write_all(b"\n")
             .context("failed to write OTLP JSON")?;
@@ -305,11 +303,20 @@ fn any_value(value: Value) -> AnyValue {
 }
 
 fn encode_trace_id(trace_id: TraceId) -> String {
-    base64::engine::general_purpose::STANDARD.encode(trace_id.to_bytes())
+    encode_hex(trace_id.to_bytes().as_slice())
 }
 
 fn encode_span_id(span_id: SpanId) -> String {
-    base64::engine::general_purpose::STANDARD.encode(span_id.to_bytes())
+    encode_hex(span_id.to_bytes().as_slice())
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write;
+        let _ = write!(out, "{:02x}", byte);
+    }
+    out
 }
 
 fn system_time_to_nanos(time: SystemTime) -> Result<String> {

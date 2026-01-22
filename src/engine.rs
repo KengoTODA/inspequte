@@ -69,10 +69,12 @@ impl Engine {
             let metadata = rule.metadata();
             rules.push(rule_descriptor(&metadata));
             let rule_span_attributes = [KeyValue::new("inspequte.rule_id", metadata.id)];
-            let mut rule_results =
-                with_span(context.telemetry(), "rule", &rule_span_attributes, || {
-                    rule.run(&context)
-                })?;
+            let mut rule_results = with_span(
+                context.telemetry(),
+                &format!("rule:{}", metadata.id),
+                &rule_span_attributes,
+                || rule.run(&context),
+            )?;
             for result in &mut rule_results {
                 if result.rule_id.is_none() {
                     result.rule_id = Some(metadata.id.to_string());
