@@ -31,9 +31,8 @@ fi
 
 log_dir="target/bench"
 log_file="${log_dir}/spotbugs.log"
-otel_dir="${log_dir}/otel"
+otel_url="${OTEL_ENDPOINT:-}"
 mkdir -p "${log_dir}"
-mkdir -p "${otel_dir}"
 : > "${log_file}"
 
 validate_env=""
@@ -49,8 +48,11 @@ find "${lib_dir}" -type f -name "*.jar" | sort | while IFS= read -r jar_path; do
   while [ "${i}" -le "${repeat}" ]; do
     tmp_log=$(mktemp)
     jar_name=$(basename "${jar_path}" | tr -c 'A-Za-z0-9._-' '_')
-    otel_file="${otel_dir}/spotbugs-${jar_name}-run${i}.json"
-    ${validate_env} ./target/debug/inspequte --input "${jar_path}" --timing --otel "${otel_file}" \
+    otel_args=""
+    if [ -n "${otel_url}" ]; then
+      otel_args="--otel ${otel_url}"
+    fi
+    ${validate_env} ./target/debug/inspequte --input "${jar_path}" --timing ${otel_args} \
       1>/dev/null 2>"${tmp_log}"
     timing_line=$(tail -n 1 "${tmp_log}")
     rm -f "${tmp_log}"

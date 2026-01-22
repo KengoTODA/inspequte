@@ -20,14 +20,13 @@ We follow Conventional Commits 1.0.0. Examples:
 - `scripts/bench-spotbugs.sh [repeat]` benchmarks SpotBugs libraries (downloads if needed).
 
 ### OpenTelemetry traces
-Use `--otel <file>` to emit an OTLP/JSON trace file for performance analysis:
-- `inspequte --input path/to.jar --otel /tmp/inspequte-trace.json`
-- `inspequte baseline --input path/to.jar --otel /tmp/inspequte-trace.json`
+Use `--otel <url>` to send OTLP traces over HTTP to a collector:
+- `inspequte --input path/to.jar --otel http://localhost:4318/v1/traces`
+- `inspequte baseline --input path/to.jar --otel http://localhost:4318/v1/traces`
 
-The JSON includes spans tagged with `inspequte.rule_id` (per rule), `inspequte.class`,
-and `inspequte.jar_path`/`inspequte.jar_entry`. For example, to inspect a specific rule:
-- `jq '.resourceSpans[].scopeSpans[].spans[] | select(.attributes[]?.key=="inspequte.rule_id")' /tmp/inspequte-trace.json`
-- `jq '.resourceSpans[].scopeSpans[].spans[] | select(.attributes[]?.value.stringValue=="SLF4J_PLACEHOLDER_MISMATCH")' /tmp/inspequte-trace.json`
+The spans include attributes like `inspequte.rule_id`, `inspequte.class`, and
+`inspequte.jar_path`/`inspequte.jar_entry` to help isolate slow rules. Use a
+collector UI such as Jaeger to inspect the trace details.
 
 ### Rule authoring skill
 When adding or updating rules, mention `rule-authoring` in your request to trigger the repo-scoped skill in `.codex/skills/rule-authoring`.

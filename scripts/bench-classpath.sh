@@ -28,9 +28,8 @@ done
 
 log_dir="target/bench"
 log_file="${log_dir}/classpath.log"
-otel_dir="${log_dir}/otel"
+otel_url="${OTEL_ENDPOINT:-}"
 mkdir -p "${log_dir}"
-mkdir -p "${otel_dir}"
 
 cargo build >/dev/null
 
@@ -39,8 +38,11 @@ i=1
 while [ "${i}" -le "${repeat}" ]; do
   tmp_log=$(mktemp)
   input_name=$(basename "${input}" | tr -c 'A-Za-z0-9._-' '_')
-  otel_file="${otel_dir}/classpath-${input_name}-run${i}.json"
-  ./target/debug/inspequte --input "${input}" --timing --otel "${otel_file}" ${classpath_args} \
+  otel_args=""
+  if [ -n "${otel_url}" ]; then
+    otel_args="--otel ${otel_url}"
+  fi
+  ./target/debug/inspequte --input "${input}" --timing ${otel_args} ${classpath_args} \
     1>/dev/null 2>"${tmp_log}"
   timing_line=$(tail -n 1 "${tmp_log}")
   rm -f "${tmp_log}"

@@ -63,8 +63,8 @@ struct ScanArgs {
     quiet: bool,
     #[arg(long)]
     timing: bool,
-    #[arg(long, value_name = "FILE")]
-    otel: Option<PathBuf>,
+    #[arg(long, value_name = "URL")]
+    otel: Option<String>,
     #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
     baseline: PathBuf,
 }
@@ -92,8 +92,8 @@ struct BaselineArgs {
     input: InputArgs,
     #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
     output: PathBuf,
-    #[arg(long, value_name = "FILE")]
-    otel: Option<PathBuf>,
+    #[arg(long, value_name = "URL")]
+    otel: Option<String>,
 }
 
 fn main() -> std::process::ExitCode {
@@ -118,7 +118,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
     ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
 
     let telemetry = match &args.otel {
-        Some(path) => Some(Arc::new(Telemetry::new(path.clone())?)),
+        Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
         None => None,
     };
     let started_at = Instant::now();
@@ -200,10 +200,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 
     if let Some(telemetry) = telemetry {
         if let Err(err) = telemetry.shutdown() {
-            eprintln!("telemetry shutdown failed: {err:?}");
-            if result.is_ok() {
-                return Err(err);
-            }
+            eprintln!("telemetry shutdown failed: {err}");
         }
     }
 
@@ -213,7 +210,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 fn run_baseline(args: BaselineArgs) -> Result<()> {
     ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
     let telemetry = match &args.otel {
-        Some(path) => Some(Arc::new(Telemetry::new(path.clone())?)),
+        Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
         None => None,
     };
     let result = with_span(telemetry.as_deref(), "execution", &[], || -> Result<()> {
@@ -223,10 +220,7 @@ fn run_baseline(args: BaselineArgs) -> Result<()> {
     });
     if let Some(telemetry) = telemetry {
         if let Err(err) = telemetry.shutdown() {
-            eprintln!("telemetry shutdown failed: {err:?}");
-            if result.is_ok() {
-                return Err(err);
-            }
+            eprintln!("telemetry shutdown failed: {err}");
         }
     }
     result
