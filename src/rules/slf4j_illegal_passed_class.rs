@@ -74,20 +74,30 @@ fn analyze_method(
         callsites.insert(call.offset, call);
     }
 
-    let mut class_literals = BTreeMap::new();
+    let mut instructions = Vec::new();
     for block in &method.cfg.blocks {
         for inst in &block.instructions {
-            if let InstructionKind::ConstClass(value) = &inst.kind {
-                class_literals.insert(inst.offset, value.clone());
-            }
+            instructions.push(inst);
         }
     }
+    instructions.sort_by_key(|inst| inst.offset);
+    let mut instruction_index = 0usize;
 
     let mut locals = initial_locals(method)?;
     let mut stack: Vec<ValueKind> = Vec::new();
     let mut offset = 0usize;
     while offset < method.bytecode.len() {
         let opcode = method.bytecode[offset];
+        while instruction_index < instructions.len()
+            && instructions[instruction_index].offset < offset as u32
+        {
+            instruction_index += 1;
+        }
+        let instruction_kind = instructions
+            .get(instruction_index)
+            .filter(|inst| inst.offset == offset as u32)
+            .map(|inst| &inst.kind);
+
         match opcode {
             opcodes::ACONST_NULL => stack.push(ValueKind::Unknown),
             opcodes::ALOAD => {
@@ -113,11 +123,13 @@ fn analyze_method(
                 locals[index] = value;
             }
             opcodes::LDC | opcodes::LDC_W | opcodes::LDC2_W => {
-                if let Some(value) = class_literals.get(&(offset as u32)) {
-                    stack.push(ValueKind::ClassLiteral(value.clone()));
-                } else {
-                    stack.push(ValueKind::Unknown);
-                }
+                let value = match instruction_kind {
+                    Some(InstructionKind::ConstClass(value)) => {
+                        ValueKind::ClassLiteral(value.clone())
+                    }
+                    _ => ValueKind::Unknown,
+                };
+                stack.push(value);
             }
             opcodes::DUP => {
                 if let Some(value) = stack.last().cloned() {
