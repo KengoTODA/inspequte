@@ -85,6 +85,13 @@
               }
             },
             {
+              "id": "SLF4J_MANUALLY_PROVIDED_MESSAGE",
+              "name": "SLF4J preformatted message",
+              "shortDescription": {
+                "text": "SLF4J messages should use placeholders instead of manual formatting"
+              }
+            },
+            {
               "id": "SLF4J_PLACEHOLDER_MISMATCH",
               "name": "SLF4J placeholder mismatch",
               "shortDescription": {
