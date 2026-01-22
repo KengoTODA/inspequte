@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.5.1...inspequte-v0.6.0) (2026-01-22)
+
+
+### Features
+
+* add slf4j format const rule ([57898d9](https://github.com/KengoTODA/inspequte/commit/57898d9097c521100bcc924e22d5bdad4ddbd956))
+* add slf4j illegal passed class rule ([306cd89](https://github.com/KengoTODA/inspequte/commit/306cd89adc6b2edd2fc9f6f5542e9d5a76beb086))
+* add slf4j logger final rule ([b73fe2b](https://github.com/KengoTODA/inspequte/commit/b73fe2b75b494915fdd0541a2bc41909748d5dba))
+* add slf4j preformatted message rule ([a99e9ad](https://github.com/KengoTODA/inspequte/commit/a99e9adf78b928c4bf0192b84800e6800d4a74fb))
+* add slf4j private logger rule ([476929d](https://github.com/KengoTODA/inspequte/commit/476929d864344adb74e84dde31980197d62b3ba7))
+* add slf4j sign-only format rule ([cae64d8](https://github.com/KengoTODA/inspequte/commit/cae64d8a2e9fc77bbf68c54c2113554c53f00560))
+* add slf4j unknown array rule ([543c8c6](https://github.com/KengoTODA/inspequte/commit/543c8c6cbfc6f9d1e1cb00f296c1600a97f17e93))
+
 ## [0.5.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.5.0...inspequte-v0.5.1) (2026-01-22)
 
 
