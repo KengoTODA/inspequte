@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.4.0...inspequte-v0.5.0) (2026-01-22)
+
+
+### Features
+
+* add otel tracing export ([#16](https://github.com/KengoTODA/inspequte/issues/16)) ([45f60ec](https://github.com/KengoTODA/inspequte/commit/45f60ec3bacbe5d8a93412a0fe8dba57455e830e))
+* **rules:** add SLF4J placeholder mismatch rule ([fba3cc3](https://github.com/KengoTODA/inspequte/commit/fba3cc3e91fe4d3c0d2092ba974ced40e8faac73))
+
 ## [0.4.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.3.0...inspequte-v0.4.0) (2026-01-18)
 
 
