@@ -62,6 +62,9 @@ impl Rule for DeadCodeRule {
             if reachable.contains(&id) {
                 continue;
             }
+            if is_implicit_initializer(method) {
+                continue;
+            }
             if !method_has_body(method) {
                 continue;
             }
@@ -131,6 +134,10 @@ fn is_entry_method(method: &Method) -> bool {
 
 fn method_has_body(method: &Method) -> bool {
     !method.access.is_abstract && !method.bytecode.is_empty()
+}
+
+fn is_implicit_initializer(method: &Method) -> bool {
+    matches!(method.name.as_str(), "<init>" | "<clinit>")
 }
 
 #[cfg(test)]
@@ -330,5 +337,42 @@ public class App {
             .collect();
 
         assert!(messages.iter().any(|msg| msg.contains("unused()V")));
+    }
+
+    #[test]
+    fn dead_code_rule_skips_implicit_initializers() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/App.java".to_string(),
+            contents: r#"
+package com.example;
+public class App {
+    static {
+        System.out.println("init");
+    }
+
+    public App() {
+        System.out.println("ctor");
+    }
+
+    public void entry() {}
+}
+"#
+            .to_string(),
+        }];
+
+        let output = harness
+            .compile_and_analyze(Language::Java, &sources, &[])
+            .expect("run harness analysis");
+
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("DEAD_CODE"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(!messages.iter().any(|msg| msg.contains("<clinit>")));
+        assert!(!messages.iter().any(|msg| msg.contains("<init>")));
     }
 }
