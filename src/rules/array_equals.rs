@@ -59,7 +59,7 @@ impl Rule for ArrayEqualsRule {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum ValueKind {
     Unknown,
-    Array,
+    Array(u8),
     NonArray,
 }
 
@@ -81,6 +81,17 @@ fn analyze_method(
         let opcode = method.bytecode[offset];
         match opcode {
             opcodes::ACONST_NULL => stack.push(ValueKind::Unknown),
+            opcodes::ICONST_M1
+            | opcodes::ICONST_0
+            | opcodes::ICONST_1
+            | opcodes::ICONST_2
+            | opcodes::ICONST_3
+            | opcodes::ICONST_4
+            | opcodes::ICONST_5
+            | opcodes::BIPUSH
+            | opcodes::SIPUSH => {
+                stack.push(ValueKind::NonArray);
+            }
             opcodes::ALOAD => {
                 let index = method.bytecode.get(offset + 1).copied().unwrap_or(0) as usize;
                 ensure_local(&mut locals, index);
@@ -90,6 +101,12 @@ fn analyze_method(
                 let index = (opcode - opcodes::ALOAD_0) as usize;
                 ensure_local(&mut locals, index);
                 stack.push(locals[index]);
+            }
+            opcodes::ILOAD => {
+                stack.push(ValueKind::NonArray);
+            }
+            opcodes::ILOAD_0 | opcodes::ILOAD_1 | opcodes::ILOAD_2 | opcodes::ILOAD_3 => {
+                stack.push(ValueKind::NonArray);
             }
             opcodes::ASTORE => {
                 let index = method.bytecode.get(offset + 1).copied().unwrap_or(0) as usize;
@@ -105,14 +122,18 @@ fn analyze_method(
             }
             opcodes::NEWARRAY | opcodes::ANEWARRAY => {
                 stack.pop();
-                stack.push(ValueKind::Array);
+                stack.push(ValueKind::Array(1));
             }
             opcodes::MULTIANEWARRAY => {
                 let dims = method.bytecode.get(offset + 3).copied().unwrap_or(0);
                 for _ in 0..dims {
                     stack.pop();
                 }
-                stack.push(ValueKind::Array);
+                if dims > 0 {
+                    stack.push(ValueKind::Array(dims));
+                } else {
+                    stack.push(ValueKind::Unknown);
+                }
             }
             opcodes::NEW => {
                 stack.push(ValueKind::NonArray);
@@ -128,10 +149,45 @@ fn analyze_method(
             opcodes::POP => {
                 stack.pop();
             }
+            opcodes::POP2 => {
+                stack.pop();
+                stack.pop();
+            }
+            opcodes::AALOAD => {
+                stack.pop();
+                let array = stack.pop().unwrap_or(ValueKind::Unknown);
+                let value = match array {
+                    ValueKind::Array(dims) if dims > 1 => ValueKind::Array(dims - 1),
+                    ValueKind::Array(_) => ValueKind::NonArray,
+                    _ => ValueKind::Unknown,
+                };
+                stack.push(value);
+            }
+            opcodes::ARRAYLENGTH => {
+                stack.pop();
+                stack.push(ValueKind::NonArray);
+            }
+            opcodes::IFEQ
+            | opcodes::IFNE
+            | opcodes::IFLT
+            | opcodes::IFGE
+            | opcodes::IFGT
+            | opcodes::IFLE => {
+                stack.pop();
+            }
+            opcodes::IF_ICMPEQ
+            | opcodes::IF_ICMPNE
+            | opcodes::IF_ICMPLT
+            | opcodes::IF_ICMPGE
+            | opcodes::IF_ICMPGT
+            | opcodes::IF_ICMPLE => {
+                stack.pop();
+                stack.pop();
+            }
             opcodes::IF_ACMPEQ | opcodes::IF_ACMPNE => {
                 let right = stack.pop().unwrap_or(ValueKind::Unknown);
                 let left = stack.pop().unwrap_or(ValueKind::Unknown);
-                if left == ValueKind::Array && right == ValueKind::Array {
+                if matches!(left, ValueKind::Array(_)) && matches!(right, ValueKind::Array(_)) {
                     let message = result_message(format!(
                         "Array comparison uses reference equality: {}.{}{}",
                         class_name, method.name, method.descriptor
@@ -161,7 +217,7 @@ fn analyze_method(
                     let receiver = stack.pop().unwrap_or(ValueKind::Unknown);
                     if call.name == "equals"
                         && call.descriptor == "(Ljava/lang/Object;)Z"
-                        && receiver == ValueKind::Array
+                        && matches!(receiver, ValueKind::Array(_))
                     {
                         let message = result_message(format!(
                             "Array comparison uses equals(): {}.{}{}",
@@ -215,12 +271,11 @@ fn initial_locals(method: &Method) -> Result<Vec<ValueKind>> {
     let descriptor =
         MethodDescriptor::from_str(&method.descriptor).context("parse method descriptor")?;
     for param in descriptor.parameter_types() {
-        let is_array = matches!(param, TypeDescriptor::Array(_, _));
-        locals.push(if is_array {
-            ValueKind::Array
-        } else {
-            ValueKind::NonArray
-        });
+        let value = match param {
+            TypeDescriptor::Array(_, dims) => ValueKind::Array(*dims),
+            _ => ValueKind::NonArray,
+        };
+        locals.push(value);
         if matches!(param, TypeDescriptor::Long | TypeDescriptor::Double) {
             locals.push(ValueKind::NonArray);
         }
@@ -245,7 +300,7 @@ fn is_reference_return(descriptor: &str) -> Result<bool> {
 fn return_kind(descriptor: &str) -> Result<ValueKind> {
     let descriptor = MethodDescriptor::from_str(descriptor).context("parse call descriptor")?;
     let kind = match descriptor.return_type() {
-        TypeDescriptor::Array(_, _) => ValueKind::Array,
+        TypeDescriptor::Array(_, dims) => ValueKind::Array(*dims),
         TypeDescriptor::Object(_) => ValueKind::NonArray,
         _ => ValueKind::Unknown,
     };
@@ -355,6 +410,65 @@ package com.example;
 public class Sample {
     public boolean same(String[] left) {
         return left == null;
+    }
+}
+"#
+            .to_string(),
+        }];
+        let messages = analyze_sources(sources);
+        assert!(messages.is_empty());
+    }
+
+    #[test]
+    fn array_equals_ignores_varargs_iteration_equals() {
+        let sources = vec![SourceFile {
+            path: "com/example/Sample.java".to_string(),
+            contents: r#"
+package com.example;
+class ClassDescriptor {}
+public class Sample {
+    public boolean isSubtype(ClassDescriptor subDesc, ClassDescriptor... superDesc) {
+        for (ClassDescriptor s : superDesc) {
+            if (subDesc.equals(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+"#
+            .to_string(),
+        }];
+        let messages = analyze_sources(sources);
+        assert!(messages.is_empty());
+    }
+
+    #[test]
+    fn array_equals_ignores_array_element_equals_loop() {
+        let sources = vec![SourceFile {
+            path: "com/example/Sample.java".to_string(),
+            contents: r#"
+package com.example;
+class Type {}
+class Method {
+    public String getSignature() { return ""; }
+}
+class TypeUtil {
+    static Type[] getArgumentTypes(String signature) { return new Type[0]; }
+}
+public class Sample {
+    public Method find(Method m, Type[] subArgs) {
+        Type[] superArgs = TypeUtil.getArgumentTypes(m.getSignature());
+        if (subArgs.length == superArgs.length) {
+            outer:
+            for (int j = 0; j < subArgs.length; j++) {
+                if (!superArgs[j].equals(subArgs[j])) {
+                    continue outer;
+                }
+            }
+            return m;
+        }
+        return null;
     }
 }
 "#
