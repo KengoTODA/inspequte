@@ -14,6 +14,7 @@ pub(crate) mod insecure_api;
 pub(crate) mod nullness;
 pub(crate) mod record_array_field;
 pub(crate) mod slf4j_format_should_be_const;
+pub(crate) mod slf4j_illegal_passed_class;
 pub(crate) mod slf4j_logger_should_be_final;
 pub(crate) mod slf4j_logger_should_be_private;
 pub(crate) mod slf4j_manually_provided_message;

@@ -71,6 +71,13 @@
               }
             },
             {
+              "id": "SLF4J_ILLEGAL_PASSED_CLASS",
+              "name": "SLF4J illegal passed class",
+              "shortDescription": {
+                "text": "LoggerFactory.getLogger should be called with the caller class"
+              }
+            },
+            {
               "id": "SLF4J_LOGGER_SHOULD_BE_FINAL",
               "name": "SLF4J logger should be final",
               "shortDescription": {

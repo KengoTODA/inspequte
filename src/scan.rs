@@ -1108,6 +1108,8 @@ fn parse_bytecode(
                 if let Some(value) = resolve_string_literal(constant_pool, index)? {
                     string_literals.push(value.clone());
                     InstructionKind::ConstString(value)
+                } else if let Some(value) = resolve_class_literal(constant_pool, index)? {
+                    InstructionKind::ConstClass(value)
                 } else {
                     InstructionKind::Other(opcode)
                 }
@@ -1117,6 +1119,8 @@ fn parse_bytecode(
                 if let Some(value) = resolve_string_literal(constant_pool, index)? {
                     string_literals.push(value.clone());
                     InstructionKind::ConstString(value)
+                } else if let Some(value) = resolve_class_literal(constant_pool, index)? {
+                    InstructionKind::ConstClass(value)
                 } else {
                     InstructionKind::Other(opcode)
                 }
@@ -1290,6 +1294,16 @@ fn resolve_string_literal(constant_pool: &[ConstantPool], index: u16) -> Result<
             Ok(Some(value))
         }
         ConstantPool::Utf8 { value } => Ok(Some(value.clone())),
+        _ => Ok(None),
+    }
+}
+
+fn resolve_class_literal(constant_pool: &[ConstantPool], index: u16) -> Result<Option<String>> {
+    let entry = constant_pool
+        .get(index as usize)
+        .context("missing constant pool entry")?;
+    match entry {
+        ConstantPool::Class { name_index } => Ok(Some(resolve_utf8(constant_pool, *name_index)?)),
         _ => Ok(None),
     }
 }

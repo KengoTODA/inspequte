@@ -112,6 +112,7 @@ pub(crate) struct Instruction {
 pub(crate) enum InstructionKind {
     Invoke(CallSite),
     ConstString(String),
+    ConstClass(String),
     Other(u8),
 }
 
