@@ -100,8 +100,7 @@ where
     }
 }
 
-/// In-memory exporter that buffers spans for later JSON output.
-/// In-memory span exporter that buffers spans for file output.
+/// In-memory span exporter that buffers spans for later JSON file output.
 #[derive(Debug)]
 struct SpanStoreExporter {
     spans: Arc<Mutex<Vec<SpanData>>>,
