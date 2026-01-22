@@ -160,7 +160,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
             &[KeyValue::new("inspequte.phase", "write")],
             || -> Result<()> {
                 let mut writer = output_writer(args.output.as_deref())?;
-                serde_json::to_writer_pretty(&mut writer, &sarif)
+                serde_json::to_writer(&mut writer, &sarif)
                     .context("failed to serialize SARIF output")?;
                 writer
                     .write_all(b"\n")
