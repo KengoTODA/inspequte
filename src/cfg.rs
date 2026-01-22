@@ -139,8 +139,8 @@ fn branch_targets(code: &[u8], offset: usize) -> Result<Option<Vec<u16>>> {
             let target = offset as i32 + branch as i32;
             vec![target as u16]
         }
-        0xaa => tableswitch_targets(code, offset)?,
-        0xab => lookupswitch_targets(code, offset)?,
+        opcodes::TABLESWITCH => tableswitch_targets(code, offset)?,
+        opcodes::LOOKUPSWITCH => lookupswitch_targets(code, offset)?,
         _ => return Ok(None),
     };
     Ok(Some(targets))
@@ -199,4 +199,38 @@ fn read_i16(code: &[u8], offset: usize) -> Result<i16> {
 fn read_i32(code: &[u8], offset: usize) -> Result<i32> {
     let value = crate::scan::read_u32(code, offset)?;
     Ok(i32::from_be_bytes(value.to_be_bytes()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tableswitch_targets_collects_default_and_offsets() {
+        let mut code = vec![opcodes::TABLESWITCH, 0, 0, 0];
+        code.extend_from_slice(&12i32.to_be_bytes());
+        code.extend_from_slice(&1i32.to_be_bytes());
+        code.extend_from_slice(&2i32.to_be_bytes());
+        code.extend_from_slice(&4i32.to_be_bytes());
+        code.extend_from_slice(&8i32.to_be_bytes());
+
+        let targets = tableswitch_targets(&code, 0).expect("tableswitch targets");
+
+        assert_eq!(targets, vec![12, 4, 8]);
+    }
+
+    #[test]
+    fn lookupswitch_targets_collects_default_and_pairs() {
+        let mut code = vec![opcodes::LOOKUPSWITCH, 0, 0, 0];
+        code.extend_from_slice(&16i32.to_be_bytes());
+        code.extend_from_slice(&2i32.to_be_bytes());
+        code.extend_from_slice(&10i32.to_be_bytes());
+        code.extend_from_slice(&4i32.to_be_bytes());
+        code.extend_from_slice(&20i32.to_be_bytes());
+        code.extend_from_slice(&12i32.to_be_bytes());
+
+        let targets = lookupswitch_targets(&code, 0).expect("lookupswitch targets");
+
+        assert_eq!(targets, vec![16, 4, 12]);
+    }
 }
