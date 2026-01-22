@@ -152,6 +152,7 @@ impl From<&Location> for BaselineLocation {
 mod tests {
     use super::*;
     use serde_sarif::sarif::{LogicalLocation, Message, Result as SarifResultBuilder};
+    use tempfile::tempdir;
 
     fn sample_result(rule_id: &str, logical: &str, message: &str) -> SarifResult {
         SarifResultBuilder::builder()
@@ -212,5 +213,32 @@ mod tests {
 
         let filtered = parsed.filter(findings);
         assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn baseline_write_and_load_round_trip() {
+        let findings = vec![
+            sample_result("RULE_A", "com/example/App.run()V", "one"),
+            sample_result("RULE_B", "com/example/App.run()V", "two"),
+        ];
+        let dir = tempdir().expect("baseline temp dir");
+        let path = dir.path().join("baseline.json");
+
+        write_baseline(&path, &findings).expect("write baseline");
+        let loaded = load_baseline(&path).expect("load baseline");
+
+        let baseline = loaded.expect("baseline present");
+        let filtered = baseline.filter(findings);
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn baseline_load_missing_file_returns_none() {
+        let dir = tempdir().expect("baseline temp dir");
+        let path = dir.path().join("missing.json");
+
+        let loaded = load_baseline(&path).expect("load baseline");
+
+        assert!(loaded.is_none());
     }
 }
