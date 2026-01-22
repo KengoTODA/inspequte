@@ -93,7 +93,7 @@ fn scan_path(
     classes: &mut Vec<Class>,
 ) -> Result<()> {
     if path.is_dir() {
-        scan_dir(path, telemetry, artifacts, class_count, classes)?;
+        scan_dir(path, is_input, telemetry, artifacts, class_count, classes)?;
         return Ok(());
     }
 
@@ -121,6 +121,7 @@ fn scan_path(
 
 fn scan_dir(
     path: &Path,
+    is_input: bool,
     telemetry: Option<&Telemetry>,
     artifacts: &mut Vec<Artifact>,
     class_count: &mut usize,
@@ -139,11 +140,11 @@ fn scan_dir(
 
     for entry in entries {
         if entry.is_dir() {
-            scan_dir(&entry, telemetry, artifacts, class_count, classes)?;
+            scan_dir(&entry, is_input, telemetry, artifacts, class_count, classes)?;
         } else {
             scan_path(
                 &entry,
-                false,
+                is_input,
                 false,
                 telemetry,
                 artifacts,
@@ -1413,6 +1414,40 @@ mod tests {
 
         assert_eq!(result.class_count, 1);
         assert_eq!(result.artifacts.len(), 1);
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn scan_inputs_marks_directory_entries_as_targets() {
+        let jar_path = jspecify_jar_path().expect("download jar");
+        let class_bytes = extract_first_class(&jar_path).expect("extract class");
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let class_path = temp_dir.join("Sample.class");
+        fs::write(&class_path, class_bytes).expect("write class file");
+
+        let result = scan_inputs(&temp_dir, &[], None).expect("scan directory");
+
+        assert_eq!(result.class_count, 1);
+        assert_eq!(result.artifacts.len(), 1);
+        let roles = result
+            .artifacts
+            .first()
+            .and_then(|artifact| artifact.roles.as_ref())
+            .expect("artifact roles");
+        assert!(
+            roles
+                .iter()
+                .any(|role| role.as_str() == Some("analysisTarget")),
+            "roles: {roles:?}"
+        );
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
     }
 

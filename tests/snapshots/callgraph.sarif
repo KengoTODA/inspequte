@@ -2,6 +2,26 @@
   "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json",
   "runs": [
     {
+      "artifacts": [
+        {
+          "length": 270,
+          "location": {
+            "uri": "A.class"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "length": 192,
+          "location": {
+            "uri": "B.class"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        }
+      ],
       "invocations": [
         {
           "arguments": [],
