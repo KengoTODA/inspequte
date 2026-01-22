@@ -143,6 +143,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 
         let invocation = build_invocation(&analysis.invocation_stats);
         let sarif = build_sarif(
+            telemetry.as_deref(),
             analysis.artifacts,
             invocation,
             analysis.rules,
@@ -416,48 +417,51 @@ fn validate_sarif(sarif: &Sarif) -> Result<()> {
 }
 
 fn build_sarif(
+    telemetry: Option<&Telemetry>,
     artifacts: Vec<Artifact>,
     invocation: Invocation,
     rules: Vec<ReportingDescriptor>,
     results: Vec<SarifResult>,
 ) -> Sarif {
-    let driver = if rules.is_empty() {
-        ToolComponent::builder()
-            .name("inspequte")
-            .information_uri("https://github.com/KengoTODA/inspequte")
-            .build()
-    } else {
-        ToolComponent::builder()
-            .name("inspequte")
-            .information_uri("https://github.com/KengoTODA/inspequte")
-            .rules(rules)
-            .build()
-    };
-    let tool = Tool {
-        driver,
-        extensions: None,
-        properties: None,
-    };
-    let run = if artifacts.is_empty() {
-        Run::builder()
-            .tool(tool)
-            .invocations(vec![invocation])
-            .results(results)
-            .build()
-    } else {
-        Run::builder()
-            .tool(tool)
-            .invocations(vec![invocation])
-            .results(results)
-            .artifacts(artifacts)
-            .build()
-    };
+    with_span(telemetry, "sarif.build", &[], || {
+        let driver = if rules.is_empty() {
+            ToolComponent::builder()
+                .name("inspequte")
+                .information_uri("https://github.com/KengoTODA/inspequte")
+                .build()
+        } else {
+            ToolComponent::builder()
+                .name("inspequte")
+                .information_uri("https://github.com/KengoTODA/inspequte")
+                .rules(rules)
+                .build()
+        };
+        let tool = Tool {
+            driver,
+            extensions: None,
+            properties: None,
+        };
+        let run = if artifacts.is_empty() {
+            Run::builder()
+                .tool(tool)
+                .invocations(vec![invocation])
+                .results(results)
+                .build()
+        } else {
+            Run::builder()
+                .tool(tool)
+                .invocations(vec![invocation])
+                .results(results)
+                .artifacts(artifacts)
+                .build()
+        };
 
-    Sarif::builder()
-        .schema(SCHEMA_URL)
-        .runs(vec![run])
-        .version(json!("2.1.0"))
-        .build()
+        Sarif::builder()
+            .schema(SCHEMA_URL)
+            .runs(vec![run])
+            .version(json!("2.1.0"))
+            .build()
+    })
 }
 
 #[cfg(test)]
@@ -486,7 +490,7 @@ mod tests {
             artifact_count: 0,
             classpath_class_count: 0,
         });
-        let sarif = build_sarif(Vec::new(), invocation, Vec::new(), Vec::new());
+        let sarif = build_sarif(None, Vec::new(), invocation, Vec::new(), Vec::new());
         let value = serde_json::to_value(&sarif).expect("serialize SARIF");
 
         assert_eq!(value["version"], "2.1.0");
@@ -534,7 +538,13 @@ mod tests {
             .arguments(Vec::<String>::new())
             .build();
         let artifacts = normalize_artifacts(artifacts);
-        let sarif = build_sarif(artifacts, invocation, analysis.rules, analysis.results);
+        let sarif = build_sarif(
+            None,
+            artifacts,
+            invocation,
+            analysis.rules,
+            analysis.results,
+        );
         let actual = serde_json::to_string_pretty(&sarif).expect("serialize SARIF");
         let snapshot_path = snapshot_path("callgraph.sarif");
 
