@@ -22,13 +22,6 @@
               }
             },
             {
-              "id": "DEAD_CODE",
-              "name": "Dead code",
-              "shortDescription": {
-                "text": "Unreachable methods detected by call graph"
-              }
-            },
-            {
               "id": "EMPTY_CATCH",
               "name": "Empty catch block",
               "shortDescription": {
