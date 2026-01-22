@@ -107,7 +107,6 @@ fn is_trivial_opcode(opcode: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::classpath::resolve_classpath;
     use crate::descriptor::method_param_count;
     use crate::engine::build_context;
     use crate::ir::{
@@ -176,16 +175,14 @@ mod tests {
     }
 
     fn context_for(classes: Vec<Class>) -> crate::engine::AnalysisContext {
-        let classpath = resolve_classpath(&classes).expect("classpath build");
-        build_context(classes, classpath, &[])
+        build_context(classes, &[])
     }
 
     fn context_for_with_artifacts(
         classes: Vec<Class>,
         artifacts: Vec<Artifact>,
     ) -> crate::engine::AnalysisContext {
-        let classpath = resolve_classpath(&classes).expect("classpath build");
-        build_context(classes, classpath, &artifacts)
+        build_context(classes, &artifacts)
     }
 
     #[test]

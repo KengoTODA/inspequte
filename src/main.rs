@@ -1,5 +1,4 @@
 mod baseline;
-mod callgraph;
 mod cfg;
 mod classpath;
 mod descriptor;
@@ -279,7 +278,7 @@ fn analyze(
     let artifacts = scan.artifacts;
     let classes = scan.classes;
     let (context, context_timings) =
-        build_context_with_timings(classes, classpath_index, &artifacts, telemetry.clone());
+        build_context_with_timings(classes, &artifacts, telemetry.clone());
     let analysis_rules_started_at = Instant::now();
     let engine = Engine::new();
     let analysis = with_span(
@@ -475,7 +474,6 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::classpath::resolve_classpath;
     use crate::engine::{Engine, build_context};
     use crate::scan::scan_inputs;
 
@@ -533,9 +531,8 @@ mod tests {
         fs::write(temp_dir.join("B.class"), class_b).expect("write B.class");
 
         let scan = scan_inputs(&temp_dir, &[], None).expect("scan classes");
-        let classpath = resolve_classpath(&scan.classes).expect("resolve classpath");
         let artifacts = scan.artifacts.clone();
-        let context = build_context(scan.classes.clone(), classpath, &artifacts);
+        let context = build_context(scan.classes.clone(), &artifacts);
         let engine = Engine::new();
         let analysis = engine.analyze(context).expect("analysis");
         let invocation = Invocation::builder()

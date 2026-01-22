@@ -9,14 +9,11 @@ use rayon::prelude::*;
 use serde_sarif::sarif::Artifact;
 use serde_sarif::sarif::{MultiformatMessageString, ReportingDescriptor, Result as SarifResult};
 
-use crate::callgraph::{CallGraph, build_call_graph_with_timings};
-use crate::classpath::ClasspathIndex;
 use crate::ir::Class;
 use crate::rules::{
-    Rule, RuleMetadata, array_equals::ArrayEqualsRule, dead_code::DeadCodeRule,
-    empty_catch::EmptyCatchRule, ineffective_equals::IneffectiveEqualsRule,
-    insecure_api::InsecureApiRule, nullness::NullnessRule,
-    record_array_field::RecordArrayFieldRule,
+    Rule, RuleMetadata, array_equals::ArrayEqualsRule, empty_catch::EmptyCatchRule,
+    ineffective_equals::IneffectiveEqualsRule, insecure_api::InsecureApiRule,
+    nullness::NullnessRule, record_array_field::RecordArrayFieldRule,
     slf4j_format_should_be_const::Slf4jFormatShouldBeConstRule,
     slf4j_illegal_passed_class::Slf4jIllegalPassedClassRule,
     slf4j_logger_should_be_final::Slf4jLoggerShouldBeFinalRule,
@@ -30,9 +27,6 @@ use crate::telemetry::{Telemetry, with_span};
 /// Inputs shared by analysis rules.
 pub(crate) struct AnalysisContext {
     pub(crate) classes: Vec<Class>,
-    #[allow(dead_code)]
-    pub(crate) classpath: ClasspathIndex,
-    pub(crate) call_graph: CallGraph,
     artifact_uris: BTreeMap<i64, String>,
     analysis_target_artifacts: BTreeSet<i64>,
     artifact_parents: BTreeMap<i64, i64>,
@@ -57,7 +51,6 @@ impl Engine {
     pub(crate) fn new() -> Self {
         let mut rules: Vec<Box<dyn Rule + Sync>> = vec![
             Box::new(ArrayEqualsRule),
-            Box::new(DeadCodeRule),
             Box::new(NullnessRule),
             Box::new(EmptyCatchRule),
             Box::new(InsecureApiRule),
@@ -139,29 +132,17 @@ pub(crate) struct EngineOutput {
 }
 
 #[cfg(test)]
-pub(crate) fn build_context(
-    classes: Vec<Class>,
-    classpath: ClasspathIndex,
-    artifacts: &[Artifact],
-) -> AnalysisContext {
-    let (context, _) = build_context_with_timings(classes, classpath, artifacts, None);
+pub(crate) fn build_context(classes: Vec<Class>, artifacts: &[Artifact]) -> AnalysisContext {
+    let (context, _) = build_context_with_timings(classes, artifacts, None);
     context
 }
 
 pub(crate) fn build_context_with_timings(
     classes: Vec<Class>,
-    classpath: ClasspathIndex,
     artifacts: &[Artifact],
     telemetry: Option<Arc<Telemetry>>,
 ) -> (AnalysisContext, ContextTimings) {
-    let call_graph_started_at = Instant::now();
-    let (call_graph, call_graph_timings) = with_span(
-        telemetry.as_deref(),
-        "call_graph",
-        &[KeyValue::new("inspequte.phase", "call_graph")],
-        || build_call_graph_with_timings(&classes),
-    );
-    let call_graph_duration_ms = call_graph_started_at.elapsed().as_millis();
+    let call_graph_duration_ms = 0;
     let artifact_started_at = Instant::now();
     let (analysis_target_artifacts, artifact_parents, artifact_uris) = with_span(
         telemetry.as_deref(),
@@ -173,14 +154,12 @@ pub(crate) fn build_context_with_timings(
     let timings = ContextTimings {
         call_graph_duration_ms,
         artifact_duration_ms,
-        call_graph_hierarchy_duration_ms: call_graph_timings.hierarchy_duration_ms,
-        call_graph_index_duration_ms: call_graph_timings.index_duration_ms,
-        call_graph_edges_duration_ms: call_graph_timings.edges_duration_ms,
+        call_graph_hierarchy_duration_ms: 0,
+        call_graph_index_duration_ms: 0,
+        call_graph_edges_duration_ms: 0,
     };
     let context = AnalysisContext {
         classes,
-        classpath,
-        call_graph,
         artifact_uris,
         analysis_target_artifacts,
         artifact_parents,

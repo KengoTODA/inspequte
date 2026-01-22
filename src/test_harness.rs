@@ -5,7 +5,6 @@ use std::process::Command;
 use anyhow::{Context, Result};
 use tempfile::TempDir;
 
-use crate::classpath::resolve_classpath;
 use crate::engine::{Engine, EngineOutput, build_context};
 use crate::scan::scan_inputs;
 
@@ -112,8 +111,7 @@ impl JvmTestHarness {
         classpath: &[PathBuf],
     ) -> Result<EngineOutput> {
         let scan = scan_inputs(classes_dir, classpath, None).context("scan classes")?;
-        let classpath_index = resolve_classpath(&scan.classes).context("resolve classpath")?;
-        let context = build_context(scan.classes, classpath_index, &scan.artifacts);
+        let context = build_context(scan.classes, &scan.artifacts);
         let engine = Engine::new();
         engine.analyze(context).context("run analysis")
     }

@@ -594,7 +594,6 @@ fn lookup_return_nullness(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::classpath::resolve_classpath;
     use crate::engine::build_context;
     use crate::ir::{
         BasicBlock, CallKind, CallSite, Class, ControlFlowGraph, Instruction, InstructionKind,
@@ -647,8 +646,7 @@ mod tests {
     }
 
     fn context_for(classes: Vec<Class>) -> AnalysisContext {
-        let classpath = resolve_classpath(&classes).expect("classpath build");
-        build_context(classes, classpath, &[])
+        build_context(classes, &[])
     }
 
     fn jspecify_stubs() -> Vec<SourceFile> {

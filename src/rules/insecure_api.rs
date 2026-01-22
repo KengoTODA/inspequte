@@ -75,7 +75,6 @@ fn is_insecure_call(owner: &str, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::classpath::resolve_classpath;
     use crate::descriptor::method_param_count;
     use crate::engine::build_context;
     use crate::ir::{
@@ -123,8 +122,7 @@ mod tests {
     }
 
     fn context_for(classes: Vec<Class>) -> crate::engine::AnalysisContext {
-        let classpath = resolve_classpath(&classes).expect("classpath build");
-        build_context(classes, classpath, &[])
+        build_context(classes, &[])
     }
 
     #[test]
