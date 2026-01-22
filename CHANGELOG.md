@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.6.0...inspequte-v0.6.1) (2026-01-22)
+
+
+### Bug Fixes
+
+* parent class spans under jar scan ([13d551e](https://github.com/KengoTODA/inspequte/commit/13d551e79b705c873f433d949c5c178ad461abfc))
+* restore jar scan result handling ([4bb4267](https://github.com/KengoTODA/inspequte/commit/4bb426726c0206e449baaec3a0c4b32e56401507))
+
 ## [0.6.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.5.1...inspequte-v0.6.0) (2026-01-22)
 
 
