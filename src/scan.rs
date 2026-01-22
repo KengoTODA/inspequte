@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::fs;
-use std::io::Read;
+use std::io::{Cursor, Read, Seek};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -16,6 +16,7 @@ use zip::ZipArchive;
 
 use opentelemetry::Context as OtelContext;
 use opentelemetry::KeyValue;
+use rayon::prelude::*;
 
 use crate::cfg::build_cfg;
 use crate::descriptor::method_param_count;
@@ -38,20 +39,6 @@ pub(crate) fn scan_inputs(
     classpath: &[PathBuf],
     telemetry: Option<&Telemetry>,
 ) -> Result<ScanOutput> {
-    let mut artifacts = Vec::new();
-    let mut class_count = 0;
-    let mut classes = Vec::new();
-
-    scan_path(
-        input,
-        true,
-        true,
-        telemetry,
-        &mut artifacts,
-        &mut class_count,
-        &mut classes,
-    )?;
-
     // Keep deterministic ordering by sorting classpath entries and directory listings.
     let mut classpath_entries = classpath.to_vec();
     classpath_entries.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
@@ -61,19 +48,67 @@ pub(crate) fn scan_inputs(
     }
 
     let expanded = expand_classpath(classpath_entries)?;
-    for entry in expanded {
+    let mut targets = Vec::with_capacity(expanded.len() + 1);
+    targets.push(ScanTarget {
+        index: 0,
+        path: input.to_path_buf(),
+        is_input: true,
+    });
+    for (offset, entry) in expanded.into_iter().enumerate() {
         if entry == input {
             continue;
         }
-        scan_path(
-            &entry,
-            false,
-            true,
-            telemetry,
-            &mut artifacts,
-            &mut class_count,
-            &mut classes,
-        )?;
+        targets.push(ScanTarget {
+            index: offset + 1,
+            path: entry,
+            is_input: false,
+        });
+    }
+
+    let parent_cx = OtelContext::current();
+    let mut results = targets
+        .par_iter()
+        .map(|target| {
+            let _guard = telemetry.map(|_| parent_cx.clone().attach());
+            let mut artifacts = Vec::new();
+            let mut class_count = 0;
+            let mut classes = Vec::new();
+            scan_path(
+                &target.path,
+                target.is_input,
+                true,
+                telemetry,
+                &mut artifacts,
+                &mut class_count,
+                &mut classes,
+            )?;
+            Ok((
+                target.index,
+                ScanOutput {
+                    artifacts,
+                    class_count,
+                    classes,
+                },
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    results.sort_by_key(|(index, _)| *index);
+
+    let mut artifacts = Vec::new();
+    let mut class_count = 0;
+    let mut classes = Vec::new();
+    for (_, mut output) in results {
+        let offset = artifacts.len() as i64;
+        for mut artifact in output.artifacts.drain(..) {
+            artifact.parent_index = artifact.parent_index.map(|parent| parent + offset);
+            artifacts.push(artifact);
+        }
+        for mut class in output.classes.drain(..) {
+            class.artifact_index += offset;
+            classes.push(class);
+        }
+        class_count += output.class_count;
     }
 
     Ok(ScanOutput {
@@ -81,6 +116,12 @@ pub(crate) fn scan_inputs(
         class_count,
         classes,
     })
+}
+
+struct ScanTarget {
+    index: usize,
+    path: PathBuf,
+    is_input: bool,
 }
 
 fn scan_path(
@@ -258,47 +299,139 @@ fn scan_jar_file_inner(
         .with_context(|| format!("failed to read {}", path.display()))?
         .len();
     let jar_index = push_path_artifact(path, roles, jar_len, None, artifacts)?;
+    let jar_uri = path_to_uri(path);
+    let entries = jar_entries(&jar_path, &mut archive)?;
+    let class_entry_bytes =
+        read_jar_entries_bytes(&mut archive, &entries.class_entries, &jar_path)?;
+    parse_jar_classes(
+        &jar_path,
+        &jar_path,
+        class_entry_bytes,
+        jar_index,
+        telemetry,
+        Some(&parent_cx),
+        class_count,
+        classes,
+    )?;
+    scan_nested_jars(
+        &mut archive,
+        &jar_path,
+        &jar_uri,
+        jar_index,
+        entries.jar_entries,
+        telemetry,
+        &parent_cx,
+        artifacts,
+        class_count,
+        classes,
+    )?;
 
-    let entry_names = jar_class_entries(path, &mut archive)?;
+    Ok(())
+}
 
+/// Classified entries inside a JAR archive.
+struct JarEntries {
+    class_entries: Vec<String>,
+    jar_entries: Vec<String>,
+}
+
+fn jar_entries<R: Read + Seek>(
+    jar_display: &str,
+    archive: &mut ZipArchive<R>,
+) -> Result<JarEntries> {
+    let mut class_entries = Vec::new();
+    let mut jar_entries = Vec::new();
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .with_context(|| format!("failed to read {}", jar_display))?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = entry.name().to_string();
+        // TODO: Handle multi-release entries under META-INF/versions/ in a future release.
+        let is_class = name.ends_with(".class")
+            && !name.ends_with("module-info.class")
+            && !name.starts_with("META-INF/versions/");
+        let is_jar = name.ends_with(".jar");
+        if is_class {
+            class_entries.push(name.clone());
+        }
+        if is_jar {
+            jar_entries.push(name);
+        }
+    }
+
+    class_entries.sort();
+    jar_entries.sort();
+    Ok(JarEntries {
+        class_entries,
+        jar_entries,
+    })
+}
+
+fn read_jar_entries_bytes<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    entry_names: &[String],
+    jar_display: &str,
+) -> Result<Vec<(String, Vec<u8>)>> {
+    let mut entries = Vec::with_capacity(entry_names.len());
     for name in entry_names {
-        let parsed = match telemetry {
+        let mut entry = archive
+            .by_name(name)
+            .with_context(|| format!("failed to read {}:{}", jar_display, name))?;
+        let mut data = Vec::new();
+        entry
+            .read_to_end(&mut data)
+            .with_context(|| format!("failed to read {}:{}", jar_display, name))?;
+        entries.push((name.clone(), data));
+    }
+    Ok(entries)
+}
+
+fn parse_jar_classes(
+    jar_display: &str,
+    jar_path_attribute: &str,
+    entries: Vec<(String, Vec<u8>)>,
+    jar_index: i64,
+    telemetry: Option<&Telemetry>,
+    parent_cx: Option<&OtelContext>,
+    class_count: &mut usize,
+    classes: &mut Vec<Class>,
+) -> Result<()> {
+    let mut parsed = entries
+        .par_iter()
+        .map(|(name, data)| match telemetry {
             Some(telemetry) => {
                 let class_span_attributes = [
-                    KeyValue::new("inspequte.jar_path", jar_path.clone()),
+                    KeyValue::new("inspequte.jar_path", jar_path_attribute.to_string()),
                     KeyValue::new("inspequte.jar_entry", name.clone()),
                 ];
-                telemetry.in_span_with_parent(
-                    "class.scan",
-                    &class_span_attributes,
-                    &parent_cx,
-                    || -> Result<ParsedClass> {
-                        let mut entry = archive.by_name(&name).with_context(|| {
-                            format!("failed to read {}:{}", path.display(), name)
-                        })?;
-                        let mut data = Vec::new();
-                        entry.read_to_end(&mut data).with_context(|| {
-                            format!("failed to read {}:{}", path.display(), name)
-                        })?;
-                        parse_class_bytes(&data)
-                            .with_context(|| format!("failed to parse {}:{}", path.display(), name))
-                    },
-                )?
+                let parse = || {
+                    parse_class_bytes(data)
+                        .with_context(|| format!("failed to parse {}:{}", jar_display, name))
+                };
+                match parent_cx {
+                    Some(parent_cx) => telemetry
+                        .in_span_with_parent("class.scan", &class_span_attributes, parent_cx, parse)
+                        .map(|parsed| (name.clone(), parsed)),
+                    None => telemetry
+                        .in_span("class.scan", &class_span_attributes, parse)
+                        .map(|parsed| (name.clone(), parsed)),
+                }
             }
-            None => {
-                let mut entry = archive
-                    .by_name(&name)
-                    .with_context(|| format!("failed to read {}:{}", path.display(), name))?;
-                let mut data = Vec::new();
-                entry
-                    .read_to_end(&mut data)
-                    .with_context(|| format!("failed to read {}:{}", path.display(), name))?;
-                parse_class_bytes(&data)
-                    .with_context(|| format!("failed to parse {}:{}", path.display(), name))?
-            }
-        };
-        *class_count += 1;
+            None => parse_class_bytes(data)
+                .with_context(|| format!("failed to parse {}:{}", jar_display, name))
+                .map(|parsed| (name.clone(), parsed)),
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect::<Result<Vec<_>>>()?;
 
+    parsed.sort_by(|a, b| a.0.cmp(&b.0));
+    *class_count += parsed.len();
+
+    for (_, parsed) in parsed {
         classes.push(Class {
             name: parsed.name,
             super_name: parsed.super_name,
@@ -314,27 +447,192 @@ fn scan_jar_file_inner(
     Ok(())
 }
 
-fn jar_class_entries(path: &Path, archive: &mut ZipArchive<fs::File>) -> Result<Vec<String>> {
-    let mut entry_names = Vec::new();
-    for index in 0..archive.len() {
-        let entry = archive
-            .by_index(index)
-            .with_context(|| format!("failed to read {}", path.display()))?;
-        if entry.is_dir() {
+fn scan_nested_jars(
+    archive: &mut ZipArchive<fs::File>,
+    jar_display: &str,
+    jar_uri: &str,
+    parent_index: i64,
+    jar_entries: Vec<String>,
+    telemetry: Option<&Telemetry>,
+    parent_cx: &OtelContext,
+    artifacts: &mut Vec<Artifact>,
+    class_count: &mut usize,
+    classes: &mut Vec<Class>,
+) -> Result<()> {
+    if jar_entries.is_empty() {
+        return Ok(());
+    }
+
+    let jar_entries_set = jar_entries.iter().cloned().collect::<BTreeSet<String>>();
+    let mut queue = VecDeque::from(jar_entries);
+    let mut seen = BTreeSet::new();
+
+    while let Some(entry_name) = queue.pop_front() {
+        if !seen.insert(entry_name.clone()) {
             continue;
         }
-        let name = entry.name().to_string();
-        // TODO: Handle multi-release entries under META-INF/versions/ in a future release.
-        if name.ends_with(".class")
-            && !name.ends_with("module-info.class")
-            && !name.starts_with("META-INF/versions/")
-        {
-            entry_names.push(name);
+        let jar_bytes = read_jar_entry_bytes(archive, jar_display, &entry_name)?;
+        let nested_classpath = scan_nested_jar_entry(
+            &entry_name,
+            &jar_bytes,
+            jar_display,
+            jar_uri,
+            parent_index,
+            telemetry,
+            parent_cx,
+            artifacts,
+            class_count,
+            classes,
+        )?;
+        for nested in nested_classpath {
+            if jar_entries_set.contains(&nested) {
+                queue.push_back(nested);
+            }
         }
     }
 
-    entry_names.sort();
-    Ok(entry_names)
+    Ok(())
+}
+
+fn scan_nested_jar_entry(
+    entry_name: &str,
+    jar_bytes: &[u8],
+    parent_jar_display: &str,
+    parent_jar_uri: &str,
+    parent_index: i64,
+    telemetry: Option<&Telemetry>,
+    parent_cx: &OtelContext,
+    artifacts: &mut Vec<Artifact>,
+    class_count: &mut usize,
+    classes: &mut Vec<Class>,
+) -> Result<Vec<String>> {
+    let jar_display = format!("{parent_jar_display}!/{entry_name}");
+    let jar_uri = jar_entry_uri(parent_jar_uri, entry_name);
+    let jar_len = jar_bytes.len() as u64;
+    let jar_index = push_artifact(
+        jar_uri.clone(),
+        jar_len,
+        Some(parent_index),
+        None,
+        artifacts,
+    );
+
+    let mut archive = ZipArchive::new(Cursor::new(jar_bytes))
+        .with_context(|| format!("failed to read {}", jar_display))?;
+    let entries = jar_entries(&jar_display, &mut archive)?;
+    let class_entry_bytes =
+        read_jar_entries_bytes(&mut archive, &entries.class_entries, &jar_display)?;
+    parse_jar_classes(
+        &jar_display,
+        &jar_uri,
+        class_entry_bytes,
+        jar_index,
+        telemetry,
+        Some(parent_cx),
+        class_count,
+        classes,
+    )?;
+
+    let classpath_entries = manifest_classpath_entries_from_archive(&mut archive, &jar_display)?;
+    Ok(classpath_entries
+        .into_iter()
+        .map(|entry| resolve_nested_classpath_entry(entry_name, &entry))
+        .collect())
+}
+
+fn read_jar_entry_bytes(
+    archive: &mut ZipArchive<fs::File>,
+    jar_display: &str,
+    entry_name: &str,
+) -> Result<Vec<u8>> {
+    let mut entry = archive
+        .by_name(entry_name)
+        .with_context(|| format!("failed to read {}:{}", jar_display, entry_name))?;
+    let mut data = Vec::new();
+    entry
+        .read_to_end(&mut data)
+        .with_context(|| format!("failed to read {}:{}", jar_display, entry_name))?;
+    Ok(data)
+}
+
+fn jar_entry_uri(parent_uri: &str, entry_name: &str) -> String {
+    if parent_uri.starts_with("jar:") {
+        format!("{parent_uri}!/{entry_name}")
+    } else {
+        format!("jar:{parent_uri}!/{entry_name}")
+    }
+}
+
+fn manifest_classpath_entries_from_archive<R: Read + Seek>(
+    archive: &mut ZipArchive<R>,
+    jar_display: &str,
+) -> Result<Vec<String>> {
+    for index in 0..archive.len() {
+        let mut entry = archive
+            .by_index(index)
+            .with_context(|| format!("failed to read {}", jar_display))?;
+        if entry.name() != "META-INF/MANIFEST.MF" {
+            continue;
+        }
+        let mut content = String::new();
+        entry
+            .read_to_string(&mut content)
+            .with_context(|| format!("failed to read {}:{}", jar_display, entry.name()))?;
+        return Ok(parse_manifest_classpath_entries(&content));
+    }
+    Ok(Vec::new())
+}
+
+fn parse_manifest_classpath_entries(content: &str) -> Vec<String> {
+    let mut class_path = None;
+    let mut current_key = None;
+    let mut current_value = String::new();
+
+    for raw_line in content.lines() {
+        let line = raw_line.trim_end_matches('\r');
+        if line.starts_with(' ') {
+            if current_key.is_some() {
+                current_value.push_str(&line[1..]);
+            }
+            continue;
+        }
+
+        if let Some(key) = current_key.take() {
+            if key == "Class-Path" {
+                class_path = Some(current_value.clone());
+            }
+            current_value.clear();
+        }
+
+        if let Some((key, value)) = line.split_once(':') {
+            current_key = Some(key.trim().to_string());
+            current_value.push_str(value.trim_start());
+        }
+    }
+
+    if let Some(key) = current_key.take() {
+        if key == "Class-Path" {
+            class_path = Some(current_value.clone());
+        }
+    }
+
+    let Some(class_path) = class_path else {
+        return Vec::new();
+    };
+
+    class_path.split_whitespace().map(str::to_string).collect()
+}
+
+fn resolve_nested_classpath_entry(nested_entry_name: &str, classpath_entry: &str) -> String {
+    let base_dir = Path::new(nested_entry_name)
+        .parent()
+        .unwrap_or_else(|| Path::new(""));
+    let resolved = base_dir.join(classpath_entry);
+    normalize_jar_entry_path(&resolved)
+}
+
+fn normalize_jar_entry_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 /// Push a path-based artifact and return its index for parent linkage (e.g., JAR entries).
@@ -453,45 +751,9 @@ fn manifest_classpath(path: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn parse_manifest_classpath(jar_path: &Path, content: &str) -> Vec<PathBuf> {
-    let mut class_path = None;
-    let mut current_key = None;
-    let mut current_value = String::new();
-
-    for raw_line in content.lines() {
-        let line = raw_line.trim_end_matches('\r');
-        if line.starts_with(' ') {
-            if current_key.is_some() {
-                current_value.push_str(&line[1..]);
-            }
-            continue;
-        }
-
-        if let Some(key) = current_key.take() {
-            if key == "Class-Path" {
-                class_path = Some(current_value.clone());
-            }
-            current_value.clear();
-        }
-
-        if let Some((key, value)) = line.split_once(':') {
-            current_key = Some(key.trim().to_string());
-            current_value.push_str(value.trim_start());
-        }
-    }
-
-    if let Some(key) = current_key.take() {
-        if key == "Class-Path" {
-            class_path = Some(current_value.clone());
-        }
-    }
-
-    let Some(class_path) = class_path else {
-        return Vec::new();
-    };
-
     let base_dir = jar_path.parent().unwrap_or_else(|| Path::new(""));
-    class_path
-        .split_whitespace()
+    parse_manifest_classpath_entries(content)
+        .into_iter()
         .map(|entry| {
             let entry_path = PathBuf::from(entry);
             if entry_path.is_absolute() {
@@ -1351,6 +1613,7 @@ fn parse_exception_handlers(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
     use std::io::Read;
     use std::io::Write;
     use std::sync::OnceLock;
@@ -1494,6 +1757,42 @@ mod tests {
     }
 
     #[test]
+    fn scan_inputs_resolves_nested_manifest_classpath() {
+        let jar_path = jspecify_jar_path().expect("download jar");
+        let class_bytes = extract_first_class(&jar_path).expect("extract class");
+
+        let inner_jar =
+            build_jar_bytes_with_class(Some("sibling.jar"), "Sample.class", &class_bytes)
+                .expect("build inner jar");
+        let sibling_jar = build_jar_bytes_with_class(None, "Sample.class", &class_bytes)
+            .expect("build sibling jar");
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let outer_path = temp_dir.join("outer.jar");
+        create_outer_jar_with_entries(
+            &outer_path,
+            &[
+                ("lib/inner.jar", inner_jar),
+                ("lib/sibling.jar", sibling_jar),
+            ],
+        )
+        .expect("create outer jar");
+
+        let result = scan_inputs(&outer_path, &[], None).expect("scan outer jar");
+
+        assert_eq!(result.class_count, 2);
+        assert_eq!(result.artifacts.len(), 3);
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
     fn default_nullness_parses_marked_and_unmarked() {
         let constant_pool = vec![
             ConstantPool::Utf8 {
@@ -1611,6 +1910,48 @@ mod tests {
         writer
             .write_all(manifest.as_bytes())
             .context("write manifest")?;
+        writer.finish().context("finish jar")?;
+        Ok(())
+    }
+
+    fn build_jar_bytes_with_class(
+        class_path: Option<&str>,
+        entry_name: &str,
+        class_bytes: &[u8],
+    ) -> Result<Vec<u8>> {
+        let mut buffer = Vec::new();
+        let cursor = Cursor::new(&mut buffer);
+        let mut writer = zip::ZipWriter::new(cursor);
+        let mut manifest = String::from("Manifest-Version: 1.0\n");
+        if let Some(class_path) = class_path {
+            manifest.push_str(&format!("Class-Path: {class_path}\n"));
+        }
+        manifest.push('\n');
+        writer
+            .start_file("META-INF/MANIFEST.MF", SimpleFileOptions::default())
+            .context("start manifest entry")?;
+        writer
+            .write_all(manifest.as_bytes())
+            .context("write manifest")?;
+        writer
+            .start_file(entry_name, SimpleFileOptions::default())
+            .context("start class entry")?;
+        writer.write_all(class_bytes).context("write class bytes")?;
+        writer.finish().context("finish jar")?;
+        Ok(buffer)
+    }
+
+    fn create_outer_jar_with_entries(path: &Path, entries: &[(&str, Vec<u8>)]) -> Result<()> {
+        let file = fs::File::create(path).with_context(|| format!("create {}", path.display()))?;
+        let mut writer = zip::ZipWriter::new(file);
+        for (name, data) in entries {
+            writer
+                .start_file(*name, SimpleFileOptions::default())
+                .with_context(|| format!("start entry {}", name))?;
+            writer
+                .write_all(data)
+                .with_context(|| format!("write entry {}", name))?;
+        }
         writer.finish().context("finish jar")?;
         Ok(())
     }
