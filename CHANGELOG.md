@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.7.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.6.1...inspequte-v0.7.0) (2026-01-22)
+
+
+### Features
+
+* focus analysis targets with classpath ([aa6f4f4](https://github.com/KengoTODA/inspequte/commit/aa6f4f4b5da8de16f62401d940846fc0585bfb47))
+* **telemetry:** add hierarchical span names ([8d67b9d](https://github.com/KengoTODA/inspequte/commit/8d67b9d1ada0b08a4c844a45fe3e71f24ede8e1f))
+* **telemetry:** add sarif.build span ([21f59e9](https://github.com/KengoTODA/inspequte/commit/21f59e9525d8238e6ddf9da7ff340fd8d93f49d7))
+
+
+### Bug Fixes
+
+* **engine:** handle nested jar uris ([be3b3b1](https://github.com/KengoTODA/inspequte/commit/be3b3b16578e44d5fe5277d8a8a1cff40164dd17))
+* prevent array-equals false positives ([de7530c](https://github.com/KengoTODA/inspequte/commit/de7530c2265b6e84b1fa008ab4eb6eb82a9d51e0))
+* refine null checks in nullness flow ([b3849f8](https://github.com/KengoTODA/inspequte/commit/b3849f8bc297e2a87d63a0c4414b248c6284f44b))
+* remove dead code rule ([bf7d7a2](https://github.com/KengoTODA/inspequte/commit/bf7d7a2e271c223d5c31979e2ec1c9805a3537b2))
+* skip empty catch in non-target classes ([fce93f9](https://github.com/KengoTODA/inspequte/commit/fce93f92ca837e493821003b92cdeaf4de204224))
+* skip implicit initializers in dead code ([57f8cc5](https://github.com/KengoTODA/inspequte/commit/57f8cc586dc4db2a1bd4f20f8992e8241d87e32b))
+* skip lambda methods in dead code ([acd2955](https://github.com/KengoTODA/inspequte/commit/acd29558b493f0e9bcbd59476ab65e6ac953b77d))
+* **telemetry:** improve sarif related spans ([eb8bbf3](https://github.com/KengoTODA/inspequte/commit/eb8bbf3bd5acc80a571b6511429be29dc24193e7))
+* **telemetry:** stabilize otlp export ([cb0556b](https://github.com/KengoTODA/inspequte/commit/cb0556b7bbb95904e46838a47982151ba0bbe757))
+
+
+### Performance Improvements
+
+* **output:** speed up sarif serialization ([1ddfc84](https://github.com/KengoTODA/inspequte/commit/1ddfc8474eef648f94fd768931ff14010ae53607))
+* **scan:** parallelize jar.scan ([5fd39d1](https://github.com/KengoTODA/inspequte/commit/5fd39d163096b6e0eb624f6632b6911862377f80))
+
 ## [0.6.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.6.0...inspequte-v0.6.1) (2026-01-22)
 
 
