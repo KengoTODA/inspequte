@@ -110,7 +110,8 @@ impl JvmTestHarness {
         classes_dir: &Path,
         classpath: &[PathBuf],
     ) -> Result<EngineOutput> {
-        let scan = scan_inputs(classes_dir, classpath, None).context("scan classes")?;
+        let inputs = vec![classes_dir.to_path_buf()];
+        let scan = scan_inputs(&inputs, classpath, None).context("scan classes")?;
         let context = build_context(scan.classes, &scan.artifacts);
         let engine = Engine::new();
         engine.analyze(context).context("run analysis")

@@ -47,6 +47,47 @@ inspequte --input app.jar --classpath lib/ --output results.sarif --baseline ins
 ```
 If you omit `--baseline` output/input paths, `.inspequte/baseline.json` is used by default; missing files are ignored.
 
+You can read input or classpath lists from a file by prefixing the path with `@`.
+The file format is one path per line; empty lines and lines starting with `#` are ignored.
+```
+inspequte --input @inputs.txt --classpath @classpath.txt --output results.sarif
+```
+
+## Gradle usage
+Use a Gradle task to write the inputs and classpath to files, then reference them via `@`:
+```kotlin
+tasks.register("writeInspequteInputs") {
+    dependsOn(tasks.named("classes"))
+    inputs.files(sourceSets.main.get().output.classesDirs, configurations.runtimeClasspath)
+    outputs.files(
+        file("$buildDir/inspequte/inputs.txt"),
+        file("$buildDir/inspequte/classpath.txt")
+    )
+    doLast {
+        val inputsFile = file("$buildDir/inspequte/inputs.txt")
+        val classpathFile = file("$buildDir/inspequte/classpath.txt")
+        inputsFile.parentFile.mkdirs()
+        inputsFile.writeText(sourceSets.main.get().output.classesDirs.files.joinToString("\n"))
+        classpathFile.writeText(configurations.runtimeClasspath.get().files.joinToString("\n"))
+    }
+}
+
+tasks.register<Exec>("inspequte") {
+    dependsOn(tasks.named("writeInspequteInputs"))
+    inputs.files(
+        file("$buildDir/inspequte/inputs.txt"),
+        file("$buildDir/inspequte/classpath.txt")
+    )
+    outputs.file(file("$buildDir/inspequte.sarif"))
+    commandLine(
+        "inspequte",
+        "--input", "@$buildDir/inspequte/inputs.txt",
+        "--classpath", "@$buildDir/inspequte/classpath.txt",
+        "--output", "$buildDir/inspequte.sarif"
+    )
+}
+```
+
 ## SARIF output (example)
 ```json
 {

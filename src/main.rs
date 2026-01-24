@@ -12,7 +12,7 @@ mod telemetry;
 mod test_harness;
 
 use std::collections::BTreeMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -72,9 +72,27 @@ struct ScanArgs {
 /// Input configuration shared by all commands.
 #[derive(Args, Debug, Clone)]
 struct InputArgs {
-    #[arg(long, value_name = "PATH")]
-    input: PathBuf,
-    #[arg(long, value_name = "PATH")]
+    #[arg(
+        long,
+        value_name = "PATH",
+        required = true,
+        num_args = 1..,
+        help = "Input class/JAR/directory paths. Use @file to read paths (one per line)."
+    )]
+    input: Vec<String>,
+    #[arg(
+        long,
+        value_name = "PATH",
+        num_args = 1..,
+        help = "Classpath entries. Use @file to read paths (one per line)."
+    )]
+    classpath: Vec<String>,
+}
+
+/// Expanded input configuration after resolving @file references.
+#[derive(Debug, Clone)]
+struct ExpandedInputArgs {
+    input: Vec<PathBuf>,
     classpath: Vec<PathBuf>,
 }
 
@@ -115,7 +133,8 @@ fn run(cli: Cli) -> Result<()> {
 }
 
 fn run_scan(args: ScanArgs) -> Result<()> {
-    ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
+    let expanded = expand_input_args(&args.input)?;
+    ensure_inputs_exist(&expanded.input, &expanded.classpath)?;
 
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
@@ -123,7 +142,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
     };
     let started_at = Instant::now();
     let result = with_span(telemetry.as_deref(), "execution", &[], || {
-        let mut analysis = analyze(&args.input.input, &args.input.classpath, telemetry.clone())?;
+        let mut analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
         let baseline_started_at = Instant::now();
         let analysis_ref = &mut analysis;
         let baseline_result = with_span(
@@ -215,13 +234,14 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 }
 
 fn run_baseline(args: BaselineArgs) -> Result<()> {
-    ensure_inputs_exist(&args.input.input, &args.input.classpath)?;
+    let expanded = expand_input_args(&args.input)?;
+    ensure_inputs_exist(&expanded.input, &expanded.classpath)?;
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
         None => None,
     };
     let result = with_span(telemetry.as_deref(), "execution", &[], || -> Result<()> {
-        let analysis = analyze(&args.input.input, &args.input.classpath, telemetry.clone())?;
+        let analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
         write_baseline(&args.output, &analysis.results)?;
         Ok(())
     });
@@ -233,9 +253,80 @@ fn run_baseline(args: BaselineArgs) -> Result<()> {
     result
 }
 
-fn ensure_inputs_exist(input: &Path, classpath: &[PathBuf]) -> Result<()> {
-    if !input.exists() {
-        anyhow::bail!("input not found: {}", input.display());
+fn expand_input_args(args: &InputArgs) -> Result<ExpandedInputArgs> {
+    let base_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let input =
+        expand_path_args(&args.input, &base_dir).context("failed to expand --input arguments")?;
+    if input.is_empty() {
+        anyhow::bail!("no input paths provided");
+    }
+    let classpath = expand_path_args(&args.classpath, &base_dir)
+        .context("failed to expand --classpath arguments")?;
+    Ok(ExpandedInputArgs { input, classpath })
+}
+
+fn expand_path_args(args: &[String], base_dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut expanded = Vec::new();
+    let mut stack = Vec::new();
+    for arg in args {
+        expanded.extend(expand_path_arg(arg, base_dir, &mut stack)?);
+    }
+    Ok(expanded)
+}
+
+fn expand_path_arg(arg: &str, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+    let Some(path_str) = arg.strip_prefix('@') else {
+        return Ok(vec![PathBuf::from(arg)]);
+    };
+    if path_str.is_empty() {
+        anyhow::bail!("empty @file reference");
+    }
+    let file_path = PathBuf::from(path_str);
+    let resolved = if file_path.is_absolute() {
+        file_path
+    } else {
+        base_dir.join(file_path)
+    };
+    let canonical = resolved
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", resolved.display()))?;
+    if stack.contains(&canonical) {
+        anyhow::bail!("circular @file reference: {}", canonical.display());
+    }
+    let content = fs::read_to_string(&canonical)
+        .with_context(|| format!("failed to read {}", canonical.display()))?;
+    stack.push(canonical.clone());
+    let file_dir = canonical.parent().unwrap_or_else(|| Path::new(""));
+    let mut paths = Vec::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('@') {
+            paths.extend(expand_path_arg(line, file_dir, stack)?);
+            continue;
+        }
+        let entry = PathBuf::from(line);
+        let resolved_entry = if entry.is_absolute() {
+            entry
+        } else {
+            file_dir.join(entry)
+        };
+        paths.push(resolved_entry);
+    }
+    stack.pop();
+    Ok(paths)
+}
+
+fn ensure_inputs_exist(inputs: &[PathBuf], classpath: &[PathBuf]) -> Result<()> {
+    if inputs.is_empty() {
+        anyhow::bail!("no input paths provided");
+    }
+    for input in inputs {
+        if !input.exists() {
+            anyhow::bail!("input not found: {}", input.display());
+        }
     }
     for entry in classpath {
         if !entry.exists() {
@@ -254,7 +345,7 @@ struct AnalysisOutput {
 }
 
 fn analyze(
-    input: &Path,
+    input: &[PathBuf],
     classpath: &[PathBuf],
     telemetry: Option<Arc<Telemetry>>,
 ) -> Result<AnalysisOutput> {
@@ -482,6 +573,62 @@ mod tests {
     use crate::scan::scan_inputs;
 
     #[test]
+    fn expand_path_args_reads_files_and_resolves_relative_entries() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+        let canonical_temp_dir = temp_dir.canonicalize().expect("canonicalize temp dir");
+
+        let nested_path = temp_dir.join("nested.txt");
+        fs::write(&nested_path, "lib/dependency.jar\n").expect("write nested");
+
+        let inputs_path = temp_dir.join("inputs.txt");
+        let mut inputs_file = fs::File::create(&inputs_path).expect("create inputs");
+        writeln!(inputs_file, "# input classes").expect("write comment");
+        writeln!(inputs_file, "classes").expect("write classes");
+        writeln!(inputs_file, "@nested.txt").expect("write nested ref");
+        writeln!(inputs_file, "").expect("write blank line");
+
+        let args = vec![format!("@{}", inputs_path.display())];
+        let expanded = expand_path_args(&args, Path::new(".")).expect("expand inputs");
+
+        assert_eq!(
+            expanded,
+            vec![
+                canonical_temp_dir.join("classes"),
+                canonical_temp_dir.join("lib").join("dependency.jar")
+            ]
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn expand_path_args_errors_on_missing_file() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+        let args = vec![format!("@{}", temp_dir.join("missing.txt").display())];
+        let result = expand_path_args(&args, Path::new("."));
+
+        assert!(result.is_err());
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
     fn sarif_is_minimal_and_valid_shape() {
         let invocation = build_invocation(&InvocationStats {
             scan_duration_ms: 0,
@@ -534,7 +681,7 @@ mod tests {
         fs::write(temp_dir.join("A.class"), class_a).expect("write A.class");
         fs::write(temp_dir.join("B.class"), class_b).expect("write B.class");
 
-        let scan = scan_inputs(&temp_dir, &[], None).expect("scan classes");
+        let scan = scan_inputs(&[temp_dir.clone()], &[], None).expect("scan classes");
         let artifacts = scan.artifacts.clone();
         let context = build_context(scan.classes.clone(), &artifacts);
         let engine = Engine::new();

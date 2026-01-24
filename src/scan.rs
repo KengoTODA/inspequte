@@ -35,7 +35,7 @@ pub(crate) struct ScanOutput {
 }
 
 pub(crate) fn scan_inputs(
-    input: &Path,
+    input: &[PathBuf],
     classpath: &[PathBuf],
     telemetry: Option<&Telemetry>,
 ) -> Result<ScanOutput> {
@@ -43,23 +43,28 @@ pub(crate) fn scan_inputs(
     let mut classpath_entries = classpath.to_vec();
     classpath_entries.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
 
-    if is_jar_path(input) {
-        classpath_entries.extend(manifest_classpath(input)?);
+    for entry in input {
+        if is_jar_path(entry) {
+            classpath_entries.extend(manifest_classpath(entry)?);
+        }
     }
 
     let expanded = expand_classpath(classpath_entries)?;
-    let mut targets = Vec::with_capacity(expanded.len() + 1);
-    targets.push(ScanTarget {
-        index: 0,
-        path: input.to_path_buf(),
-        is_input: true,
-    });
+    let mut targets = Vec::with_capacity(expanded.len() + input.len());
+    for (index, entry) in input.iter().enumerate() {
+        targets.push(ScanTarget {
+            index,
+            path: entry.to_path_buf(),
+            is_input: true,
+        });
+    }
+    let classpath_offset = input.len();
     for (offset, entry) in expanded.into_iter().enumerate() {
-        if entry == input {
+        if input.iter().any(|input| input == &entry) {
             continue;
         }
         targets.push(ScanTarget {
-            index: offset + 1,
+            index: classpath_offset + offset,
             path: entry,
             is_input: false,
         });
@@ -1634,7 +1639,7 @@ mod tests {
         let class_path = temp_dir.join("bad.class");
         fs::write(&class_path, b"nope").expect("write test class");
 
-        let result = scan_inputs(&class_path, &[], None);
+        let result = scan_inputs(&[class_path.clone()], &[], None);
 
         assert!(result.is_err());
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
@@ -1643,7 +1648,7 @@ mod tests {
     #[test]
     fn scan_inputs_accepts_valid_jar() {
         let jar_path = jspecify_jar_path().expect("download jar");
-        let result = scan_inputs(&jar_path, &[], None).expect("scan jar");
+        let result = scan_inputs(&[jar_path.clone()], &[], None).expect("scan jar");
 
         assert!(result.class_count > 0);
         assert_eq!(result.artifacts.len(), 1);
@@ -1673,7 +1678,7 @@ mod tests {
         let class_path = temp_dir.join("Sample.class");
         fs::write(&class_path, class_bytes).expect("write class file");
 
-        let result = scan_inputs(&class_path, &[], None).expect("scan class");
+        let result = scan_inputs(&[class_path.clone()], &[], None).expect("scan class");
 
         assert_eq!(result.class_count, 1);
         assert_eq!(result.artifacts.len(), 1);
@@ -1696,7 +1701,7 @@ mod tests {
         let class_path = temp_dir.join("Sample.class");
         fs::write(&class_path, class_bytes).expect("write class file");
 
-        let result = scan_inputs(&temp_dir, &[], None).expect("scan directory");
+        let result = scan_inputs(&[temp_dir.clone()], &[], None).expect("scan directory");
 
         assert_eq!(result.class_count, 1);
         assert_eq!(result.artifacts.len(), 1);
@@ -1730,7 +1735,7 @@ mod tests {
         let jar_path = temp_dir.join("main.jar");
         create_manifest_jar(&jar_path, Some("dep.jar")).expect("create main jar");
 
-        let result = scan_inputs(&jar_path, &[], None);
+        let result = scan_inputs(&[jar_path.clone()], &[], None);
 
         assert!(result.is_ok());
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
@@ -1750,7 +1755,7 @@ mod tests {
         let jar_path = temp_dir.join("main.jar");
         create_manifest_jar(&jar_path, Some("missing.jar")).expect("create main jar");
 
-        let result = scan_inputs(&jar_path, &[], None);
+        let result = scan_inputs(&[jar_path.clone()], &[], None);
 
         assert!(result.is_err());
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
@@ -1785,7 +1790,7 @@ mod tests {
         )
         .expect("create outer jar");
 
-        let result = scan_inputs(&outer_path, &[], None).expect("scan outer jar");
+        let result = scan_inputs(&[outer_path.clone()], &[], None).expect("scan outer jar");
 
         assert_eq!(result.class_count, 2);
         assert_eq!(result.artifacts.len(), 3);
