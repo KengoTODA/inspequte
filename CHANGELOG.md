@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.7.0...inspequte-v0.8.0) (2026-01-25)
+
+
+### Features
+
+* support [@file](https://github.com/file) inputs for huge classfile input ([e9e43d6](https://github.com/KengoTODA/inspequte/commit/e9e43d6604bc88101483e89f2ea070d4a3f1ee8d))
+
 ## [0.7.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.6.1...inspequte-v0.7.0) (2026-01-22)
 
 
