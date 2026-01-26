@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.8.0...inspequte-v0.8.1) (2026-01-26)
+
+
+### Bug Fixes
+
+* **deps:** fix parsing process to enable analysis on SonarQube ([92f5815](https://github.com/KengoTODA/inspequte/commit/92f58155cdc21184ac0591076f12210511bdc9dd))
+
 ## [0.8.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.7.0...inspequte-v0.8.0) (2026-01-25)
 
 
