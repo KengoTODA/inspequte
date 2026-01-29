@@ -10,7 +10,8 @@ description: Create or update inspequte analysis rules and harness-based tests. 
 2) Implement `Rule::run` using `AnalysisContext` and helpers from `crate::rules` (ex: `result_message`, `method_location_with_line`, `class_location`).
 3) Add harness tests in the same rule file (`#[cfg(test)]`): compile Java sources with `JvmTestHarness`, analyze, then assert on `rule_id` and message text.
 4) Register the rule in `src/rules/mod.rs` and `src/engine.rs` if it is new.
-5) Keep output deterministic (results are sorted by `rule_id`/message; avoid non-deterministic ordering in rule code).
+5) Update SARIF snapshot tests if rule list changes (see `tests/snapshots/` and `INSPEQUTE_UPDATE_SNAPSHOTS=1 cargo test sarif_callgraph_snapshot`).
+6) Keep output deterministic (results are sorted by `rule_id`/message; avoid non-deterministic ordering in rule code).
 
 See `references/rule-checklist.md` for a compact checklist.
 

@@ -77,6 +77,7 @@ impl JvmTestHarness {
         match language {
             Language::Java => {
                 let mut command = Command::new(&self.javac);
+                command.arg("-g");
                 command.arg("-d").arg(&classes_dir);
                 if let Some(cp) = classpath_arg(classpath) {
                     command.arg("-classpath").arg(cp);

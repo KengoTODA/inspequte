@@ -70,6 +70,13 @@
               }
             },
             {
+              "id": "PREFER_ENUMSET",
+              "name": "Prefer EnumSet for enum collections",
+              "shortDescription": {
+                "text": "Using EnumSet for enum types provides better performance than general collections"
+              }
+            },
+            {
               "id": "RECORD_ARRAY_FIELD",
               "name": "Record array field",
               "shortDescription": {

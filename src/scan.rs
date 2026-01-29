@@ -22,7 +22,7 @@ use crate::cfg::build_cfg;
 use crate::descriptor::method_param_count;
 use crate::ir::{
     CallKind, CallSite, Class, ExceptionHandler, Field, FieldAccess, Instruction, InstructionKind,
-    LineNumber, Method, MethodAccess, MethodNullness, Nullness,
+    LineNumber, LocalVariableType, Method, MethodAccess, MethodNullness, Nullness,
 };
 use crate::opcodes;
 use crate::telemetry::Telemetry;
@@ -1097,6 +1097,8 @@ fn parse_fields(
         let name = resolve_utf8(constant_pool, field.name_index()).context("resolve field name")?;
         let descriptor = resolve_utf8(constant_pool, field.descriptor_index())
             .context("resolve field descriptor")?;
+        let signature =
+            parse_signature(field.attributes(), constant_pool).context("parse field signature")?;
         let access_flags = field.access_flags();
         let access = FieldAccess {
             is_static: access_flags.contains(FieldFlags::ACC_STATIC),
@@ -1106,6 +1108,7 @@ fn parse_fields(
         parsed.push(Field {
             name,
             descriptor,
+            signature,
             access,
         });
     }
@@ -1123,6 +1126,8 @@ fn parse_methods(
             resolve_utf8(constant_pool, method.name_index()).context("resolve method name")?;
         let descriptor = resolve_utf8(constant_pool, method.descriptor_index())
             .context("resolve method descriptor")?;
+        let signature = parse_signature(method.attributes(), constant_pool)
+            .context("parse method signature")?;
         let access_flags = method.access_flags();
         let access = MethodAccess {
             is_public: access_flags.contains(MethodFlags::ACC_PUBLIC),
@@ -1157,6 +1162,8 @@ fn parse_methods(
             parse_bytecode(code, constant_pool).context("parse bytecode")?;
         let exception_handlers =
             parse_exception_handlers(exception_table, constant_pool).context("parse handlers")?;
+        let local_variable_types = parse_local_variable_types(code_attributes, constant_pool)
+            .context("parse local variable types")?;
         let handler_offsets = exception_handlers
             .iter()
             .map(|handler| handler.handler_pc)
@@ -1166,6 +1173,7 @@ fn parse_methods(
         parsed.push(Method {
             name,
             descriptor,
+            signature,
             access,
             nullness,
             bytecode: code.clone(),
@@ -1174,6 +1182,7 @@ fn parse_methods(
             calls,
             string_literals,
             exception_handlers,
+            local_variable_types,
         });
     }
     Ok(parsed)
@@ -1198,6 +1207,50 @@ fn parse_line_numbers(
     }
     entries.sort_by_key(|entry| entry.start_pc);
     Ok(entries)
+}
+
+fn parse_signature(
+    attributes: &[jclassfile::attributes::Attribute],
+    constant_pool: &[ConstantPool],
+) -> Result<Option<String>> {
+    for attribute in attributes {
+        let jclassfile::attributes::Attribute::Signature { signature_index } = attribute else {
+            continue;
+        };
+        let signature =
+            resolve_utf8(constant_pool, *signature_index).context("resolve signature")?;
+        return Ok(Some(signature));
+    }
+    Ok(None)
+}
+
+fn parse_local_variable_types(
+    attributes: &[jclassfile::attributes::Attribute],
+    constant_pool: &[ConstantPool],
+) -> Result<Vec<LocalVariableType>> {
+    let mut locals = Vec::new();
+    for attribute in attributes {
+        let jclassfile::attributes::Attribute::LocalVariableTypeTable {
+            local_variable_type_table,
+        } = attribute
+        else {
+            continue;
+        };
+        for record in local_variable_type_table {
+            let name =
+                resolve_utf8(constant_pool, record.name_index()).context("resolve local name")?;
+            let signature = resolve_utf8(constant_pool, record.signature_index())
+                .context("resolve local signature")?;
+            locals.push(LocalVariableType {
+                name,
+                signature,
+                index: record.index(),
+                start_pc: record.start_pc() as u32,
+                length: record.length() as u32,
+            });
+        }
+    }
+    Ok(locals)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

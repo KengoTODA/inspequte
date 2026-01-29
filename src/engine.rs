@@ -13,7 +13,8 @@ use crate::ir::Class;
 use crate::rules::{
     Rule, RuleMetadata, array_equals::ArrayEqualsRule, empty_catch::EmptyCatchRule,
     ineffective_equals::IneffectiveEqualsRule, insecure_api::InsecureApiRule,
-    nullness::NullnessRule, record_array_field::RecordArrayFieldRule,
+    nullness::NullnessRule, prefer_enumset::PreferEnumSetRule,
+    record_array_field::RecordArrayFieldRule,
     slf4j_format_should_be_const::Slf4jFormatShouldBeConstRule,
     slf4j_illegal_passed_class::Slf4jIllegalPassedClassRule,
     slf4j_logger_should_be_final::Slf4jLoggerShouldBeFinalRule,
@@ -52,6 +53,7 @@ impl Engine {
         let mut rules: Vec<Box<dyn Rule + Sync>> = vec![
             Box::new(ArrayEqualsRule),
             Box::new(NullnessRule),
+            Box::new(PreferEnumSetRule),
             Box::new(EmptyCatchRule),
             Box::new(InsecureApiRule),
             Box::new(IneffectiveEqualsRule),

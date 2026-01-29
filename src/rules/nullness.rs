@@ -663,6 +663,7 @@ mod tests {
         Method {
             name: name.to_string(),
             descriptor: descriptor.to_string(),
+            signature: None,
             access,
             nullness,
             bytecode,
@@ -678,6 +679,7 @@ mod tests {
             calls,
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variable_types: Vec::new(),
         }
     }
 
@@ -785,6 +787,7 @@ public @interface NullnessUnspecified {}
         let base_method = Method {
             name: "value".to_string(),
             descriptor: "()Ljava/lang/String;".to_string(),
+            signature: None,
             access: MethodAccess {
                 is_public: true,
                 is_static: false,
@@ -803,10 +806,12 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variable_types: Vec::new(),
         };
         let override_method = Method {
             name: "value".to_string(),
             descriptor: "()Ljava/lang/String;".to_string(),
+            signature: None,
             access: MethodAccess {
                 is_public: true,
                 is_static: false,
@@ -825,6 +830,7 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variable_types: Vec::new(),
         };
         let base = class_with_methods("com/example/Base", None, vec![base_method]);
         let derived = class_with_methods(
@@ -846,6 +852,7 @@ public @interface NullnessUnspecified {}
         let base_method = Method {
             name: "set".to_string(),
             descriptor: "(Ljava/lang/String;)V".to_string(),
+            signature: None,
             access: MethodAccess {
                 is_public: true,
                 is_static: false,
@@ -864,10 +871,12 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variable_types: Vec::new(),
         };
         let override_method = Method {
             name: "set".to_string(),
             descriptor: "(Ljava/lang/String;)V".to_string(),
+            signature: None,
             access: MethodAccess {
                 is_public: true,
                 is_static: false,
@@ -886,6 +895,7 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variable_types: Vec::new(),
         };
         let base = class_with_methods("com/example/Base", None, vec![base_method]);
         let derived = class_with_methods(

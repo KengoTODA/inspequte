@@ -133,6 +133,7 @@ mod tests {
         Method {
             name: name.to_string(),
             descriptor: descriptor.to_string(),
+            signature: None,
             access: default_access(),
             nullness: MethodNullness::unknown(method_param_count(descriptor).expect("param count")),
             bytecode: vec![0],
@@ -141,6 +142,7 @@ mod tests {
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: handlers,
+            local_variable_types: Vec::new(),
         }
     }
 

@@ -93,6 +93,7 @@ mod tests {
         Method {
             name: name.to_string(),
             descriptor: "()V".to_string(),
+            signature: None,
             access: MethodAccess {
                 is_public: true,
                 is_static: false,
@@ -105,6 +106,7 @@ mod tests {
             calls,
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variable_types: Vec::new(),
         }
     }
 

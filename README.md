@@ -30,6 +30,10 @@ The name combines "inspect" and "cute". The CLI command is `inspequte`.
 - Supports JVM class files up to Java 21 (major version 65).
 - Requires a Java 21 toolchain when compiling test harness sources via `JAVA_HOME`.
 - Some advanced bytecode attributes may still be skipped in future releases.
+- Some checks (such as the Prefer EnumSet rule for local variables) rely on the
+  `LocalVariableTypeTable` attribute, which is only present when classes are
+  compiled with debug symbols (for example, `javac -g`). Field and method
+  signatures are still analyzed without debug info.
 
 ## CLI usage
 ```

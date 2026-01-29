@@ -18,6 +18,7 @@ pub(crate) struct Class {
 pub(crate) struct Field {
     pub(crate) name: String,
     pub(crate) descriptor: String,
+    pub(crate) signature: Option<String>,
     pub(crate) access: FieldAccess,
 }
 
@@ -34,6 +35,7 @@ pub(crate) struct FieldAccess {
 pub(crate) struct Method {
     pub(crate) name: String,
     pub(crate) descriptor: String,
+    pub(crate) signature: Option<String>,
     pub(crate) access: MethodAccess,
     pub(crate) nullness: MethodNullness,
     pub(crate) bytecode: Vec<u8>,
@@ -42,6 +44,17 @@ pub(crate) struct Method {
     pub(crate) calls: Vec<CallSite>,
     pub(crate) string_literals: Vec<String>,
     pub(crate) exception_handlers: Vec<ExceptionHandler>,
+    pub(crate) local_variable_types: Vec<LocalVariableType>,
+}
+
+/// Local variable type metadata from the LocalVariableTypeTable attribute.
+#[derive(Clone, Debug)]
+pub(crate) struct LocalVariableType {
+    pub(crate) name: String,
+    pub(crate) signature: String,
+    pub(crate) index: u16,
+    pub(crate) start_pc: u32,
+    pub(crate) length: u32,
 }
 
 /// Method access flags used for rule filtering.
