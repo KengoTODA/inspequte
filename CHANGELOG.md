@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.8.1...inspequte-v0.9.0) (2026-01-29)
+
+
+### Features
+
+* add interrupted exception handling rule ([3e1841d](https://github.com/KengoTODA/inspequte/commit/3e1841da698bb51ba167d2663852230e3f20e283))
+* add prefer enumset rule ([23f03d1](https://github.com/KengoTODA/inspequte/commit/23f03d1a8b368ab55ff0bc6461ac892fd96ddc9c))
+
 ## [0.8.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.8.0...inspequte-v0.8.1) (2026-01-26)
 
 
