@@ -13,7 +13,8 @@ use crate::ir::Class;
 use crate::rules::{
     Rule, RuleMetadata, array_equals::ArrayEqualsRule, empty_catch::EmptyCatchRule,
     ineffective_equals::IneffectiveEqualsRule, insecure_api::InsecureApiRule,
-    interrupted_exception::InterruptedExceptionRule, nullness::NullnessRule,
+    interrupted_exception::InterruptedExceptionRule,
+    log4j2_format_should_be_const::Log4j2FormatShouldBeConstRule, nullness::NullnessRule,
     prefer_enumset::PreferEnumSetRule, record_array_field::RecordArrayFieldRule,
     slf4j_format_should_be_const::Slf4jFormatShouldBeConstRule,
     slf4j_illegal_passed_class::Slf4jIllegalPassedClassRule,
@@ -59,6 +60,7 @@ impl Engine {
             Box::new(IneffectiveEqualsRule),
             Box::new(RecordArrayFieldRule),
             Box::new(InterruptedExceptionRule),
+            Box::new(Log4j2FormatShouldBeConstRule),
             Box::new(Slf4jFormatShouldBeConstRule),
             Box::new(Slf4jIllegalPassedClassRule),
             Box::new(Slf4jLoggerShouldBeFinalRule),
