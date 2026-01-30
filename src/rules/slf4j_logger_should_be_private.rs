@@ -6,7 +6,10 @@ use crate::engine::AnalysisContext;
 use crate::rules::{Rule, RuleMetadata, class_location, result_message};
 
 /// Rule that ensures SLF4J logger fields are private.
+#[derive(Default)]
 pub(crate) struct Slf4jLoggerShouldBePrivateRule;
+
+crate::register_rule!(Slf4jLoggerShouldBePrivateRule);
 
 impl Rule for Slf4jLoggerShouldBePrivateRule {
     fn metadata(&self) -> RuleMetadata {

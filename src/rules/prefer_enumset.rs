@@ -20,7 +20,10 @@ const TARGET_COLLECTION_TYPES: [&str; 8] = [
 ];
 
 /// Rule that flags enum collections that should use EnumSet instead.
+#[derive(Default)]
 pub(crate) struct PreferEnumSetRule;
+
+crate::register_rule!(PreferEnumSetRule);
 
 impl Rule for PreferEnumSetRule {
     fn metadata(&self) -> RuleMetadata {

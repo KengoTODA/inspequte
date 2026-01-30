@@ -6,7 +6,10 @@ use crate::engine::AnalysisContext;
 use crate::rules::{Rule, RuleMetadata, class_location, result_message};
 
 /// Rule that flags record components that use array types.
+#[derive(Default)]
 pub(crate) struct RecordArrayFieldRule;
+
+crate::register_rule!(RecordArrayFieldRule);
 
 impl Rule for RecordArrayFieldRule {
     fn metadata(&self) -> RuleMetadata {

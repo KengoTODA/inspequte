@@ -12,7 +12,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that ensures SLF4J format strings are compile-time constants.
+#[derive(Default)]
 pub(crate) struct Slf4jFormatShouldBeConstRule;
+
+crate::register_rule!(Slf4jFormatShouldBeConstRule);
 
 impl Rule for Slf4jFormatShouldBeConstRule {
     fn metadata(&self) -> RuleMetadata {

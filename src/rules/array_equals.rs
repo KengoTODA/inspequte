@@ -13,7 +13,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that flags array comparisons using == or equals().
+#[derive(Default)]
 pub(crate) struct ArrayEqualsRule;
+
+crate::register_rule!(ArrayEqualsRule);
 
 impl Rule for ArrayEqualsRule {
     fn metadata(&self) -> RuleMetadata {

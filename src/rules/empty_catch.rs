@@ -8,7 +8,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects empty catch blocks.
+#[derive(Default)]
 pub(crate) struct EmptyCatchRule;
+
+crate::register_rule!(EmptyCatchRule);
 
 impl Rule for EmptyCatchRule {
     fn metadata(&self) -> RuleMetadata {

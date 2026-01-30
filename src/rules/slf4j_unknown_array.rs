@@ -13,7 +13,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that reports SLF4J varargs calls with unknown argument array length.
+#[derive(Default)]
 pub(crate) struct Slf4jUnknownArrayRule;
+
+crate::register_rule!(Slf4jUnknownArrayRule);
 
 impl Rule for Slf4jUnknownArrayRule {
     fn metadata(&self) -> RuleMetadata {
