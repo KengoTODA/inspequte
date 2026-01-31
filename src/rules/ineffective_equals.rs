@@ -6,7 +6,10 @@ use crate::engine::AnalysisContext;
 use crate::rules::{Rule, RuleMetadata, class_location, result_message};
 
 /// Rule that flags classes overriding equals or hashCode alone.
+#[derive(Default)]
 pub(crate) struct IneffectiveEqualsRule;
+
+crate::register_rule!(IneffectiveEqualsRule);
 
 impl Rule for IneffectiveEqualsRule {
     fn metadata(&self) -> RuleMetadata {

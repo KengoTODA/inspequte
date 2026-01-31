@@ -13,7 +13,10 @@ use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message
 // TODO: refer Checkerframework stubs or somthing like it to handle nellness of standard APIs
 
 /// Rule that will enforce JSpecify-guided nullness checks.
+#[derive(Default)]
 pub(crate) struct NullnessRule;
+
+crate::register_rule!(NullnessRule);
 
 impl Rule for NullnessRule {
     fn metadata(&self) -> RuleMetadata {

@@ -13,7 +13,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects SLF4J log messages assembled manually instead of placeholders.
+#[derive(Default)]
 pub(crate) struct Slf4jManuallyProvidedMessageRule;
+
+crate::register_rule!(Slf4jManuallyProvidedMessageRule);
 
 impl Rule for Slf4jManuallyProvidedMessageRule {
     fn metadata(&self) -> RuleMetadata {

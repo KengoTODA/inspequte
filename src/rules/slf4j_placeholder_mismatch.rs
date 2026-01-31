@@ -13,7 +13,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects SLF4J placeholder and argument count mismatches.
+#[derive(Default)]
 pub(crate) struct Slf4jPlaceholderMismatchRule;
+
+crate::register_rule!(Slf4jPlaceholderMismatchRule);
 
 impl Rule for Slf4jPlaceholderMismatchRule {
     fn metadata(&self) -> RuleMetadata {

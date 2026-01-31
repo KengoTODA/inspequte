@@ -6,7 +6,10 @@ use crate::engine::AnalysisContext;
 use crate::rules::{Rule, RuleMetadata, class_location, result_message};
 
 /// Rule that ensures SLF4J logger fields are final.
+#[derive(Default)]
 pub(crate) struct Slf4jLoggerShouldBeFinalRule;
+
+crate::register_rule!(Slf4jLoggerShouldBeFinalRule);
 
 impl Rule for Slf4jLoggerShouldBeFinalRule {
     fn metadata(&self) -> RuleMetadata {

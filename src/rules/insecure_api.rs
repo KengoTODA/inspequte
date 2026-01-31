@@ -6,7 +6,10 @@ use crate::engine::AnalysisContext;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects insecure API usage.
+#[derive(Default)]
 pub(crate) struct InsecureApiRule;
+
+crate::register_rule!(InsecureApiRule);
 
 impl Rule for InsecureApiRule {
     fn metadata(&self) -> RuleMetadata {

@@ -12,7 +12,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that reports SLF4J format strings made only of placeholders or whitespace.
+#[derive(Default)]
 pub(crate) struct Slf4jSignOnlyFormatRule;
+
+crate::register_rule!(Slf4jSignOnlyFormatRule);
 
 impl Rule for Slf4jSignOnlyFormatRule {
     fn metadata(&self) -> RuleMetadata {

@@ -10,7 +10,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that ensures InterruptedException handlers restore interrupt status.
+#[derive(Default)]
 pub(crate) struct InterruptedExceptionRule;
+
+crate::register_rule!(InterruptedExceptionRule);
 
 impl Rule for InterruptedExceptionRule {
     fn metadata(&self) -> RuleMetadata {

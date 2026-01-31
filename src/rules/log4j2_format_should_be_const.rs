@@ -12,7 +12,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that ensures Log4j2 format strings are compile-time constants.
+#[derive(Default)]
 pub(crate) struct Log4j2FormatShouldBeConstRule;
+
+crate::register_rule!(Log4j2FormatShouldBeConstRule);
 
 impl Rule for Log4j2FormatShouldBeConstRule {
     fn metadata(&self) -> RuleMetadata {

@@ -13,7 +13,10 @@ use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that checks illegal classes passed to LoggerFactory.getLogger(Class).
+#[derive(Default)]
 pub(crate) struct Slf4jIllegalPassedClassRule;
+
+crate::register_rule!(Slf4jIllegalPassedClassRule);
 
 impl Rule for Slf4jIllegalPassedClassRule {
     fn metadata(&self) -> RuleMetadata {
