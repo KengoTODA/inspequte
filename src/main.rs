@@ -134,7 +134,6 @@ fn run(cli: Cli) -> Result<()> {
 
 fn run_scan(args: ScanArgs) -> Result<()> {
     let expanded = expand_input_args(&args.input)?;
-    ensure_inputs_exist(&expanded.input, &expanded.classpath)?;
 
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
@@ -235,7 +234,6 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 
 fn run_baseline(args: BaselineArgs) -> Result<()> {
     let expanded = expand_input_args(&args.input)?;
-    ensure_inputs_exist(&expanded.input, &expanded.classpath)?;
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
         None => None,
@@ -257,11 +255,13 @@ fn expand_input_args(args: &InputArgs) -> Result<ExpandedInputArgs> {
     let base_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let input =
         expand_path_args(&args.input, &base_dir).context("failed to expand --input arguments")?;
+    let input = filter_missing_paths("input", input)?;
     if input.is_empty() {
         anyhow::bail!("no input paths provided");
     }
     let classpath = expand_path_args(&args.classpath, &base_dir)
         .context("failed to expand --classpath arguments")?;
+    let classpath = filter_missing_paths("classpath entry", classpath)?;
     Ok(ExpandedInputArgs { input, classpath })
 }
 
@@ -319,21 +319,19 @@ fn expand_path_arg(arg: &str, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Resu
     Ok(paths)
 }
 
-fn ensure_inputs_exist(inputs: &[PathBuf], classpath: &[PathBuf]) -> Result<()> {
-    if inputs.is_empty() {
-        anyhow::bail!("no input paths provided");
-    }
-    for input in inputs {
-        if !input.exists() {
-            anyhow::bail!("input not found: {}", input.display());
+fn filter_missing_paths(label: &str, paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+    let mut filtered = Vec::new();
+    for path in paths {
+        if path.exists() {
+            filtered.push(path);
+            continue;
         }
-    }
-    for entry in classpath {
-        if !entry.exists() {
-            anyhow::bail!("classpath entry not found: {}", entry.display());
+        if path.extension().is_none() {
+            continue;
         }
+        anyhow::bail!("{label} not found: {}", path.display());
     }
-    Ok(())
+    Ok(filtered)
 }
 
 /// Aggregated analysis output before SARIF serialization.
@@ -628,6 +626,44 @@ mod tests {
 
         assert!(result.is_err());
 
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn filter_missing_paths_ignores_missing_directory() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        let existing = temp_dir.join("classes");
+        fs::create_dir_all(&existing).expect("create classes dir");
+        let missing = temp_dir.join("missing-dir");
+
+        let filtered =
+            filter_missing_paths("input", vec![existing.clone(), missing]).expect("filter paths");
+
+        assert_eq!(filtered, vec![existing]);
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn filter_missing_paths_rejects_missing_file() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let missing = temp_dir.join("missing.jar");
+
+        let result = filter_missing_paths("classpath entry", vec![missing]);
+
+        assert!(result.is_err());
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
     }
 
