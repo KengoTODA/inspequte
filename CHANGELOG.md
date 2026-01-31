@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.10.0...inspequte-v0.10.1) (2026-01-31)
+
+
+### Bug Fixes
+
+* add physical locations for class results ([52bfd95](https://github.com/KengoTODA/inspequte/commit/52bfd9564cf7c6519418326c98e197e89ba4c942))
+
 ## [0.10.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.9.0...inspequte-v0.10.0) (2026-01-31)
 
 
