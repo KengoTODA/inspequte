@@ -741,7 +741,9 @@ mod tests {
             analysis.rules,
             analysis.results,
         );
-        let actual = serde_json::to_string_pretty(&sarif).expect("serialize SARIF");
+        let mut actual_value = serde_json::to_value(&sarif).expect("serialize SARIF");
+        normalize_sarif_for_snapshot(&mut actual_value);
+        let actual = serde_json::to_string_pretty(&actual_value).expect("serialize SARIF");
         let snapshot_path = snapshot_path("callgraph.sarif");
 
         if std::env::var("INSPEQUTE_UPDATE_SNAPSHOTS").is_ok() {
@@ -753,9 +755,25 @@ mod tests {
         }
 
         let expected = fs::read_to_string(&snapshot_path).expect("read snapshot");
+        let mut expected_value = serde_json::from_str(&expected).expect("deserialize snapshot");
+        normalize_sarif_for_snapshot(&mut expected_value);
+        let expected = serde_json::to_string_pretty(&expected_value).expect("serialize snapshot");
         assert_eq!(actual.trim_end(), expected.trim_end());
 
         fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    fn normalize_sarif_for_snapshot(value: &mut serde_json::Value) {
+        let Some(driver) = value.pointer_mut("/runs/0/tool/driver") else {
+            return;
+        };
+        let Some(driver) = driver.as_object_mut() else {
+            return;
+        };
+        driver.insert(
+            "semanticVersion".to_string(),
+            serde_json::Value::String("0.0.0".to_string()),
+        );
     }
 
     fn snapshot_path(name: &str) -> PathBuf {
