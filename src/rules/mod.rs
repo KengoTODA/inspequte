@@ -78,21 +78,39 @@ pub(crate) fn method_location_with_line(
     line: Option<u32>,
 ) -> Location {
     let logical = method_logical_location(class_name, method_name, descriptor);
-    if let (Some(uri), Some(line)) = (artifact_uri, line) {
+    if let Some(uri) = artifact_uri {
         if uri.ends_with(".class") {
-            let region = Region::builder().start_line(line as i64).build();
-            let artifact_location = ArtifactLocation::builder().uri(uri.to_string()).build();
-            let physical = PhysicalLocation::builder()
-                .artifact_location(artifact_location)
-                .region(region)
-                .build();
-            return Location::builder()
-                .logical_locations(vec![logical])
-                .physical_location(physical)
-                .build();
+            if let Some(container_uri) = jar_container_uri(uri) {
+                let artifact_location = ArtifactLocation::builder().uri(container_uri).build();
+                let physical = PhysicalLocation::builder()
+                    .artifact_location(artifact_location)
+                    .build();
+                return Location::builder()
+                    .logical_locations(vec![logical])
+                    .physical_location(physical)
+                    .build();
+            }
+            if let Some(line) = line {
+                let region = Region::builder().start_line(line as i64).build();
+                let artifact_location = ArtifactLocation::builder().uri(uri.to_string()).build();
+                let physical = PhysicalLocation::builder()
+                    .artifact_location(artifact_location)
+                    .region(region)
+                    .build();
+                return Location::builder()
+                    .logical_locations(vec![logical])
+                    .physical_location(physical)
+                    .build();
+            }
         }
     }
     Location::builder().logical_locations(vec![logical]).build()
+}
+
+fn jar_container_uri(uri: &str) -> Option<String> {
+    let rest = uri.strip_prefix("jar:")?;
+    let container = rest.split("!/").next()?;
+    Some(container.to_string())
 }
 
 pub(crate) fn method_logical_location(
@@ -173,5 +191,14 @@ mod tests {
                 expected_id
             );
         }
+    }
+
+    #[test]
+    fn jar_container_uri_extracts_container() {
+        let uri = "jar:file:///tmp/app.jar!/com/example/ClassA.class";
+        assert_eq!(
+            jar_container_uri(uri),
+            Some("file:///tmp/app.jar".to_string())
+        );
     }
 }
