@@ -21,6 +21,10 @@ impl Rule for Slf4jLoggerShouldBePrivateRule {
     }
 
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
+        if !context.has_slf4j() {
+            return Ok(Vec::new());
+        }
+
         let mut results = Vec::new();
         for class in &context.classes {
             if !context.is_analysis_target_class(class) {

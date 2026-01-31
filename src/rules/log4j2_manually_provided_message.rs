@@ -28,6 +28,10 @@ impl Rule for Log4j2ManuallyProvidedMessageRule {
     }
 
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
+        if !context.has_log4j2() {
+            return Ok(Vec::new());
+        }
+
         let mut results = Vec::new();
         for class in &context.classes {
             if !context.is_analysis_target_class(class) {

@@ -20,6 +20,8 @@ pub(crate) struct AnalysisContext {
     analysis_target_artifacts: BTreeSet<i64>,
     artifact_parents: BTreeMap<i64, i64>,
     telemetry: Option<Arc<Telemetry>>,
+    has_slf4j: bool,
+    has_log4j2: bool,
 }
 
 /// Timing breakdown for context construction.
@@ -124,6 +126,7 @@ pub(crate) fn build_context_with_timings(
         &[KeyValue::new("inspequte.phase", "artifact_analysis")],
         || analyze_artifacts(artifacts),
     );
+    let (has_slf4j, has_log4j2) = detect_logging_frameworks(&classes, telemetry.as_deref());
     let artifact_duration_ms = artifact_started_at.elapsed().as_millis();
     let timings = ContextTimings {
         call_graph_duration_ms,
@@ -138,6 +141,8 @@ pub(crate) fn build_context_with_timings(
         analysis_target_artifacts,
         artifact_parents,
         telemetry,
+        has_slf4j,
+        has_log4j2,
     };
     (context, timings)
 }
@@ -197,6 +202,94 @@ impl AnalysisContext {
         }
         None
     }
+
+    pub(crate) fn has_slf4j(&self) -> bool {
+        self.has_slf4j
+    }
+
+    pub(crate) fn has_log4j2(&self) -> bool {
+        self.has_log4j2
+    }
+}
+
+fn detect_logging_frameworks(classes: &[Class], telemetry: Option<&Telemetry>) -> (bool, bool) {
+    let mut has_slf4j = false;
+    let mut has_log4j2 = false;
+    for class in classes {
+        if has_slf4j && has_log4j2 {
+            break;
+        }
+        if !has_slf4j || !has_log4j2 {
+            for field in &class.fields {
+                if !has_slf4j && contains_slf4j_type(&field.descriptor) {
+                    has_slf4j = true;
+                }
+                if !has_log4j2 && contains_log4j2_type(&field.descriptor) {
+                    has_log4j2 = true;
+                }
+            }
+            for method in &class.methods {
+                if !has_slf4j && contains_slf4j_type(&method.descriptor) {
+                    has_slf4j = true;
+                }
+                if !has_log4j2 && contains_log4j2_type(&method.descriptor) {
+                    has_log4j2 = true;
+                }
+            }
+        }
+        let mut references = class
+            .referenced_classes
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        if let Some(super_name) = class.super_name.as_deref() {
+            references.push(super_name);
+        }
+        for iface in &class.interfaces {
+            references.push(iface);
+        }
+        for reference in references {
+            if !has_slf4j
+                && matches!(
+                    reference,
+                    "org/slf4j/Logger" | "org/slf4j/Marker" | "org/slf4j/LoggerFactory"
+                )
+            {
+                has_slf4j = true;
+            }
+            if !has_log4j2
+                && matches!(
+                    reference,
+                    "org/apache/logging/log4j/Logger"
+                        | "org/apache/logging/log4j/LogManager"
+                        | "org/apache/logging/log4j/Marker"
+                        | "org/apache/logging/log4j/message/Message"
+                )
+            {
+                has_log4j2 = true;
+            }
+        }
+    }
+    let attributes = [
+        KeyValue::new("inspequte.slf4j.present", has_slf4j),
+        KeyValue::new("inspequte.log4j2.present", has_log4j2),
+    ];
+    with_span(telemetry, "detect.logging_frameworks", &attributes, || {
+        (has_slf4j, has_log4j2)
+    })
+}
+
+fn contains_slf4j_type(descriptor: &str) -> bool {
+    descriptor.contains("Lorg/slf4j/Logger;")
+        || descriptor.contains("Lorg/slf4j/Marker;")
+        || descriptor.contains("Lorg/slf4j/LoggerFactory;")
+}
+
+fn contains_log4j2_type(descriptor: &str) -> bool {
+    descriptor.contains("Lorg/apache/logging/log4j/Logger;")
+        || descriptor.contains("Lorg/apache/logging/log4j/Marker;")
+        || descriptor.contains("Lorg/apache/logging/log4j/LogManager;")
+        || descriptor.contains("Lorg/apache/logging/log4j/message/Message;")
 }
 
 fn analyze_artifacts(
