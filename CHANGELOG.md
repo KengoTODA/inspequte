@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.10.1...inspequte-v0.10.2) (2026-01-31)
+
+
+### Bug Fixes
+
+* skip classpath classes in insecure api ([067719e](https://github.com/KengoTODA/inspequte/commit/067719ee885f9c908f5750a5758b4b6d6c32a5d5))
+
 ## [0.10.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.10.0...inspequte-v0.10.1) (2026-01-31)
 
 
