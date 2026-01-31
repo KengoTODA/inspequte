@@ -112,6 +112,13 @@
               }
             },
             {
+              "id": "LOG4J2_UNKNOWN_ARRAY",
+              "name": "Log4j2 unknown array",
+              "shortDescription": {
+                "text": "Log4j2 varargs calls with unknown argument arrays"
+              }
+            },
+            {
               "id": "NULLNESS",
               "name": "Nullness checks",
               "shortDescription": {
