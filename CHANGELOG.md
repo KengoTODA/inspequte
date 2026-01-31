@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.10.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.9.0...inspequte-v0.10.0) (2026-01-31)
+
+
+### Features
+
+* add log4j2 format const rule ([e32d352](https://github.com/KengoTODA/inspequte/commit/e32d352262f1ca1adaa9e505b3725f03a84da84f))
+* add log4j2 illegal passed class rule ([d323df1](https://github.com/KengoTODA/inspequte/commit/d323df144483bdf5cd28ecc13999e377c6f53885))
+* add log4j2 logger should be final rule ([9f1b969](https://github.com/KengoTODA/inspequte/commit/9f1b9697340eed8c8d82a727d0a27a76956ad824))
+* add log4j2 logger should be private rule ([c1c9359](https://github.com/KengoTODA/inspequte/commit/c1c93597d02621941a21912bc807889885822e51))
+* add log4j2 manually provided message rule ([c2d9189](https://github.com/KengoTODA/inspequte/commit/c2d918912f5a1cb9f198e0070cf6dd997820c148))
+* add log4j2 sign only format rule ([a1df00a](https://github.com/KengoTODA/inspequte/commit/a1df00a92527c6d1e8e4dab7f3d8f42f6221b95a))
+* add log4j2 unknown array rule ([8fe13d0](https://github.com/KengoTODA/inspequte/commit/8fe13d0c139c430f7ae11cb553cb8d9a2ff836d2))
+* implement automatic rule registration using inventory crate ([e4ed66c](https://github.com/KengoTODA/inspequte/commit/e4ed66cd4e01027bdc924e78dbb462e6080f713c))
+
+
+### Bug Fixes
+
+* avoid jar uris in sarif locations ([a11a77a](https://github.com/KengoTODA/inspequte/commit/a11a77a22e45a010af6675e81aa4370e856142b0))
+* ignore missing input directories ([ecd40cd](https://github.com/KengoTODA/inspequte/commit/ecd40cdd6741572754d01742f217e66eb1735a6c))
+* **sarif:** add semanticVersion to sarif output ([f60d347](https://github.com/KengoTODA/inspequte/commit/f60d3474170ac847ffd69712f3c3adc89dab7278))
+
+
+### Performance Improvements
+
+* skip logger rules when framework absent ([d32a2f2](https://github.com/KengoTODA/inspequte/commit/d32a2f271f7006cc5095012ad704bf113647ace1))
+
 ## [0.9.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.8.1...inspequte-v0.9.0) (2026-01-29)
 
 
