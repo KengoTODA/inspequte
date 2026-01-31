@@ -77,6 +77,13 @@
               }
             },
             {
+              "id": "LOG4J2_LOGGER_SHOULD_BE_FINAL",
+              "name": "Log4j2 logger should be final",
+              "shortDescription": {
+                "text": "Log4j2 Logger fields should be final"
+              }
+            },
+            {
               "id": "NULLNESS",
               "name": "Nullness checks",
               "shortDescription": {
