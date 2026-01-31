@@ -9,6 +9,10 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -41,3 +45,11 @@ jobs:
           name: smoke-test-logs
           path: target/smoketest/*.log
           if-no-files-found: warn
+      - name: Generate SARIF and SBOM report
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit --format sarif > target/audit.sarif
+      - name: Upload SARIF to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: target/audit.sarif
