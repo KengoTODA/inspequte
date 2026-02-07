@@ -139,6 +139,7 @@ mod tests {
             signature: None,
             access: default_access(),
             nullness: MethodNullness::unknown(method_param_count(descriptor).expect("param count")),
+            type_use: None,
             bytecode: vec![0],
             line_numbers: Vec::new(),
             cfg,

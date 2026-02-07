@@ -95,6 +95,7 @@ mod tests {
                 is_abstract: false,
             },
             nullness: MethodNullness::unknown(method_param_count(descriptor).expect("param count")),
+            type_use: None,
             bytecode: vec![0],
             line_numbers: Vec::new(),
             cfg: empty_cfg(),

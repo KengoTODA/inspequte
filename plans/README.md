@@ -15,10 +15,10 @@ Each plan file documents:
 
 ## Current Plans
 
-1. **[01-type-use-nullness-annotations.md](01-type-use-nullness-annotations.md)**
-   - Extend nullness rule to support type-use annotations like `List<@Nullable Object>`
-   - Based on JSpecify specification
-   - Complexity: **High**
+1. **[01-type-use-nullness-annotations.done.md](01-type-use-nullness-annotations.done.md)**
+    - Extend nullness rule to support type-use annotations like `List<@Nullable Object>`
+    - Based on JSpecify specification
+    - Complexity: **High**
 
 2. **[02-java-stdlib-nullness-database.md](02-java-stdlib-nullness-database.md)**
    - Handle nullness of Java standard library APIs
@@ -47,7 +47,8 @@ Each plan file documents:
 
 ## Plan Status
 
-All plans are currently in **planning** state. Implementation priority will be determined based on:
+Plans are tracked individually; plan 01 is complete and the remaining plans are in **planning** state.
+Implementation priority will be determined based on:
 - User requests and feedback
 - Impact on analysis quality
 - Implementation complexity
