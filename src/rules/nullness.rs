@@ -181,7 +181,7 @@ fn check_type_use_overrides(
             TypeUseVariance::Parameter,
         ) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} parameter {} type-use is @NonNull but overrides @Nullable; consider using @Nullable on the override parameter or tightening the base signature",
+                "Nullness override: {}.{}{} parameter {} type-use has incompatible nullness compared to the overridden method; consider aligning the nullness annotations between the base and override signatures",
                 class.name, method.name, method.descriptor, index
             ));
             results.push(
