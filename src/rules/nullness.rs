@@ -199,6 +199,7 @@ fn check_type_use_overrides(
 enum TypeUseVariance {
     Return,
     Parameter,
+    Invariant,
 }
 
 fn type_use_override_conflict(
@@ -237,6 +238,12 @@ fn type_use_nullness_conflict(
     match variance {
         TypeUseVariance::Return => base == Nullness::NonNull && derived == Nullness::Nullable,
         TypeUseVariance::Parameter => base == Nullness::Nullable && derived == Nullness::NonNull,
+        TypeUseVariance::Invariant => {
+            matches!(
+                (base, derived),
+                (Nullness::NonNull, Nullness::Nullable) | (Nullness::Nullable, Nullness::NonNull)
+            )
+        }
     }
 }
 
@@ -256,7 +263,7 @@ fn class_type_use_conflict(
         .iter()
         .zip(derived.type_arguments.iter())
     {
-        if type_use_override_conflict(base_arg, derived_arg, variance) {
+        if type_use_override_conflict(base_arg, derived_arg, TypeUseVariance::Invariant) {
             return true;
         }
     }

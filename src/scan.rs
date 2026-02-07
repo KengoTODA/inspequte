@@ -1264,7 +1264,7 @@ fn parse_local_variable_types(
                 resolve_utf8(constant_pool, record.name_index()).context("resolve local name")?;
             let signature = resolve_utf8(constant_pool, record.signature_index())
                 .context("resolve local signature")?;
-            let type_use = parse_type_use_signature(&signature);
+            let type_use = Some(parse_type_use_signature(&signature)?);
             locals.push(LocalVariableType {
                 name,
                 signature,
@@ -1398,13 +1398,10 @@ fn parse_method_type_use(
     descriptor: &str,
     class_default: DefaultNullness,
 ) -> Result<Option<MethodTypeUse>> {
-    let type_use = if let Some(signature) = signature {
-        parse_method_type_use_signature(signature)
+    let mut type_use = if let Some(signature) = signature {
+        parse_method_type_use_signature(signature)?
     } else {
-        Some(method_type_use_from_descriptor(descriptor)?)
-    };
-    let Some(mut type_use) = type_use else {
-        return Ok(None);
+        method_type_use_from_descriptor(descriptor)?
     };
     for attribute in attributes {
         let jclassfile::attributes::Attribute::RuntimeVisibleTypeAnnotations { type_annotations } =
@@ -1482,15 +1479,11 @@ fn parse_field_type_use(
     descriptor: &str,
     class_default: DefaultNullness,
 ) -> Result<Option<TypeUse>> {
-    let type_use = if let Some(signature) = signature {
-        parse_type_use_signature(signature)
+    let mut type_use = if let Some(signature) = signature {
+        parse_type_use_signature(signature)?
     } else {
-        TypeDescriptor::from_str(descriptor)
-            .ok()
-            .map(|value| type_use_from_descriptor(&value))
-    };
-    let Some(mut type_use) = type_use else {
-        return Ok(None);
+        let descriptor = TypeDescriptor::from_str(descriptor).context("parse field descriptor")?;
+        type_use_from_descriptor(&descriptor)
     };
     for attribute in attributes {
         let jclassfile::attributes::Attribute::RuntimeVisibleTypeAnnotations { type_annotations } =
@@ -1598,28 +1591,39 @@ fn apply_default_nullness_to_type_parameter(parameter: &mut TypeParameterUse) {
     }
 }
 
-fn parse_method_type_use_signature(signature: &str) -> Option<MethodTypeUse> {
+fn parse_method_type_use_signature(signature: &str) -> Result<MethodTypeUse> {
     let mut parser = TypeUseSignatureParser::new(signature);
-    let type_parameters = parser.parse_type_parameters()?;
-    if parser.bump()? != b'(' {
-        return None;
+    let type_parameters = parser
+        .parse_type_parameters()
+        .context("parse type parameters")?;
+    if parser.peek().context("missing method signature")? != b'(' {
+        anyhow::bail!("invalid method signature");
     }
+    parser.bump();
     let mut params = Vec::new();
     while let Some(byte) = parser.peek() {
         if byte == b')' {
             parser.bump();
             break;
         }
-        params.push(parser.parse_type_signature()?);
+        params.push(
+            parser
+                .parse_type_signature()
+                .context("parse parameter type signature")?,
+        );
     }
-    let return_type = match parser.peek()? {
+    let return_type = match parser.peek().context("parse return type signature")? {
         b'V' => {
             parser.bump();
             None
         }
-        _ => Some(parser.parse_type_signature()?),
+        _ => Some(
+            parser
+                .parse_type_signature()
+                .context("parse return type signature")?,
+        ),
     };
-    Some(MethodTypeUse {
+    Ok(MethodTypeUse {
         type_parameters,
         parameters: params,
         return_type,
@@ -1644,9 +1648,11 @@ fn method_type_use_from_descriptor(descriptor: &str) -> Result<MethodTypeUse> {
     })
 }
 
-fn parse_type_use_signature(signature: &str) -> Option<TypeUse> {
+fn parse_type_use_signature(signature: &str) -> Result<TypeUse> {
     let mut parser = TypeUseSignatureParser::new(signature);
-    parser.parse_type_signature()
+    parser
+        .parse_type_signature()
+        .context("parse type signature")
 }
 
 fn type_use_from_descriptor(descriptor: &TypeDescriptor) -> TypeUse {
@@ -1826,9 +1832,10 @@ impl<'a> TypeUseSignatureParser<'a> {
                 name.push(byte as char);
                 self.bump();
             }
-            if self.bump()? != b':' {
+            if self.peek()? != b':' {
                 return None;
             }
+            self.bump();
             let class_bound = if self.peek() != Some(b':') {
                 self.parse_reference_type_signature()
             } else {
@@ -1898,9 +1905,10 @@ impl<'a> TypeUseSignatureParser<'a> {
     }
 
     fn parse_type_variable(&mut self) -> Option<TypeUse> {
-        if self.bump()? != b'T' {
+        if self.peek()? != b'T' {
             return None;
         }
+        self.bump();
         let mut name = String::new();
         while let Some(byte) = self.peek() {
             if byte == b';' {
@@ -1917,9 +1925,10 @@ impl<'a> TypeUseSignatureParser<'a> {
     }
 
     fn parse_class_type_signature(&mut self) -> Option<ClassTypeUse> {
-        if self.bump()? != b'L' {
+        if self.peek()? != b'L' {
             return None;
         }
+        self.bump();
         let mut name = String::new();
         while let Some(byte) = self.peek() {
             match byte {
@@ -1966,9 +1975,10 @@ impl<'a> TypeUseSignatureParser<'a> {
             };
             cursor = class;
         }
-        if self.bump()? != b';' {
+        if self.peek()? != b';' {
             return None;
         }
+        self.bump();
         Some(root)
     }
 
