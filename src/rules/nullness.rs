@@ -76,65 +76,73 @@ fn check_overrides(class: &Class, class_map: &BTreeMap<String, &Class>) -> Vec<S
             else {
                 continue;
             };
-            if base_method.nullness.return_nullness == Nullness::NonNull
-                && method.nullness.return_nullness == Nullness::Nullable
-            {
-                let message = result_message(format!(
-                    "Nullness override: {}.{}{} returns @Nullable but overrides @NonNull",
-                    class.name, method.name, method.descriptor
-                ));
-                let location = method_location_with_line(
-                    &class.name,
-                    &method.name,
-                    &method.descriptor,
-                    None,
-                    None,
-                );
-                results.push(
-                    SarifResult::builder()
-                        .message(message)
-                        .locations(vec![location])
-                        .build(),
-                );
-            }
-            let param_count = method.nullness.parameter_nullness.len();
-            let base_param_count = base_method.nullness.parameter_nullness.len();
-            let count = param_count.min(base_param_count);
-            for index in 0..count {
-                if base_method.nullness.parameter_nullness[index] == Nullness::Nullable
-                    && method.nullness.parameter_nullness[index] == Nullness::NonNull
-                {
-                    let message = result_message(format!(
-                        "Nullness override: {}.{}{} parameter {} is @NonNull but overrides @Nullable",
-                        class.name, method.name, method.descriptor, index
-                    ));
-                    let location = method_location_with_line(
+            if base_method.type_use.is_some() && method.type_use.is_some() {
+                results.extend(check_type_use_overrides(
+                    class,
+                    method,
+                    base_method,
+                    method_location_with_line(
                         &class.name,
                         &method.name,
                         &method.descriptor,
                         None,
                         None,
-                    );
-                    results.push(
-                        SarifResult::builder()
-                            .message(message)
-                            .locations(vec![location])
-                            .build(),
-                    );
-                }
+                    ),
+                ));
+            } else {
+                results.extend(check_signature_overrides(class, method, base_method));
             }
-            results.extend(check_type_use_overrides(
-                class,
-                method,
-                base_method,
-                method_location_with_line(
-                    &class.name,
-                    &method.name,
-                    &method.descriptor,
-                    None,
-                    None,
-                ),
+        }
+    }
+    results
+}
+
+fn check_signature_overrides(
+    class: &Class,
+    method: &Method,
+    base_method: &Method,
+) -> Vec<SarifResult> {
+    let mut results = Vec::new();
+    if base_method.nullness.return_nullness == Nullness::NonNull
+        && method.nullness.return_nullness == Nullness::Nullable
+    {
+        let message = result_message(format!(
+            "Nullness override: {}.{}{} returns @Nullable but overrides @NonNull",
+            class.name, method.name, method.descriptor
+        ));
+        let location =
+            method_location_with_line(&class.name, &method.name, &method.descriptor, None, None);
+        results.push(
+            SarifResult::builder()
+                .message(message)
+                .locations(vec![location])
+                .build(),
+        );
+    }
+    let param_count = method.nullness.parameter_nullness.len();
+    let base_param_count = base_method.nullness.parameter_nullness.len();
+    let count = param_count.min(base_param_count);
+    for index in 0..count {
+        if base_method.nullness.parameter_nullness[index] == Nullness::Nullable
+            && method.nullness.parameter_nullness[index] == Nullness::NonNull
+        {
+            let message = result_message(format!(
+                "Nullness override: {}.{}{} parameter {} is @NonNull but overrides @Nullable",
+                class.name, method.name, method.descriptor, index
             ));
+            let location = method_location_with_line(
+                &class.name,
+                &method.name,
+                &method.descriptor,
+                None,
+                None,
+            );
+            results.push(
+                SarifResult::builder()
+                    .message(message)
+                    .locations(vec![location])
+                    .build(),
+            );
         }
     }
     results
@@ -159,7 +167,7 @@ fn check_type_use_overrides(
     ) {
         if type_use_override_conflict(base_return, method_return, TypeUseVariance::Return) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} return type-use is @Nullable but overrides @NonNull; consider using @NonNull on the override return type or widening the base signature",
+                "Nullness override: {}.{}{} return type-use has incompatible nullness compared to the overridden method; consider aligning nullness annotations between the base and override signatures",
                 class.name, method.name, method.descriptor
             ));
             results.push(
@@ -1418,10 +1426,11 @@ public class Derived extends Base {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
+        assert_eq!(1, messages.len(), "messages: {messages:?}");
         assert!(
             messages
                 .iter()
-                .any(|msg| msg.contains("returns @Nullable but overrides @NonNull"))
+                .any(|msg| msg.contains("return type-use has incompatible nullness"))
         );
     }
 
@@ -1473,7 +1482,7 @@ public class Derived extends Base {
         assert!(
             messages
                 .iter()
-                .any(|msg| msg.contains("return type-use is @Nullable"))
+                .any(|msg| msg.contains("return type-use has incompatible nullness"))
         );
     }
 
@@ -1519,7 +1528,7 @@ public class Derived extends Base {
         assert!(
             messages
                 .iter()
-                .any(|msg| msg.contains("parameter 0 type-use is @NonNull"))
+                .any(|msg| msg.contains("parameter 0 type-use has incompatible nullness"))
         );
     }
 
