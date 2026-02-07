@@ -1596,8 +1596,11 @@ fn parse_method_type_use_signature(signature: &str) -> Result<MethodTypeUse> {
     let type_parameters = parser
         .parse_type_parameters()
         .context("parse type parameters")?;
-    if parser.peek().context("missing method signature")? != b'(' {
-        anyhow::bail!("invalid method signature");
+    let first = parser
+        .peek()
+        .context("invalid method signature: expected '('")?;
+    if first != b'(' {
+        anyhow::bail!("invalid method signature: expected '('");
     }
     parser.bump();
     let mut params = Vec::new();

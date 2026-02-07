@@ -258,6 +258,7 @@ fn class_type_use_conflict(
     if base.type_arguments.len() != derived.type_arguments.len() {
         return false;
     }
+    // Java generic type arguments are invariant, so compare nullness strictly.
     for (base_arg, derived_arg) in base
         .type_arguments
         .iter()
