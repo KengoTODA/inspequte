@@ -159,7 +159,7 @@ fn check_type_use_overrides(
     ) {
         if type_use_override_conflict(base_return, method_return, TypeUseVariance::Return) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} return type-use is @Nullable but overrides @NonNull",
+                "Nullness override: {}.{}{} return type-use is @Nullable but overrides @NonNull; consider using @NonNull on the override return type or widening the base signature",
                 class.name, method.name, method.descriptor
             ));
             results.push(
@@ -181,7 +181,7 @@ fn check_type_use_overrides(
             TypeUseVariance::Parameter,
         ) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} parameter {} type-use is @NonNull but overrides @Nullable",
+                "Nullness override: {}.{}{} parameter {} type-use is @NonNull but overrides @Nullable; consider using @Nullable on the override parameter or tightening the base signature",
                 class.name, method.name, method.descriptor, index
             ));
             results.push(
@@ -1520,6 +1520,52 @@ public class Derived extends Base {
             messages
                 .iter()
                 .any(|msg| msg.contains("parameter 0 type-use is @NonNull"))
+        );
+    }
+
+    #[test]
+    #[ignore = "type-use nullness is not propagated through generic method calls yet"]
+    fn nullness_rule_reports_type_use_flow_from_generic_call() {
+        let mut sources = jspecify_stubs();
+        sources.push(SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
+@NullMarked
+class ClassB<T> {
+    private final T varOne;
+    ClassB(T varOne) {
+        this.varOne = varOne;
+    }
+    T methodOne() {
+        return varOne;
+    }
+}
+@NullMarked
+public class ClassA {
+    public void methodOne(ClassB<@Nullable String> varOne) {
+        varOne.methodOne().toString();
+    }
+}
+"#
+            .to_string(),
+        });
+
+        let output = analyze_with_harness(sources);
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("NULLNESS"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("possible null receiver")),
+            "messages: {messages:?}"
         );
     }
 }
