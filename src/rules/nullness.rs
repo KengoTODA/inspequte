@@ -190,7 +190,7 @@ fn check_type_use_overrides(
             TypeUseVariance::Parameter,
         ) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} parameter {} type-use is more restrictive than the overridden method; consider marking the override parameter (or nested type argument) @Nullable or tightening the base signature to @NonNull",
+                "Nullness override: {}.{}{} parameter {} has a more restrictive (less nullable) type-use than the overridden method at this parameter or one of its nested type arguments (for example, base @Nullable vs override @NonNull); consider marking the override parameter or the conflicting nested type argument @Nullable, or tightening the corresponding base signature location to @NonNull",
                 class.name, method.name, method.descriptor, index
             ));
             results.push(
