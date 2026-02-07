@@ -167,7 +167,7 @@ fn check_type_use_overrides(
     ) {
         if type_use_override_conflict(base_return, method_return, TypeUseVariance::Return) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} return type-use has incompatible nullness compared to the overridden method; consider aligning nullness annotations between the base and override signatures",
+                "Nullness override: {}.{}{} return type-use is more nullable than the overridden method; consider aligning nullness annotations between the base and override signatures",
                 class.name, method.name, method.descriptor
             ));
             results.push(
@@ -189,7 +189,7 @@ fn check_type_use_overrides(
             TypeUseVariance::Parameter,
         ) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} parameter {} type-use has incompatible nullness compared to the overridden method; consider aligning the nullness annotations between the base and override signatures",
+                "Nullness override: {}.{}{} parameter {} type-use is more restrictive than the overridden method; consider aligning nullness annotations between the base and override signatures",
                 class.name, method.name, method.descriptor, index
             ));
             results.push(
@@ -1430,7 +1430,7 @@ public class Derived extends Base {
         assert!(
             messages
                 .iter()
-                .any(|msg| msg.contains("return type-use has incompatible nullness"))
+                .any(|msg| msg.contains("return type-use is more nullable"))
         );
     }
 
@@ -1482,7 +1482,7 @@ public class Derived extends Base {
         assert!(
             messages
                 .iter()
-                .any(|msg| msg.contains("return type-use has incompatible nullness"))
+                .any(|msg| msg.contains("return type-use is more nullable"))
         );
     }
 
@@ -1528,7 +1528,7 @@ public class Derived extends Base {
         assert!(
             messages
                 .iter()
-                .any(|msg| msg.contains("parameter 0 type-use has incompatible nullness"))
+                .any(|msg| msg.contains("parameter 0 type-use is more restrictive"))
         );
     }
 
