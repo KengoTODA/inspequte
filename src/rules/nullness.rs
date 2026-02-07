@@ -77,6 +77,7 @@ fn check_overrides(class: &Class, class_map: &BTreeMap<String, &Class>) -> Vec<S
                 continue;
             };
             if base_method.type_use.is_some() && method.type_use.is_some() {
+                // Type-use metadata covers top-level nullness too, so avoid duplicate reports.
                 results.extend(check_type_use_overrides(
                     class,
                     method,
@@ -167,7 +168,7 @@ fn check_type_use_overrides(
     ) {
         if type_use_override_conflict(base_return, method_return, TypeUseVariance::Return) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} return type-use is more nullable than the overridden method; consider aligning nullness annotations between the base and override signatures",
+                "Nullness override: {}.{}{} return type-use is more nullable than the overridden method; consider marking the override return type (or nested type argument) @NonNull or relaxing the base signature to @Nullable",
                 class.name, method.name, method.descriptor
             ));
             results.push(
@@ -189,7 +190,7 @@ fn check_type_use_overrides(
             TypeUseVariance::Parameter,
         ) {
             let message = result_message(format!(
-                "Nullness override: {}.{}{} parameter {} type-use is more restrictive than the overridden method; consider aligning nullness annotations between the base and override signatures",
+                "Nullness override: {}.{}{} parameter {} type-use is more restrictive than the overridden method; consider marking the override parameter (or nested type argument) @Nullable or tightening the base signature to @NonNull",
                 class.name, method.name, method.descriptor, index
             ));
             results.push(
