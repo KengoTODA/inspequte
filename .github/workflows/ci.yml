@@ -29,18 +29,21 @@ jobs:
         run: bash scripts/coverage.sh
       - name: Upload artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
         with:
           name: release-artifacts
           path: target/release/
           if-no-files-found: warn
       - name: Upload coverage reports
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
         with:
           name: coverage-reports
           path: target/coverage/**
           if-no-files-found: warn
       - name: Upload smoke test logs
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
         with:
           name: smoke-test-logs
           path: target/smoketest/*.log
@@ -51,5 +54,7 @@ jobs:
           cargo audit --format sarif > target/audit.sarif
       - name: Upload SARIF to GitHub code scanning
         uses: github/codeql-action/upload-sarif@v4
+        if: always()
         with:
           sarif_file: target/audit.sarif
+          if-no-files-found: warn
