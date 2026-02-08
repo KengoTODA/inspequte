@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.10.2...inspequte-v0.11.0) (2026-02-08)
+
+
+### Features
+
+* add type-use nullness parsing and override checks ([#29](https://github.com/KengoTODA/inspequte/issues/29)) ([67a4f29](https://github.com/KengoTODA/inspequte/commit/67a4f2968794bcfc49adae1dc089c1f6ddb2c921))
+
 ## [0.10.2](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.10.1...inspequte-v0.10.2) (2026-01-31)
 
 
