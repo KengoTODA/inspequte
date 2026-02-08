@@ -1526,11 +1526,9 @@ public class Derived extends Base {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
-        assert!(
-            messages
-                .iter()
-                .any(|msg| msg.contains("parameter 0 type-use is more restrictive"))
-        );
+        assert!(messages.iter().any(|msg| {
+            msg.contains("parameter 0 has a more restrictive") && msg.contains("type-use")
+        }));
     }
 
     #[test]
