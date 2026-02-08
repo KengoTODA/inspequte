@@ -24,6 +24,30 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ steps.app-token.outputs.token }}
+      # Fallback for draft releases: in our pinned release-please-action (v4.4.0),
+      # the bundled release-please does not honor force-tag-creation.
+      # Without an explicit tag, matrix jobs fail at checkout(ref=tag_name).
+      - name: Ensure release tag exists
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          TAG_SHA: ${{ steps.release.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TAG_NAME}" || -z "${TAG_SHA}" ]]; then
+            echo "release-please did not output tag_name/sha."
+            exit 1
+          fi
+
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${TAG_NAME}" >/dev/null 2>&1; then
+            echo "Tag ${TAG_NAME} already exists."
+          else
+            gh api --method POST "repos/${{ github.repository }}/git/refs" \
+              -f ref="refs/tags/${TAG_NAME}" \
+              -f sha="${TAG_SHA}"
+          fi
 
   build-release-binaries:
     runs-on: ${{ matrix.os }}
