@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.13.0...inspequte-v0.13.1) (2026-02-08)
+
+
+### Bug Fixes
+
+* **ci:** include LICENSE in release archives ([88fb0ae](https://github.com/KengoTODA/inspequte/commit/88fb0ae698246e064ee2dd753581f587ba21cb19))
+* include README in release archives ([47de8eb](https://github.com/KengoTODA/inspequte/commit/47de8eb6afae7966d44e51f809275ac4a74049a7))
+* **release:** checkout Git repo before publish GitHub Release ([d884758](https://github.com/KengoTODA/inspequte/commit/d884758206787826d065dca09f376857e08efb9a))
+
 ## [0.13.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.12.0...inspequte-v0.13.0) (2026-02-08)
 
 ### Bug Fixes
