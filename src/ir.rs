@@ -19,6 +19,7 @@ pub(crate) struct Field {
     pub(crate) name: String,
     pub(crate) descriptor: String,
     pub(crate) signature: Option<String>,
+    pub(crate) type_use: Option<TypeUse>,
     pub(crate) access: FieldAccess,
 }
 
@@ -38,6 +39,7 @@ pub(crate) struct Method {
     pub(crate) signature: Option<String>,
     pub(crate) access: MethodAccess,
     pub(crate) nullness: MethodNullness,
+    pub(crate) type_use: Option<MethodTypeUse>,
     pub(crate) bytecode: Vec<u8>,
     pub(crate) line_numbers: Vec<LineNumber>,
     pub(crate) cfg: ControlFlowGraph,
@@ -52,6 +54,7 @@ pub(crate) struct Method {
 pub(crate) struct LocalVariableType {
     pub(crate) name: String,
     pub(crate) signature: String,
+    pub(crate) type_use: Option<TypeUse>,
     pub(crate) index: u16,
     pub(crate) start_pc: u32,
     pub(crate) length: u32,
@@ -161,6 +164,48 @@ pub(crate) enum Nullness {
 pub(crate) struct MethodNullness {
     pub(crate) return_nullness: Nullness,
     pub(crate) parameter_nullness: Vec<Nullness>,
+}
+
+/// Method type-use signature derived from generic metadata.
+#[derive(Clone, Debug)]
+pub(crate) struct MethodTypeUse {
+    pub(crate) type_parameters: Vec<TypeParameterUse>,
+    pub(crate) parameters: Vec<TypeUse>,
+    pub(crate) return_type: Option<TypeUse>,
+}
+
+/// Type parameter metadata with optional bounds.
+#[derive(Clone, Debug)]
+pub(crate) struct TypeParameterUse {
+    pub(crate) name: String,
+    pub(crate) class_bound: Option<TypeUse>,
+    pub(crate) interface_bounds: Vec<TypeUse>,
+}
+
+/// Type-use signature with nullness annotation metadata.
+#[derive(Clone, Debug)]
+pub(crate) struct TypeUse {
+    pub(crate) nullness: Nullness,
+    pub(crate) kind: TypeUseKind,
+}
+
+/// Kind of type-use signature entry.
+#[derive(Clone, Debug)]
+pub(crate) enum TypeUseKind {
+    Base(char),
+    Array(Box<TypeUse>),
+    TypeVar(String),
+    Class(ClassTypeUse),
+    Wildcard(Option<Box<TypeUse>>),
+    Void,
+}
+
+/// Class type metadata with generic arguments and inner class segments.
+#[derive(Clone, Debug)]
+pub(crate) struct ClassTypeUse {
+    pub(crate) name: String,
+    pub(crate) type_arguments: Vec<TypeUse>,
+    pub(crate) inner: Option<Box<TypeUse>>,
 }
 
 impl MethodNullness {

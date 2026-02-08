@@ -21,8 +21,9 @@ use rayon::prelude::*;
 use crate::cfg::build_cfg;
 use crate::descriptor::method_param_count;
 use crate::ir::{
-    CallKind, CallSite, Class, ExceptionHandler, Field, FieldAccess, Instruction, InstructionKind,
-    LineNumber, LocalVariableType, Method, MethodAccess, MethodNullness, Nullness,
+    CallKind, CallSite, Class, ClassTypeUse, ExceptionHandler, Field, FieldAccess, Instruction,
+    InstructionKind, LineNumber, LocalVariableType, Method, MethodAccess, MethodNullness,
+    MethodTypeUse, Nullness, TypeParameterUse, TypeUse, TypeUseKind,
 };
 use crate::opcodes;
 use crate::telemetry::Telemetry;
@@ -832,9 +833,10 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         .attributes()
         .iter()
         .any(|attr| matches!(attr, jclassfile::attributes::Attribute::Record { .. }));
-    let fields = parse_fields(constant_pool, class_file.fields()).context("parse fields")?;
     let default_nullness = parse_default_nullness(class_file.attributes(), constant_pool)
         .context("parse class nullness")?;
+    let fields = parse_fields(constant_pool, class_file.fields(), default_nullness)
+        .context("parse fields")?;
     let methods = parse_methods(constant_pool, class_file.methods(), default_nullness)
         .context("parse method bytecode")?;
 
@@ -1091,6 +1093,7 @@ fn skip_class_bytes(data: &[u8], offset: &mut usize, len: usize) -> Result<()> {
 fn parse_fields(
     constant_pool: &[ConstantPool],
     fields: &[jclassfile::fields::FieldInfo],
+    default_nullness: DefaultNullness,
 ) -> Result<Vec<Field>> {
     let mut parsed = Vec::new();
     for field in fields {
@@ -1099,6 +1102,14 @@ fn parse_fields(
             .context("resolve field descriptor")?;
         let signature =
             parse_signature(field.attributes(), constant_pool).context("parse field signature")?;
+        let type_use = parse_field_type_use(
+            constant_pool,
+            field.attributes(),
+            signature.as_deref(),
+            &descriptor,
+            default_nullness,
+        )
+        .context("parse field type-use")?;
         let access_flags = field.access_flags();
         let access = FieldAccess {
             is_static: access_flags.contains(FieldFlags::ACC_STATIC),
@@ -1109,6 +1120,7 @@ fn parse_fields(
             name,
             descriptor,
             signature,
+            type_use,
             access,
         });
     }
@@ -1141,6 +1153,14 @@ fn parse_methods(
             default_nullness,
         )
         .context("parse method nullness")?;
+        let type_use = parse_method_type_use(
+            constant_pool,
+            method.attributes(),
+            signature.as_deref(),
+            &descriptor,
+            default_nullness,
+        )
+        .context("parse method type-use")?;
         let code = method
             .attributes()
             .iter()
@@ -1162,8 +1182,9 @@ fn parse_methods(
             parse_bytecode(code, constant_pool).context("parse bytecode")?;
         let exception_handlers =
             parse_exception_handlers(exception_table, constant_pool).context("parse handlers")?;
-        let local_variable_types = parse_local_variable_types(code_attributes, constant_pool)
-            .context("parse local variable types")?;
+        let local_variable_types =
+            parse_local_variable_types(code_attributes, constant_pool, default_nullness)
+                .context("parse local variable types")?;
         let handler_offsets = exception_handlers
             .iter()
             .map(|handler| handler.handler_pc)
@@ -1176,6 +1197,7 @@ fn parse_methods(
             signature,
             access,
             nullness,
+            type_use,
             bytecode: code.clone(),
             line_numbers,
             cfg,
@@ -1227,6 +1249,7 @@ fn parse_signature(
 fn parse_local_variable_types(
     attributes: &[jclassfile::attributes::Attribute],
     constant_pool: &[ConstantPool],
+    default_nullness: DefaultNullness,
 ) -> Result<Vec<LocalVariableType>> {
     let mut locals = Vec::new();
     for attribute in attributes {
@@ -1241,13 +1264,23 @@ fn parse_local_variable_types(
                 resolve_utf8(constant_pool, record.name_index()).context("resolve local name")?;
             let signature = resolve_utf8(constant_pool, record.signature_index())
                 .context("resolve local signature")?;
+            let type_use = Some(parse_type_use_signature(&signature)?);
             locals.push(LocalVariableType {
                 name,
                 signature,
+                type_use,
                 index: record.index(),
                 start_pc: record.start_pc() as u32,
                 length: record.length() as u32,
             });
+        }
+    }
+    apply_local_variable_type_annotations(constant_pool, attributes, &mut locals)?;
+    if default_nullness == DefaultNullness::NonNull {
+        for local in &mut locals {
+            if let Some(ty) = local.type_use.as_mut() {
+                apply_default_nullness(ty);
+            }
         }
     }
     Ok(locals)
@@ -1356,6 +1389,638 @@ fn parse_method_nullness(
         }
     }
     Ok(nullness)
+}
+
+fn parse_method_type_use(
+    constant_pool: &[ConstantPool],
+    attributes: &[jclassfile::attributes::Attribute],
+    signature: Option<&str>,
+    descriptor: &str,
+    class_default: DefaultNullness,
+) -> Result<Option<MethodTypeUse>> {
+    let mut type_use = if let Some(signature) = signature {
+        parse_method_type_use_signature(signature)?
+    } else {
+        method_type_use_from_descriptor(descriptor)?
+    };
+    for attribute in attributes {
+        let jclassfile::attributes::Attribute::RuntimeVisibleTypeAnnotations { type_annotations } =
+            attribute
+        else {
+            continue;
+        };
+        for annotation in type_annotations {
+            let Some(value) = nullness_from_annotation(constant_pool, annotation.annotation())?
+            else {
+                continue;
+            };
+            match (annotation.target_type(), annotation.target_info()) {
+                (
+                    jclassfile::attributes::TargetType::METHOD_RETURN,
+                    jclassfile::attributes::TargetInfo::EmptyTarget,
+                ) => {
+                    if let Some(return_type) = type_use.return_type.as_mut() {
+                        apply_type_use_annotation(return_type, annotation.type_path(), value);
+                    }
+                }
+                (
+                    jclassfile::attributes::TargetType::METHOD_FORMAL_PARAMETER,
+                    jclassfile::attributes::TargetInfo::FormalParameterTarget {
+                        formal_parameter_index,
+                    },
+                ) => {
+                    let index = *formal_parameter_index as usize;
+                    if let Some(param) = type_use.parameters.get_mut(index) {
+                        apply_type_use_annotation(param, annotation.type_path(), value);
+                    }
+                }
+                (
+                    jclassfile::attributes::TargetType::METHOD_TYPE_PARAMETER_BOUND,
+                    jclassfile::attributes::TargetInfo::TypeParameterBoundTarget {
+                        type_parameter_index,
+                        bound_index,
+                    },
+                ) => {
+                    apply_type_parameter_bound_annotation(
+                        &mut type_use.type_parameters,
+                        *type_parameter_index as usize,
+                        *bound_index as usize,
+                        annotation.type_path(),
+                        value,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    let method_default = parse_default_nullness(attributes, constant_pool)?;
+    let effective_default = match method_default {
+        DefaultNullness::Inherit => class_default,
+        value => value,
+    };
+    if effective_default == DefaultNullness::NonNull {
+        for param in &mut type_use.parameters {
+            apply_default_nullness(param);
+        }
+        for type_param in &mut type_use.type_parameters {
+            apply_default_nullness_to_type_parameter(type_param);
+        }
+        if let Some(return_type) = type_use.return_type.as_mut() {
+            apply_default_nullness(return_type);
+        }
+    }
+    Ok(Some(type_use))
+}
+
+fn parse_field_type_use(
+    constant_pool: &[ConstantPool],
+    attributes: &[jclassfile::attributes::Attribute],
+    signature: Option<&str>,
+    descriptor: &str,
+    class_default: DefaultNullness,
+) -> Result<Option<TypeUse>> {
+    let mut type_use = if let Some(signature) = signature {
+        parse_type_use_signature(signature)?
+    } else {
+        let descriptor = TypeDescriptor::from_str(descriptor).context("parse field descriptor")?;
+        type_use_from_descriptor(&descriptor)
+    };
+    for attribute in attributes {
+        let jclassfile::attributes::Attribute::RuntimeVisibleTypeAnnotations { type_annotations } =
+            attribute
+        else {
+            continue;
+        };
+        for annotation in type_annotations {
+            let Some(value) = nullness_from_annotation(constant_pool, annotation.annotation())?
+            else {
+                continue;
+            };
+            match (annotation.target_type(), annotation.target_info()) {
+                (
+                    jclassfile::attributes::TargetType::FIELD,
+                    jclassfile::attributes::TargetInfo::EmptyTarget,
+                ) => apply_type_use_annotation(&mut type_use, annotation.type_path(), value),
+                _ => {}
+            }
+        }
+    }
+    if class_default == DefaultNullness::NonNull {
+        apply_default_nullness(&mut type_use);
+    }
+    Ok(Some(type_use))
+}
+
+fn apply_local_variable_type_annotations(
+    constant_pool: &[ConstantPool],
+    attributes: &[jclassfile::attributes::Attribute],
+    locals: &mut [LocalVariableType],
+) -> Result<()> {
+    for attribute in attributes {
+        let jclassfile::attributes::Attribute::RuntimeVisibleTypeAnnotations { type_annotations } =
+            attribute
+        else {
+            continue;
+        };
+        for annotation in type_annotations {
+            let Some(value) = nullness_from_annotation(constant_pool, annotation.annotation())?
+            else {
+                continue;
+            };
+            match (annotation.target_type(), annotation.target_info()) {
+                (
+                    jclassfile::attributes::TargetType::LOCAL_VARIABLE,
+                    jclassfile::attributes::TargetInfo::LocalvarTarget { table },
+                )
+                | (
+                    jclassfile::attributes::TargetType::RESOURCE_VARIABLE,
+                    jclassfile::attributes::TargetInfo::LocalvarTarget { table },
+                ) => {
+                    for entry in table {
+                        for local in locals.iter_mut() {
+                            if local.index == entry.index()
+                                && local.start_pc == entry.start_pc() as u32
+                                && local.length == entry.length() as u32
+                            {
+                                if let Some(type_use) = local.type_use.as_mut() {
+                                    apply_type_use_annotation(
+                                        type_use,
+                                        annotation.type_path(),
+                                        value,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn apply_type_parameter_bound_annotation(
+    parameters: &mut [TypeParameterUse],
+    parameter_index: usize,
+    bound_index: usize,
+    path: &[jclassfile::attributes::TypePathEntry],
+    value: Nullness,
+) {
+    let Some(parameter) = parameters.get_mut(parameter_index) else {
+        return;
+    };
+    if bound_index == 0 {
+        if let Some(bound) = parameter.class_bound.as_mut() {
+            apply_type_use_annotation(bound, path, value);
+        }
+        return;
+    }
+    let index = bound_index - 1;
+    if let Some(bound) = parameter.interface_bounds.get_mut(index) {
+        apply_type_use_annotation(bound, path, value);
+    }
+}
+
+fn apply_default_nullness_to_type_parameter(parameter: &mut TypeParameterUse) {
+    if let Some(bound) = parameter.class_bound.as_mut() {
+        apply_default_nullness(bound);
+    }
+    for bound in &mut parameter.interface_bounds {
+        apply_default_nullness(bound);
+    }
+}
+
+fn parse_method_type_use_signature(signature: &str) -> Result<MethodTypeUse> {
+    let mut parser = TypeUseSignatureParser::new(signature);
+    let type_parameters = parser
+        .parse_type_parameters()
+        .context("parse type parameters")?;
+    let first = parser
+        .peek()
+        .context("invalid method signature: expected '('")?;
+    if first != b'(' {
+        anyhow::bail!("invalid method signature: expected '('");
+    }
+    parser.bump();
+    let mut params = Vec::new();
+    while let Some(byte) = parser.peek() {
+        if byte == b')' {
+            parser.bump();
+            break;
+        }
+        params.push(
+            parser
+                .parse_type_signature()
+                .context("parse parameter type signature")?,
+        );
+    }
+    let return_type = match parser.peek().context("parse return type signature")? {
+        b'V' => {
+            parser.bump();
+            None
+        }
+        _ => Some(
+            parser
+                .parse_type_signature()
+                .context("parse return type signature")?,
+        ),
+    };
+    Ok(MethodTypeUse {
+        type_parameters,
+        parameters: params,
+        return_type,
+    })
+}
+
+fn method_type_use_from_descriptor(descriptor: &str) -> Result<MethodTypeUse> {
+    let descriptor = MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
+    let parameters = descriptor
+        .parameter_types()
+        .iter()
+        .map(type_use_from_descriptor)
+        .collect();
+    let return_type = match descriptor.return_type() {
+        TypeDescriptor::Void => None,
+        ty => Some(type_use_from_descriptor(ty)),
+    };
+    Ok(MethodTypeUse {
+        type_parameters: Vec::new(),
+        parameters,
+        return_type,
+    })
+}
+
+fn parse_type_use_signature(signature: &str) -> Result<TypeUse> {
+    let mut parser = TypeUseSignatureParser::new(signature);
+    parser
+        .parse_type_signature()
+        .context("parse type signature")
+}
+
+fn type_use_from_descriptor(descriptor: &TypeDescriptor) -> TypeUse {
+    match descriptor {
+        TypeDescriptor::Byte => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('B'),
+        },
+        TypeDescriptor::Char => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('C'),
+        },
+        TypeDescriptor::Double => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('D'),
+        },
+        TypeDescriptor::Float => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('F'),
+        },
+        TypeDescriptor::Integer => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('I'),
+        },
+        TypeDescriptor::Long => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('J'),
+        },
+        TypeDescriptor::Short => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('S'),
+        },
+        TypeDescriptor::Boolean => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Base('Z'),
+        },
+        TypeDescriptor::Void => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Void,
+        },
+        TypeDescriptor::Object(name) => TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::Class(ClassTypeUse {
+                name: name.clone(),
+                type_arguments: Vec::new(),
+                inner: None,
+            }),
+        },
+        TypeDescriptor::Array(component, depth) => {
+            let mut current = type_use_from_descriptor(component);
+            for _ in 0..*depth {
+                current = TypeUse {
+                    nullness: Nullness::Unknown,
+                    kind: TypeUseKind::Array(Box::new(current)),
+                };
+            }
+            current
+        }
+    }
+}
+
+fn apply_type_use_annotation(
+    target: &mut TypeUse,
+    path: &[jclassfile::attributes::TypePathEntry],
+    value: Nullness,
+) {
+    let mut current = target;
+    for entry in path {
+        match entry.path_kind() {
+            0 => {
+                let TypeUseKind::Array(component) = &mut current.kind else {
+                    return;
+                };
+                current = component;
+            }
+            1 => {
+                let TypeUseKind::Class(class) = &mut current.kind else {
+                    return;
+                };
+                let Some(inner) = class.inner.as_mut() else {
+                    return;
+                };
+                current = inner.as_mut();
+            }
+            2 => {
+                let TypeUseKind::Wildcard(Some(bound)) = &mut current.kind else {
+                    return;
+                };
+                current = bound;
+            }
+            3 => {
+                let TypeUseKind::Class(class) = &mut current.kind else {
+                    return;
+                };
+                let index = entry.path_index() as usize;
+                let Some(arg) = class.type_arguments.get_mut(index) else {
+                    return;
+                };
+                current = arg;
+            }
+            _ => return,
+        }
+    }
+    apply_nullness(&mut current.nullness, value);
+}
+
+fn apply_default_nullness(target: &mut TypeUse) {
+    if is_reference_type_use(target) && target.nullness == Nullness::Unknown {
+        target.nullness = Nullness::NonNull;
+    }
+    match &mut target.kind {
+        TypeUseKind::Array(component) => apply_default_nullness(component),
+        TypeUseKind::Class(class) => apply_default_nullness_to_class_type(class),
+        TypeUseKind::Wildcard(Some(bound)) => apply_default_nullness(bound),
+        _ => {}
+    }
+}
+
+fn apply_default_nullness_to_class_type(class: &mut ClassTypeUse) {
+    for arg in &mut class.type_arguments {
+        apply_default_nullness(arg);
+    }
+    if let Some(inner) = class.inner.as_mut() {
+        apply_default_nullness(inner);
+    }
+}
+
+fn is_reference_type_use(target: &TypeUse) -> bool {
+    matches!(
+        target.kind,
+        TypeUseKind::Array(_)
+            | TypeUseKind::Class(_)
+            | TypeUseKind::TypeVar(_)
+            | TypeUseKind::Wildcard(_)
+    )
+}
+
+struct TypeUseSignatureParser<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> TypeUseSignatureParser<'a> {
+    fn new(signature: &'a str) -> Self {
+        Self {
+            bytes: signature.as_bytes(),
+            offset: 0,
+        }
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.bytes.get(self.offset).copied()
+    }
+
+    fn bump(&mut self) -> Option<u8> {
+        let byte = self.peek()?;
+        self.offset += 1;
+        Some(byte)
+    }
+
+    fn parse_type_parameters(&mut self) -> Option<Vec<TypeParameterUse>> {
+        if self.peek() != Some(b'<') {
+            return Some(Vec::new());
+        }
+        self.bump();
+        let mut params = Vec::new();
+        while let Some(byte) = self.peek() {
+            if byte == b'>' {
+                self.bump();
+                break;
+            }
+            let mut name = String::new();
+            while let Some(byte) = self.peek() {
+                if byte == b':' {
+                    break;
+                }
+                name.push(byte as char);
+                self.bump();
+            }
+            if self.peek()? != b':' {
+                return None;
+            }
+            self.bump();
+            let class_bound = if self.peek() != Some(b':') {
+                self.parse_reference_type_signature()
+            } else {
+                None
+            };
+            let mut interface_bounds = Vec::new();
+            while self.peek() == Some(b':') {
+                self.bump();
+                interface_bounds.push(self.parse_reference_type_signature()?);
+            }
+            params.push(TypeParameterUse {
+                name,
+                class_bound,
+                interface_bounds,
+            });
+        }
+        Some(params)
+    }
+
+    fn parse_type_signature(&mut self) -> Option<TypeUse> {
+        match self.peek()? {
+            b'B' | b'C' | b'D' | b'F' | b'I' | b'J' | b'S' | b'Z' => Some(TypeUse {
+                nullness: Nullness::Unknown,
+                kind: TypeUseKind::Base(self.bump()? as char),
+            }),
+            b'V' => {
+                self.bump();
+                Some(TypeUse {
+                    nullness: Nullness::Unknown,
+                    kind: TypeUseKind::Void,
+                })
+            }
+            b'[' => {
+                self.bump();
+                let component = self.parse_type_signature()?;
+                Some(TypeUse {
+                    nullness: Nullness::Unknown,
+                    kind: TypeUseKind::Array(Box::new(component)),
+                })
+            }
+            b'T' => self.parse_type_variable(),
+            b'L' => self.parse_class_type_signature().map(|class| TypeUse {
+                nullness: Nullness::Unknown,
+                kind: TypeUseKind::Class(class),
+            }),
+            _ => None,
+        }
+    }
+
+    fn parse_reference_type_signature(&mut self) -> Option<TypeUse> {
+        match self.peek()? {
+            b'L' => self.parse_class_type_signature().map(|class| TypeUse {
+                nullness: Nullness::Unknown,
+                kind: TypeUseKind::Class(class),
+            }),
+            b'T' => self.parse_type_variable(),
+            b'[' => {
+                self.bump();
+                let component = self.parse_type_signature()?;
+                Some(TypeUse {
+                    nullness: Nullness::Unknown,
+                    kind: TypeUseKind::Array(Box::new(component)),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    fn parse_type_variable(&mut self) -> Option<TypeUse> {
+        if self.peek()? != b'T' {
+            return None;
+        }
+        self.bump();
+        let mut name = String::new();
+        while let Some(byte) = self.peek() {
+            if byte == b';' {
+                self.bump();
+                break;
+            }
+            name.push(byte as char);
+            self.bump();
+        }
+        Some(TypeUse {
+            nullness: Nullness::Unknown,
+            kind: TypeUseKind::TypeVar(name),
+        })
+    }
+
+    fn parse_class_type_signature(&mut self) -> Option<ClassTypeUse> {
+        if self.peek()? != b'L' {
+            return None;
+        }
+        self.bump();
+        let mut name = String::new();
+        while let Some(byte) = self.peek() {
+            match byte {
+                b';' | b'<' | b'.' => break,
+                _ => {
+                    name.push(byte as char);
+                    self.bump();
+                }
+            }
+        }
+        let type_arguments = self.parse_type_arguments()?;
+        let mut root = ClassTypeUse {
+            name,
+            type_arguments,
+            inner: None,
+        };
+        let mut cursor = &mut root;
+        while let Some(b'.') = self.peek() {
+            self.bump();
+            let mut inner_name = String::new();
+            while let Some(byte) = self.peek() {
+                match byte {
+                    b';' | b'<' | b'.' => break,
+                    _ => {
+                        inner_name.push(byte as char);
+                        self.bump();
+                    }
+                }
+            }
+            let inner_arguments = self.parse_type_arguments()?;
+            cursor.inner = Some(Box::new(TypeUse {
+                nullness: Nullness::Unknown,
+                kind: TypeUseKind::Class(ClassTypeUse {
+                    name: inner_name,
+                    type_arguments: inner_arguments,
+                    inner: None,
+                }),
+            }));
+            let Some(inner) = cursor.inner.as_mut() else {
+                return None;
+            };
+            let TypeUseKind::Class(class) = &mut inner.kind else {
+                return None;
+            };
+            cursor = class;
+        }
+        if self.peek()? != b';' {
+            return None;
+        }
+        self.bump();
+        Some(root)
+    }
+
+    fn parse_type_arguments(&mut self) -> Option<Vec<TypeUse>> {
+        if self.peek() != Some(b'<') {
+            return Some(Vec::new());
+        }
+        self.bump();
+        let mut args = Vec::new();
+        while let Some(byte) = self.peek() {
+            if byte == b'>' {
+                self.bump();
+                break;
+            }
+            args.push(self.parse_type_argument()?);
+        }
+        Some(args)
+    }
+
+    fn parse_type_argument(&mut self) -> Option<TypeUse> {
+        match self.peek()? {
+            b'*' => {
+                self.bump();
+                Some(TypeUse {
+                    nullness: Nullness::Unknown,
+                    kind: TypeUseKind::Wildcard(None),
+                })
+            }
+            b'+' | b'-' => {
+                self.bump();
+                let bound = self.parse_reference_type_signature()?;
+                Some(TypeUse {
+                    nullness: Nullness::Unknown,
+                    kind: TypeUseKind::Wildcard(Some(Box::new(bound))),
+                })
+            }
+            _ => self.parse_reference_type_signature(),
+        }
+    }
 }
 
 fn nullness_from_annotation(

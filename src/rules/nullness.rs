@@ -6,7 +6,7 @@ use serde_sarif::sarif::Result as SarifResult;
 
 use crate::descriptor::{ReturnKind, method_param_count, method_return_kind};
 use crate::engine::AnalysisContext;
-use crate::ir::{CallKind, Class, Method, Nullness};
+use crate::ir::{CallKind, Class, ClassTypeUse, Method, Nullness, TypeUse, TypeUseKind};
 use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
@@ -76,56 +76,214 @@ fn check_overrides(class: &Class, class_map: &BTreeMap<String, &Class>) -> Vec<S
             else {
                 continue;
             };
-            if base_method.nullness.return_nullness == Nullness::NonNull
-                && method.nullness.return_nullness == Nullness::Nullable
-            {
-                let message = result_message(format!(
-                    "Nullness override: {}.{}{} returns @Nullable but overrides @NonNull",
-                    class.name, method.name, method.descriptor
-                ));
-                let location = method_location_with_line(
-                    &class.name,
-                    &method.name,
-                    &method.descriptor,
-                    None,
-                    None,
-                );
-                results.push(
-                    SarifResult::builder()
-                        .message(message)
-                        .locations(vec![location])
-                        .build(),
-                );
-            }
-            let param_count = method.nullness.parameter_nullness.len();
-            let base_param_count = base_method.nullness.parameter_nullness.len();
-            let count = param_count.min(base_param_count);
-            for index in 0..count {
-                if base_method.nullness.parameter_nullness[index] == Nullness::Nullable
-                    && method.nullness.parameter_nullness[index] == Nullness::NonNull
-                {
-                    let message = result_message(format!(
-                        "Nullness override: {}.{}{} parameter {} is @NonNull but overrides @Nullable",
-                        class.name, method.name, method.descriptor, index
-                    ));
-                    let location = method_location_with_line(
+            if base_method.type_use.is_some() && method.type_use.is_some() {
+                // Type-use metadata covers top-level nullness too, so avoid duplicate reports.
+                results.extend(check_type_use_overrides(
+                    class,
+                    method,
+                    base_method,
+                    method_location_with_line(
                         &class.name,
                         &method.name,
                         &method.descriptor,
                         None,
                         None,
-                    );
-                    results.push(
-                        SarifResult::builder()
-                            .message(message)
-                            .locations(vec![location])
-                            .build(),
-                    );
-                }
+                    ),
+                ));
+            } else {
+                results.extend(check_signature_overrides(class, method, base_method));
             }
         }
     }
     results
+}
+
+fn check_signature_overrides(
+    class: &Class,
+    method: &Method,
+    base_method: &Method,
+) -> Vec<SarifResult> {
+    let mut results = Vec::new();
+    if base_method.nullness.return_nullness == Nullness::NonNull
+        && method.nullness.return_nullness == Nullness::Nullable
+    {
+        let message = result_message(format!(
+            "Nullness override: {}.{}{} returns @Nullable but overrides @NonNull",
+            class.name, method.name, method.descriptor
+        ));
+        let location =
+            method_location_with_line(&class.name, &method.name, &method.descriptor, None, None);
+        results.push(
+            SarifResult::builder()
+                .message(message)
+                .locations(vec![location])
+                .build(),
+        );
+    }
+    let param_count = method.nullness.parameter_nullness.len();
+    let base_param_count = base_method.nullness.parameter_nullness.len();
+    let count = param_count.min(base_param_count);
+    for index in 0..count {
+        if base_method.nullness.parameter_nullness[index] == Nullness::Nullable
+            && method.nullness.parameter_nullness[index] == Nullness::NonNull
+        {
+            let message = result_message(format!(
+                "Nullness override: {}.{}{} parameter {} is @NonNull but overrides @Nullable",
+                class.name, method.name, method.descriptor, index
+            ));
+            let location = method_location_with_line(
+                &class.name,
+                &method.name,
+                &method.descriptor,
+                None,
+                None,
+            );
+            results.push(
+                SarifResult::builder()
+                    .message(message)
+                    .locations(vec![location])
+                    .build(),
+            );
+        }
+    }
+    results
+}
+
+fn check_type_use_overrides(
+    class: &Class,
+    method: &Method,
+    base_method: &Method,
+    location: serde_sarif::sarif::Location,
+) -> Vec<SarifResult> {
+    let mut results = Vec::new();
+    let Some(base_type_use) = base_method.type_use.as_ref() else {
+        return results;
+    };
+    let Some(method_type_use) = method.type_use.as_ref() else {
+        return results;
+    };
+    if let (Some(base_return), Some(method_return)) = (
+        base_type_use.return_type.as_ref(),
+        method_type_use.return_type.as_ref(),
+    ) {
+        if type_use_override_conflict(base_return, method_return, TypeUseVariance::Return) {
+            let message = result_message(format!(
+                "Nullness override: {}.{}{} return type-use is more nullable than the overridden method; consider marking the override return type (or nested type argument) @NonNull or relaxing the base signature to @Nullable",
+                class.name, method.name, method.descriptor
+            ));
+            results.push(
+                SarifResult::builder()
+                    .message(message)
+                    .locations(vec![location.clone()])
+                    .build(),
+            );
+        }
+    }
+    let count = base_type_use
+        .parameters
+        .len()
+        .min(method_type_use.parameters.len());
+    for index in 0..count {
+        if type_use_override_conflict(
+            &base_type_use.parameters[index],
+            &method_type_use.parameters[index],
+            TypeUseVariance::Parameter,
+        ) {
+            let message = result_message(format!(
+                "Nullness override: {}.{}{} parameter {} has a more restrictive (less nullable) type-use than the overridden method at this parameter or one of its nested type arguments (for example, base @Nullable vs override @NonNull); consider marking the override parameter or the conflicting nested type argument @Nullable, or tightening the corresponding base signature location to @NonNull",
+                class.name, method.name, method.descriptor, index
+            ));
+            results.push(
+                SarifResult::builder()
+                    .message(message)
+                    .locations(vec![location.clone()])
+                    .build(),
+            );
+        }
+    }
+    results
+}
+
+#[derive(Copy, Clone)]
+enum TypeUseVariance {
+    Return,
+    Parameter,
+    Invariant,
+}
+
+fn type_use_override_conflict(
+    base: &TypeUse,
+    derived: &TypeUse,
+    variance: TypeUseVariance,
+) -> bool {
+    if type_use_nullness_conflict(base.nullness, derived.nullness, variance) {
+        return true;
+    }
+    match (&base.kind, &derived.kind) {
+        (TypeUseKind::Array(base), TypeUseKind::Array(derived)) => {
+            type_use_override_conflict(base, derived, variance)
+        }
+        (TypeUseKind::Class(base), TypeUseKind::Class(derived)) => {
+            class_type_use_conflict(base, derived, variance)
+        }
+        (TypeUseKind::Wildcard(base), TypeUseKind::Wildcard(derived)) => {
+            match (base.as_deref(), derived.as_deref()) {
+                (Some(base), Some(derived)) => type_use_override_conflict(base, derived, variance),
+                _ => false,
+            }
+        }
+        (TypeUseKind::TypeVar(_), TypeUseKind::TypeVar(_))
+        | (TypeUseKind::Base(_), TypeUseKind::Base(_))
+        | (TypeUseKind::Void, TypeUseKind::Void) => false,
+        _ => false,
+    }
+}
+
+fn type_use_nullness_conflict(
+    base: Nullness,
+    derived: Nullness,
+    variance: TypeUseVariance,
+) -> bool {
+    match variance {
+        TypeUseVariance::Return => base == Nullness::NonNull && derived == Nullness::Nullable,
+        TypeUseVariance::Parameter => base == Nullness::Nullable && derived == Nullness::NonNull,
+        TypeUseVariance::Invariant => {
+            matches!(
+                (base, derived),
+                (Nullness::NonNull, Nullness::Nullable) | (Nullness::Nullable, Nullness::NonNull)
+            )
+        }
+    }
+}
+
+fn class_type_use_conflict(
+    base: &ClassTypeUse,
+    derived: &ClassTypeUse,
+    variance: TypeUseVariance,
+) -> bool {
+    if base.name != derived.name {
+        return false;
+    }
+    if base.type_arguments.len() != derived.type_arguments.len() {
+        return false;
+    }
+    // Java generic type arguments are invariant, so compare nullness strictly.
+    for (base_arg, derived_arg) in base
+        .type_arguments
+        .iter()
+        .zip(derived.type_arguments.iter())
+    {
+        if type_use_override_conflict(base_arg, derived_arg, TypeUseVariance::Invariant) {
+            return true;
+        }
+    }
+    match (base.inner.as_deref(), derived.inner.as_deref()) {
+        (Some(base_inner), Some(derived_inner)) => {
+            type_use_override_conflict(base_inner, derived_inner, variance)
+        }
+        (None, None) => false,
+        _ => false,
+    }
 }
 
 fn collect_supertypes<'a>(
@@ -669,6 +827,7 @@ mod tests {
             signature: None,
             access,
             nullness,
+            type_use: None,
             bytecode,
             line_numbers: Vec::new(),
             cfg: ControlFlowGraph {
@@ -800,6 +959,7 @@ public @interface NullnessUnspecified {}
                 return_nullness: Nullness::NonNull,
                 parameter_nullness: Vec::new(),
             },
+            type_use: None,
             bytecode: Vec::new(),
             line_numbers: Vec::new(),
             cfg: ControlFlowGraph {
@@ -824,6 +984,7 @@ public @interface NullnessUnspecified {}
                 return_nullness: Nullness::Nullable,
                 parameter_nullness: Vec::new(),
             },
+            type_use: None,
             bytecode: Vec::new(),
             line_numbers: Vec::new(),
             cfg: ControlFlowGraph {
@@ -865,6 +1026,7 @@ public @interface NullnessUnspecified {}
                 return_nullness: Nullness::Unknown,
                 parameter_nullness: vec![Nullness::Nullable],
             },
+            type_use: None,
             bytecode: Vec::new(),
             line_numbers: Vec::new(),
             cfg: ControlFlowGraph {
@@ -889,6 +1051,7 @@ public @interface NullnessUnspecified {}
                 return_nullness: Nullness::Unknown,
                 parameter_nullness: vec![Nullness::NonNull],
             },
+            type_use: None,
             bytecode: Vec::new(),
             line_numbers: Vec::new(),
             cfg: ControlFlowGraph {
@@ -1264,10 +1427,153 @@ public class Derived extends Base {
             .filter_map(|result| result.message.text.clone())
             .collect();
 
+        assert_eq!(1, messages.len(), "messages: {messages:?}");
         assert!(
             messages
                 .iter()
-                .any(|msg| msg.contains("returns @Nullable but overrides @NonNull"))
+                .any(|msg| msg.contains("return type-use is more nullable"))
+        );
+    }
+
+    #[test]
+    fn nullness_rule_reports_type_use_return_override() {
+        let mut sources = jspecify_stubs();
+        sources.extend(vec![
+            SourceFile {
+                path: "com/example/Base.java".to_string(),
+                contents: r#"
+package com.example;
+import java.util.Collections;
+import java.util.List;
+import org.jspecify.annotations.NonNull;
+public class Base {
+    public List<@NonNull String> methodOne() {
+        return Collections.emptyList();
+    }
+}
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/Derived.java".to_string(),
+                contents: r#"
+package com.example;
+import java.util.Collections;
+import java.util.List;
+import org.jspecify.annotations.Nullable;
+public class Derived extends Base {
+    @Override
+    public List<@Nullable String> methodOne() {
+        return Collections.emptyList();
+    }
+}
+"#
+                .to_string(),
+            },
+        ]);
+
+        let output = analyze_with_harness(sources);
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("NULLNESS"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("return type-use is more nullable"))
+        );
+    }
+
+    #[test]
+    fn nullness_rule_reports_type_use_parameter_override() {
+        let mut sources = jspecify_stubs();
+        sources.extend(vec![
+            SourceFile {
+                path: "com/example/Base.java".to_string(),
+                contents: r#"
+package com.example;
+import java.util.List;
+import org.jspecify.annotations.Nullable;
+public class Base {
+    public void methodOne(List<@Nullable String> varOne) {}
+}
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/Derived.java".to_string(),
+                contents: r#"
+package com.example;
+import java.util.List;
+import org.jspecify.annotations.NonNull;
+public class Derived extends Base {
+    @Override
+    public void methodOne(List<@NonNull String> varOne) {}
+}
+"#
+                .to_string(),
+            },
+        ]);
+
+        let output = analyze_with_harness(sources);
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("NULLNESS"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(messages.iter().any(|msg| {
+            msg.contains("parameter 0 has a more restrictive") && msg.contains("type-use")
+        }));
+    }
+
+    #[test]
+    #[ignore = "type-use nullness is not propagated through generic method calls yet"]
+    fn nullness_rule_reports_type_use_flow_from_generic_call() {
+        let mut sources = jspecify_stubs();
+        sources.push(SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
+@NullMarked
+class ClassB<T> {
+    private final T varOne;
+    ClassB(T varOne) {
+        this.varOne = varOne;
+    }
+    T methodOne() {
+        return varOne;
+    }
+}
+@NullMarked
+public class ClassA {
+    public void methodOne(ClassB<@Nullable String> varOne) {
+        varOne.methodOne().toString();
+    }
+}
+"#
+            .to_string(),
+        });
+
+        let output = analyze_with_harness(sources);
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("NULLNESS"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("possible null receiver")),
+            "messages: {messages:?}"
         );
     }
 }

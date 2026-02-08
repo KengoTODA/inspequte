@@ -68,3 +68,8 @@ Follow the JSpecify specification: https://jspecify.dev/docs/spec/
 
 ## Estimated Complexity
 **High** - Requires significant changes to type system representation and analysis logic.
+
+## Post-mortem
+- Added type-use signature parsing and annotation application for methods, fields, and locals.
+- Extended nullness override checks to compare nested type-use nullness in generics.
+- Follow-up: expand flow analysis to propagate type-use nullness through method calls.
