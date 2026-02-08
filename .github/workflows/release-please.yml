@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: actions/create-github-app-token@v2
         id: app-token
@@ -24,10 +25,106 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ steps.app-token.outputs.token }}
 
+  build-release-binaries:
+    runs-on: ${{ matrix.os }}
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin_suffix: ""
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin_suffix: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin_suffix: ".exe"
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Archive binary (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.release-please.outputs.tag_name }}"
+          target="${{ matrix.target }}"
+          binary="inspequte${{ matrix.bin_suffix }}"
+          archive="inspequte-${version}-${target}.tar.gz"
+
+          mkdir -p dist
+          cp "target/${target}/release/${binary}" "dist/${binary}"
+          tar -C dist -czf "${archive}" "${binary}"
+      - name: Archive binary (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ needs.release-please.outputs.tag_name }}"
+          $target = "${{ matrix.target }}"
+          $binary = "inspequte${{ matrix.bin_suffix }}"
+          $archive = "inspequte-$version-$target.zip"
+
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item "target/$target/release/$binary" "dist/$binary" -Force
+          Compress-Archive -Path "dist/$binary" -DestinationPath $archive -Force
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ runner.os }}" in
+            Windows) asset="inspequte-${TAG_NAME}-${{ matrix.target }}.zip" ;;
+            *) asset="inspequte-${TAG_NAME}-${{ matrix.target }}.tar.gz" ;;
+          esac
+          gh release upload "${TAG_NAME}" "${asset}" --clobber
+
+  publish-github-release:
+    runs-on: ubuntu-latest
+    needs:
+      - release-please
+      - build-release-binaries
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          is_draft="$(gh release view "${TAG_NAME}" --json isDraft --jq '.isDraft')"
+          if [[ "${is_draft}" != "true" ]]; then
+            echo "Release ${TAG_NAME} is expected to be draft, but got isDraft=${is_draft}."
+            exit 1
+          fi
+
+          gh release edit "${TAG_NAME}" --draft=false
+
   publish-crates:
     runs-on: ubuntu-latest
     environment: release
-    needs: release-please
+    needs:
+      - release-please
+      - publish-github-release
     if: needs.release-please.outputs.release_created == 'true'
     permissions:
       contents: read
