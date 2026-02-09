@@ -35,11 +35,6 @@ The name combines "inspect" and "cute". The CLI command is `inspequte`.
   signatures are still analyzed without debug info.
 
 ## Install
-Install from crates.io:
-```bash
-cargo install inspequte --locked
-```
-
 Install a pre-built binary from GitHub Releases:
 - Linux (x86_64): `inspequte-<TAG>-x86_64-unknown-linux-gnu.tar.gz`
 - macOS (Apple Silicon): `inspequte-<TAG>-aarch64-apple-darwin.tar.gz`
@@ -115,10 +110,7 @@ plugins {
 ```
 
 The plugin hooks all generated `inspequte*` tasks into `check`.
-The `inspequte` command must be available in `PATH`:
-```bash
-cargo install inspequte --locked
-```
+The `inspequte` command must be available in `PATH`.
 
 ## SARIF output (example)
 ```json
@@ -140,33 +132,24 @@ cargo install inspequte --locked
 ```
 
 ## CI integration (GitHub Actions)
+Use the Gradle plugin in CI and install the CLI from GitHub Releases:
+
 ```yaml
 - name: Install inspequte
-  run: cargo install inspequte --locked
-- name: Run inspequte
-  run: |
-    inspequte \
-      --input app.jar \
-      --classpath lib/ \
-      --output results.sarif
-```
-
-### Upload SARIF to GitHub Code Scanning
-```yaml
-- name: Upload SARIF
-  uses: github/codeql-action/upload-sarif@v3
+  uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
+- name: Setup Java
+  uses: actions/setup-java@v5
+  with:
+    distribution: temurin
+    java-version: "21"
+- name: Setup Gradle
+  uses: gradle/actions/setup-gradle@v4
+- name: Run inspequte tasks
+  run: ./gradlew check --no-daemon
+- name: Upload SARIF to GitHub Code Scanning (optional)
+  uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: results.sarif
-```
-
-### Validate SARIF during CI (optional)
-```yaml
-- name: Run inspequte with schema validation
-  run: |
-    INSPEQUTE_VALIDATE_SARIF=1 inspequte \
-      --input app.jar \
-      --classpath lib/ \
-      --output results.sarif
 ```
 
 ## License

@@ -33,5 +33,15 @@ collector UI such as Jaeger to inspect the trace details.
 When adding or updating rules, mention `rule-authoring` in your request to trigger the repo-scoped skill in `.codex/skills/rule-authoring`.
 Example: `$rule-authoring add a rule to detect empty catch blocks`
 
+### Validate SARIF during CI (optional)
+```yaml
+- name: Run inspequte tasks with schema validation
+  run: |
+    INSPEQUTE_VALIDATE_SARIF=1 inspequte \
+      --input app.jar \
+      --classpath lib/ \
+      --output results.sarif
+```
+
 ## License
 By contributing, you agree that your contributions will be licensed under AGPL-3.0.

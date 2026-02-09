@@ -77,6 +77,8 @@ jobs:
         run: |
           cargo install cargo-audit --locked
           cargo audit --format sarif > target/audit.sarif
+        env:
+          INSPEQUTE_VALIDATE_SARIF: 1
       - name: Upload SARIF report
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
