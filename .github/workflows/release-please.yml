@@ -9,8 +9,12 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      rust_release_created: ${{ steps.release.outputs.release_created }}
+      rust_tag_name: ${{ steps.release.outputs.tag_name }}
+      rust_sha: ${{ steps.release.outputs.sha }}
+      gradle_plugin_release_created: ${{ steps.release.outputs['gradle-plugin--release_created'] }}
+      gradle_plugin_tag_name: ${{ steps.release.outputs['gradle-plugin--tag_name'] }}
+      gradle_plugin_sha: ${{ steps.release.outputs['gradle-plugin--sha'] }}
     steps:
       - uses: actions/create-github-app-token@v2
         id: app-token
@@ -26,8 +30,8 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
       # Fallback for draft releases: in our pinned release-please-action (v4.4.0),
       # the bundled release-please does not honor force-tag-creation.
-      # Without an explicit tag, matrix jobs fail at checkout(ref=tag_name).
-      - name: Ensure release tag exists
+      # Without an explicit tag, jobs that checkout tag refs fail.
+      - name: Ensure Rust release tag exists
         if: steps.release.outputs.release_created == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -37,7 +41,28 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${TAG_NAME}" || -z "${TAG_SHA}" ]]; then
-            echo "release-please did not output tag_name/sha."
+            echo "release-please did not output tag_name/sha for Rust component."
+            exit 1
+          fi
+
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${TAG_NAME}" >/dev/null 2>&1; then
+            echo "Tag ${TAG_NAME} already exists."
+          else
+            gh api --method POST "repos/${{ github.repository }}/git/refs" \
+              -f ref="refs/tags/${TAG_NAME}" \
+              -f sha="${TAG_SHA}"
+          fi
+      - name: Ensure Gradle plugin release tag exists
+        if: steps.release.outputs['gradle-plugin--release_created'] == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG_NAME: ${{ steps.release.outputs['gradle-plugin--tag_name'] }}
+          TAG_SHA: ${{ steps.release.outputs['gradle-plugin--sha'] }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TAG_NAME}" || -z "${TAG_SHA}" ]]; then
+            echo "release-please did not output tag_name/sha for gradle-plugin component."
             exit 1
           fi
 
@@ -52,7 +77,7 @@ jobs:
   build-release-binaries:
     runs-on: ${{ matrix.os }}
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.rust_release_created == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -72,7 +97,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.rust_tag_name }}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -85,7 +110,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="${{ needs.release-please.outputs.tag_name }}"
+          version="${{ needs.release-please.outputs.rust_tag_name }}"
           target="${{ matrix.target }}"
           binary="inspequte${{ matrix.bin_suffix }}"
           archive="inspequte-${version}-${target}.tar.gz"
@@ -99,7 +124,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $version = "${{ needs.release-please.outputs.tag_name }}"
+          $version = "${{ needs.release-please.outputs.rust_tag_name }}"
           $target = "${{ matrix.target }}"
           $binary = "inspequte${{ matrix.bin_suffix }}"
           $archive = "inspequte-$version-$target.zip"
@@ -112,7 +137,7 @@ jobs:
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+          TAG_NAME: ${{ needs.release-please.outputs.rust_tag_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -122,21 +147,21 @@ jobs:
           esac
           gh release upload "${TAG_NAME}" "${asset}" --clobber
 
-  publish-github-release:
+  publish-rust-github-release:
     runs-on: ubuntu-latest
     needs:
       - release-please
       - build-release-binaries
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.rust_release_created == 'true'
     permissions:
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - name: Publish draft release
+      - name: Publish Rust draft release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+          TAG_NAME: ${{ needs.release-please.outputs.rust_tag_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -154,8 +179,8 @@ jobs:
     environment: release
     needs:
       - release-please
-      - publish-github-release
-    if: needs.release-please.outputs.release_created == 'true'
+      - publish-rust-github-release
+    if: needs.release-please.outputs.rust_release_created == 'true'
     permissions:
       contents: read
       id-token: write
@@ -172,3 +197,40 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
         run: cargo publish --locked
+
+  publish-gradle-plugin:
+    runs-on: ubuntu-latest
+    environment: release
+    needs:
+      - release-please
+    if: needs.release-please.outputs.gradle_plugin_release_created == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.gradle_plugin_tag_name }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version-file: '.java-version'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Publish plugin to Gradle Plugin Portal
+        env:
+          GRADLE_PUBLISH_KEY: ${{ vars.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+        run: |
+          gradle publishPlugins --no-daemon \
+            -Pgradle.publish.key="${GRADLE_PUBLISH_KEY}" \
+            -Pgradle.publish.secret="${GRADLE_PUBLISH_SECRET}"
+        working-directory: gradle-plugin
+      - name: Upload reports
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: gradle-plugin-reports
+          path: gradle-plugin/build/reports
+          if-no-files-found: warn

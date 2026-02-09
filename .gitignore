@@ -17,3 +17,7 @@ target/
 
 # macOS
 .DS_Store
+
+# Gradle
+gradle-plugin/.gradle/
+gradle-plugin/build/

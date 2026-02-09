@@ -100,38 +100,24 @@ inspequte --input @inputs.txt --classpath @classpath.txt --output results.sarif
 ```
 
 ## Gradle usage
-Use a Gradle task to write the inputs and classpath to files, then reference them via `@`:
+Use the Gradle plugin:
 ```kotlin
-tasks.register("writeInspequteInputs") {
-    dependsOn(tasks.named("classes"))
-    inputs.files(sourceSets.main.get().output.classesDirs, configurations.runtimeClasspath)
-    outputs.files(
-        file("$buildDir/inspequte/inputs.txt"),
-        file("$buildDir/inspequte/classpath.txt")
-    )
-    doLast {
-        val inputsFile = file("$buildDir/inspequte/inputs.txt")
-        val classpathFile = file("$buildDir/inspequte/classpath.txt")
-        inputsFile.parentFile.mkdirs()
-        inputsFile.writeText(sourceSets.main.get().output.classesDirs.files.joinToString("\n"))
-        classpathFile.writeText(configurations.runtimeClasspath.get().files.joinToString("\n"))
-    }
+plugins {
+    id("java")
+    id("io.github.kengotoda.inspequte") version "<VERSION>"
 }
 
-tasks.register<Exec>("inspequte") {
-    dependsOn(tasks.named("writeInspequteInputs"))
-    inputs.files(
-        file("$buildDir/inspequte/inputs.txt"),
-        file("$buildDir/inspequte/classpath.txt")
-    )
-    outputs.file(file("$buildDir/inspequte.sarif"))
-    commandLine(
-        "inspequte",
-        "--input", "@$buildDir/inspequte/inputs.txt",
-        "--classpath", "@$buildDir/inspequte/classpath.txt",
-        "--output", "$buildDir/inspequte.sarif"
-    )
-}
+// Registered automatically:
+// - writeInspequteInputs / writeInspequteInputsTest
+// - inspequte / inspequteTest
+// Each inspequte task emits:
+// build/inspequte/<sourceSet>/report.sarif
+```
+
+The plugin hooks all generated `inspequte*` tasks into `check`.
+The `inspequte` command must be available in `PATH`:
+```bash
+cargo install inspequte --locked
 ```
 
 ## SARIF output (example)

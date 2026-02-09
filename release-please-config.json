@@ -5,6 +5,13 @@
       "draft": true,
       "force-tag-creation": true,
       "release-type": "rust"
+    },
+    "gradle-plugin": {
+      "component": "gradle-plugin",
+      "initial-version": "0.1.0",
+      "package-name": "inspequte-gradle-plugin",
+      "release-type": "simple",
+      "version-file": "gradle-plugin/version.txt"
     }
   }
 }

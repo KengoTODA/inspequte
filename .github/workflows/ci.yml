@@ -7,7 +7,32 @@ on:
   pull_request:
 
 jobs:
-  build-test:
+  gradle-plugin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version-file: '.java-version'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          dependency-graph: generate-and-submit
+      - name: Build and test Gradle plugin
+        run: ./gradlew build --no-daemon
+        working-directory: gradle-plugin
+      - name: Upload reports
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: gradle-plugin-reports
+          path: gradle-plugin/build/reports
+          if-no-files-found: warn
+  cli:
     runs-on: ubuntu-latest
     permissions:
       security-events: write
