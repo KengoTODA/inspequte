@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.13.1...inspequte-v0.14.0) (2026-02-09)
+
+
+### Features
+
+* **gradle-plugin:** add plugin project and release automation ([3edcba5](https://github.com/KengoTODA/inspequte/commit/3edcba581b2f6a1ca266b4a46ee3bd930cfa84a6))
+* **nullness:** propagate type-use through generic call flow ([dbe1e60](https://github.com/KengoTODA/inspequte/commit/dbe1e60fc751bfda25a76413ebc02be5492226eb))
+
 ## [0.13.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.13.0...inspequte-v0.13.1) (2026-02-08)
 
 
