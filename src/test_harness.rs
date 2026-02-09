@@ -161,12 +161,18 @@ fn kotlinc_path() -> Option<PathBuf> {
             return Some(path);
         }
     }
-    // Fall back to searching PATH via `which` / `command -v`.
-    if let Ok(output) = Command::new("which").arg("kotlinc").output() {
+    // Fall back to searching PATH via `which` (Unix) or `where` (Windows).
+    let which_cmd = if cfg!(windows) { "where" } else { "which" };
+    if let Ok(output) = Command::new(which_cmd).arg("kotlinc").output() {
         if output.status.success() {
-            let found = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let path = PathBuf::from(found);
-            if path.exists() {
+            let found = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let path = PathBuf::from(&found);
+            if !found.is_empty() && path.exists() {
                 return Some(path);
             }
         }

@@ -2067,10 +2067,10 @@ public class ClassA {
     #[should_panic(expected = "false positive")]
     fn kotlin_reified_logger_no_false_positive() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        if harness.kotlinc().is_none() {
-            eprintln!("skipping: kotlinc not available");
-            return;
-        }
+        assert!(
+            harness.kotlinc().is_some(),
+            "kotlinc not available; set KOTLIN_HOME or add kotlinc to PATH"
+        );
 
         // 1. Compile SLF4J stubs (Java) to use as classpath for Kotlin.
         let stubs = harness
