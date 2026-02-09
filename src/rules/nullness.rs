@@ -338,8 +338,10 @@ fn check_method_flow(
 
     let local_count = local_count(method)?;
     let mut initial_locals = vec![Nullness::Unknown; local_count];
+    let mut initial_local_type_use = vec![None; local_count];
     if !method.access.is_static && !initial_locals.is_empty() {
         initial_locals[0] = Nullness::NonNull;
+        initial_local_type_use[0] = Some(this_type_use(class));
     }
     let base_index = if method.access.is_static { 0 } else { 1 };
     for (index, nullness) in method.nullness.parameter_nullness.iter().enumerate() {
@@ -348,8 +350,17 @@ fn check_method_flow(
             *local = *nullness;
         }
     }
+    if let Some(method_type_use) = method.type_use.as_ref() {
+        for (index, parameter) in method_type_use.parameters.iter().enumerate() {
+            let local_index = base_index + index;
+            if let Some(local) = initial_local_type_use.get_mut(local_index) {
+                *local = Some(parameter.clone());
+            }
+        }
+    }
     let entry_state = State {
         locals: initial_locals,
+        local_type_use: initial_local_type_use,
         stack: Vec::new(),
     };
 
@@ -445,6 +456,7 @@ fn check_method_flow(
 #[derive(Clone, Debug, PartialEq)]
 struct State {
     locals: Vec<Nullness>,
+    local_type_use: Vec<Option<TypeUse>>,
     stack: Vec<StackValue>,
 }
 
@@ -452,6 +464,7 @@ struct State {
 #[derive(Clone, Debug, PartialEq)]
 struct StackValue {
     nullness: Nullness,
+    type_use: Option<TypeUse>,
     local: Option<usize>,
     is_null_literal: bool,
 }
@@ -508,6 +521,7 @@ fn transfer_block(
             opcodes::ACONST_NULL => {
                 state.stack.push(StackValue {
                     nullness: Nullness::Nullable,
+                    type_use: None,
                     local: None,
                     is_null_literal: true,
                 });
@@ -523,8 +537,10 @@ fn transfer_block(
                     .get(local_index)
                     .copied()
                     .unwrap_or(Nullness::Unknown);
+                let type_use = state.local_type_use.get(local_index).cloned().flatten();
                 state.stack.push(StackValue {
                     nullness,
+                    type_use,
                     local: Some(local_index),
                     is_null_literal: false,
                 });
@@ -536,8 +552,10 @@ fn transfer_block(
                     .get(local_index)
                     .copied()
                     .unwrap_or(Nullness::Unknown);
+                let type_use = state.local_type_use.get(local_index).cloned().flatten();
                 state.stack.push(StackValue {
                     nullness,
+                    type_use,
                     local: Some(local_index),
                     is_null_literal: false,
                 });
@@ -550,22 +568,30 @@ fn transfer_block(
                     .unwrap_or(0) as usize;
                 let value = state.stack.pop().unwrap_or(StackValue {
                     nullness: Nullness::Unknown,
+                    type_use: None,
                     local: None,
                     is_null_literal: false,
                 });
                 if let Some(local) = state.locals.get_mut(local_index) {
                     *local = value.nullness;
                 }
+                if let Some(local_type_use) = state.local_type_use.get_mut(local_index) {
+                    *local_type_use = value.type_use;
+                }
             }
             opcodes::ASTORE_0 | opcodes::ASTORE_1 | opcodes::ASTORE_2 | opcodes::ASTORE_3 => {
                 let local_index = (inst.opcode - opcodes::ASTORE_0) as usize;
                 let value = state.stack.pop().unwrap_or(StackValue {
                     nullness: Nullness::Unknown,
+                    type_use: None,
                     local: None,
                     is_null_literal: false,
                 });
                 if let Some(local) = state.locals.get_mut(local_index) {
                     *local = value.nullness;
+                }
+                if let Some(local_type_use) = state.local_type_use.get_mut(local_index) {
+                    *local_type_use = value.type_use;
                 }
             }
             opcodes::POP => {
@@ -579,6 +605,7 @@ fn transfer_block(
             opcodes::NEW => {
                 state.stack.push(StackValue {
                     nullness: Nullness::NonNull,
+                    type_use: None,
                     local: None,
                     is_null_literal: false,
                 });
@@ -586,6 +613,7 @@ fn transfer_block(
             opcodes::IFNULL | opcodes::IFNONNULL => {
                 let value = state.stack.pop().unwrap_or(StackValue {
                     nullness: Nullness::Unknown,
+                    type_use: None,
                     local: None,
                     is_null_literal: false,
                 });
@@ -609,11 +637,13 @@ fn transfer_block(
             opcodes::IF_ACMPEQ | opcodes::IF_ACMPNE => {
                 let right = state.stack.pop().unwrap_or(StackValue {
                     nullness: Nullness::Unknown,
+                    type_use: None,
                     local: None,
                     is_null_literal: false,
                 });
                 let left = state.stack.pop().unwrap_or(StackValue {
                     nullness: Nullness::Unknown,
+                    type_use: None,
                     local: None,
                     is_null_literal: false,
                 });
@@ -653,12 +683,17 @@ fn transfer_block(
                     for _ in 0..arg_count {
                         state.stack.pop();
                     }
-                    if call.kind != CallKind::Static {
-                        let receiver = state.stack.pop().unwrap_or(StackValue {
+                    let receiver = if call.kind != CallKind::Static {
+                        Some(state.stack.pop().unwrap_or(StackValue {
                             nullness: Nullness::Unknown,
+                            type_use: None,
                             local: None,
                             is_null_literal: false,
-                        });
+                        }))
+                    } else {
+                        None
+                    };
+                    if let Some(receiver) = receiver.as_ref() {
                         if receiver.nullness == Nullness::Nullable {
                             let message = result_message(format!(
                                 "Nullness issue: possible null receiver in call to {}.{}{}",
@@ -681,10 +716,11 @@ fn transfer_block(
                         }
                     }
                     if method_return_kind(&call.descriptor)? == ReturnKind::Reference {
-                        let return_nullness =
-                            lookup_return_nullness(class_map, call).unwrap_or(Nullness::Unknown);
+                        let (return_nullness, return_type_use) =
+                            lookup_return_value(class_map, call, receiver.as_ref());
                         state.stack.push(StackValue {
                             nullness: return_nullness,
+                            type_use: return_type_use,
                             local: None,
                             is_null_literal: false,
                         });
@@ -694,6 +730,7 @@ fn transfer_block(
             opcodes::ARETURN => {
                 let value = state.stack.pop().unwrap_or(StackValue {
                     nullness: Nullness::Unknown,
+                    type_use: None,
                     local: None,
                     is_null_literal: false,
                 });
@@ -756,6 +793,7 @@ fn local_count(method: &Method) -> Result<usize> {
 fn join_states(left: &State, right: &State) -> State {
     let max_locals = left.locals.len().max(right.locals.len());
     let mut locals = Vec::with_capacity(max_locals);
+    let mut local_type_use = Vec::with_capacity(max_locals);
     for index in 0..max_locals {
         let l = left.locals.get(index).copied().unwrap_or(Nullness::Unknown);
         let r = right
@@ -764,6 +802,10 @@ fn join_states(left: &State, right: &State) -> State {
             .copied()
             .unwrap_or(Nullness::Unknown);
         locals.push(join_nullness(l, r));
+        local_type_use.push(join_type_use(
+            left.local_type_use.get(index).and_then(Option::as_ref),
+            right.local_type_use.get(index).and_then(Option::as_ref),
+        ));
     }
     let stack = if left.stack.len() == right.stack.len() {
         left.stack
@@ -771,6 +813,7 @@ fn join_states(left: &State, right: &State) -> State {
             .zip(right.stack.iter())
             .map(|(l, r)| StackValue {
                 nullness: join_nullness(l.nullness, r.nullness),
+                type_use: join_type_use(l.type_use.as_ref(), r.type_use.as_ref()),
                 local: if l.local == r.local { l.local } else { None },
                 is_null_literal: l.is_null_literal && r.is_null_literal,
             })
@@ -778,7 +821,11 @@ fn join_states(left: &State, right: &State) -> State {
     } else {
         Vec::new()
     };
-    State { locals, stack }
+    State {
+        locals,
+        local_type_use,
+        stack,
+    }
 }
 
 fn join_nullness(left: Nullness, right: Nullness) -> Nullness {
@@ -789,16 +836,186 @@ fn join_nullness(left: Nullness, right: Nullness) -> Nullness {
     }
 }
 
-fn lookup_return_nullness(
+fn join_type_use(left: Option<&TypeUse>, right: Option<&TypeUse>) -> Option<TypeUse> {
+    if left == right {
+        return left.cloned();
+    }
+    None
+}
+
+fn this_type_use(class: &Class) -> TypeUse {
+    TypeUse {
+        nullness: Nullness::NonNull,
+        kind: TypeUseKind::Class(ClassTypeUse {
+            name: class.name.clone(),
+            type_arguments: class
+                .type_parameters
+                .iter()
+                .map(|parameter| TypeUse {
+                    nullness: Nullness::Unknown,
+                    kind: TypeUseKind::TypeVar(parameter.name.clone()),
+                })
+                .collect(),
+            inner: None,
+        }),
+    }
+}
+
+fn lookup_return_value(
     class_map: &BTreeMap<String, &Class>,
     call: &crate::ir::CallSite,
-) -> Option<Nullness> {
-    let class = class_map.get(&call.owner)?;
-    let method = class
+    receiver: Option<&StackValue>,
+) -> (Nullness, Option<TypeUse>) {
+    let Some(class) = class_map.get(&call.owner) else {
+        return (Nullness::Unknown, None);
+    };
+    let Some(method) = class
         .methods
         .iter()
-        .find(|method| method.name == call.name && method.descriptor == call.descriptor)?;
-    Some(method.nullness.return_nullness)
+        .find(|method| method.name == call.name && method.descriptor == call.descriptor)
+    else {
+        return (Nullness::Unknown, None);
+    };
+
+    let mut return_type_use = method
+        .type_use
+        .as_ref()
+        .and_then(|method_type_use| method_type_use.return_type.clone());
+    let mut unresolved_top_level_type_variable = false;
+    if let Some(ref mut return_type) = return_type_use {
+        if call.kind != CallKind::Static {
+            let substitutions = receiver
+                .and_then(|stack_value| stack_value.type_use.as_ref())
+                .map(|type_use| receiver_type_variable_substitutions(class, type_use))
+                .unwrap_or_default();
+            let (substituted, unresolved) = substitute_type_variables(return_type, &substitutions);
+            *return_type = substituted;
+            unresolved_top_level_type_variable = unresolved;
+        }
+    }
+    let return_nullness = match return_type_use.as_ref() {
+        Some(return_type)
+            if unresolved_top_level_type_variable
+                && matches!(return_type.kind, TypeUseKind::TypeVar(_)) =>
+        {
+            Nullness::Unknown
+        }
+        Some(return_type) => match return_type.nullness {
+            Nullness::Unknown => method.nullness.return_nullness,
+            value => value,
+        },
+        None => method.nullness.return_nullness,
+    };
+    (return_nullness, return_type_use)
+}
+
+fn receiver_type_variable_substitutions(
+    class: &Class,
+    receiver_type_use: &TypeUse,
+) -> BTreeMap<String, TypeUse> {
+    let Some(receiver_class_type_use) =
+        find_class_type_use_for_owner(receiver_type_use, &class.name)
+    else {
+        return BTreeMap::new();
+    };
+    class
+        .type_parameters
+        .iter()
+        .zip(receiver_class_type_use.type_arguments.iter())
+        .map(|(parameter, argument)| (parameter.name.clone(), argument.clone()))
+        .collect()
+}
+
+fn find_class_type_use_for_owner<'a>(
+    type_use: &'a TypeUse,
+    owner: &str,
+) -> Option<&'a ClassTypeUse> {
+    let TypeUseKind::Class(class_type_use) = &type_use.kind else {
+        return None;
+    };
+    if class_type_use.name == owner {
+        return Some(class_type_use);
+    }
+    find_inner_class_type_use(class_type_use.inner.as_deref(), owner)
+}
+
+fn find_inner_class_type_use<'a>(
+    inner: Option<&'a TypeUse>,
+    owner: &str,
+) -> Option<&'a ClassTypeUse> {
+    let Some(inner) = inner else {
+        return None;
+    };
+    let TypeUseKind::Class(class_type_use) = &inner.kind else {
+        return None;
+    };
+    if class_type_use.name == owner {
+        return Some(class_type_use);
+    }
+    find_inner_class_type_use(class_type_use.inner.as_deref(), owner)
+}
+
+fn substitute_type_variables(
+    type_use: &TypeUse,
+    substitutions: &BTreeMap<String, TypeUse>,
+) -> (TypeUse, bool) {
+    match &type_use.kind {
+        TypeUseKind::TypeVar(name) => {
+            if let Some(mapped) = substitutions.get(name) {
+                let mut resolved = mapped.clone();
+                if type_use.nullness == Nullness::Nullable {
+                    resolved.nullness = Nullness::Nullable;
+                }
+                return (resolved, false);
+            }
+            return (type_use.clone(), true);
+        }
+        TypeUseKind::Array(component) => {
+            let (substituted, _) = substitute_type_variables(component, substitutions);
+            (
+                TypeUse {
+                    nullness: type_use.nullness,
+                    kind: TypeUseKind::Array(Box::new(substituted)),
+                },
+                false,
+            )
+        }
+        TypeUseKind::Class(class_type_use) => {
+            let type_arguments = class_type_use
+                .type_arguments
+                .iter()
+                .map(|argument| substitute_type_variables(argument, substitutions).0)
+                .collect();
+            let inner = class_type_use.inner.as_ref().map(|inner| {
+                let (substituted, _) = substitute_type_variables(inner, substitutions);
+                Box::new(substituted)
+            });
+            (
+                TypeUse {
+                    nullness: type_use.nullness,
+                    kind: TypeUseKind::Class(ClassTypeUse {
+                        name: class_type_use.name.clone(),
+                        type_arguments,
+                        inner,
+                    }),
+                },
+                false,
+            )
+        }
+        TypeUseKind::Wildcard(Some(bound)) => {
+            let (substituted, _) = substitute_type_variables(bound, substitutions);
+            (
+                TypeUse {
+                    nullness: type_use.nullness,
+                    kind: TypeUseKind::Wildcard(Some(Box::new(substituted))),
+                },
+                false,
+            )
+        }
+        TypeUseKind::Wildcard(None) | TypeUseKind::Base(_) | TypeUseKind::Void => {
+            (type_use.clone(), false)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -807,7 +1024,7 @@ mod tests {
     use crate::engine::build_context;
     use crate::ir::{
         BasicBlock, CallKind, CallSite, Class, ControlFlowGraph, Instruction, InstructionKind,
-        MethodAccess, MethodNullness,
+        MethodAccess, MethodNullness, MethodTypeUse, TypeParameterUse,
     };
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
@@ -850,6 +1067,7 @@ mod tests {
             name: name.to_string(),
             super_name: super_name.map(str::to_string),
             interfaces: Vec::new(),
+            type_parameters: Vec::new(),
             referenced_classes: Vec::new(),
             fields: Vec::new(),
             methods,
@@ -1171,6 +1389,132 @@ public @interface NullnessUnspecified {}
         assert_eq!(1, results.len());
         let message = results[0].message.text.as_deref().unwrap_or("");
         assert!(message.contains("possible null receiver"));
+    }
+
+    #[test]
+    fn lookup_return_value_specializes_type_variable_from_receiver_type_argument() {
+        let mut callee_method = method_with(
+            "methodOne",
+            "()Ljava/lang/Object;",
+            MethodAccess {
+                is_public: true,
+                is_static: false,
+                is_abstract: false,
+            },
+            MethodNullness {
+                return_nullness: Nullness::NonNull,
+                parameter_nullness: Vec::new(),
+            },
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        callee_method.type_use = Some(MethodTypeUse {
+            type_parameters: Vec::new(),
+            parameters: Vec::new(),
+            return_type: Some(TypeUse {
+                nullness: Nullness::NonNull,
+                kind: TypeUseKind::TypeVar("T".to_string()),
+            }),
+        });
+        let mut callee_class = class_with_methods("com/example/ClassB", None, vec![callee_method]);
+        callee_class.type_parameters = vec![TypeParameterUse {
+            name: "T".to_string(),
+            class_bound: None,
+            interface_bounds: Vec::new(),
+        }];
+        let mut class_map = BTreeMap::new();
+        class_map.insert(callee_class.name.clone(), &callee_class);
+        let call = CallSite {
+            owner: "com/example/ClassB".to_string(),
+            name: "methodOne".to_string(),
+            descriptor: "()Ljava/lang/Object;".to_string(),
+            kind: CallKind::Virtual,
+            offset: 0,
+        };
+        let receiver = StackValue {
+            nullness: Nullness::NonNull,
+            type_use: Some(TypeUse {
+                nullness: Nullness::NonNull,
+                kind: TypeUseKind::Class(ClassTypeUse {
+                    name: "com/example/ClassB".to_string(),
+                    type_arguments: vec![TypeUse {
+                        nullness: Nullness::Nullable,
+                        kind: TypeUseKind::Class(ClassTypeUse {
+                            name: "java/lang/String".to_string(),
+                            type_arguments: Vec::new(),
+                            inner: None,
+                        }),
+                    }],
+                    inner: None,
+                }),
+            }),
+            local: None,
+            is_null_literal: false,
+        };
+
+        let (return_nullness, return_type_use) =
+            lookup_return_value(&class_map, &call, Some(&receiver));
+
+        assert_eq!(Nullness::Nullable, return_nullness);
+        assert_eq!(
+            Nullness::Nullable,
+            return_type_use
+                .as_ref()
+                .expect("specialized return type-use")
+                .nullness
+        );
+    }
+
+    #[test]
+    fn lookup_return_value_uses_unknown_when_type_variable_is_unresolved() {
+        let mut callee_method = method_with(
+            "methodOne",
+            "()Ljava/lang/Object;",
+            MethodAccess {
+                is_public: true,
+                is_static: false,
+                is_abstract: false,
+            },
+            MethodNullness {
+                return_nullness: Nullness::NonNull,
+                parameter_nullness: Vec::new(),
+            },
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        callee_method.type_use = Some(MethodTypeUse {
+            type_parameters: Vec::new(),
+            parameters: Vec::new(),
+            return_type: Some(TypeUse {
+                nullness: Nullness::NonNull,
+                kind: TypeUseKind::TypeVar("T".to_string()),
+            }),
+        });
+        let mut callee_class = class_with_methods("com/example/ClassB", None, vec![callee_method]);
+        callee_class.type_parameters = vec![TypeParameterUse {
+            name: "T".to_string(),
+            class_bound: None,
+            interface_bounds: Vec::new(),
+        }];
+        let mut class_map = BTreeMap::new();
+        class_map.insert(callee_class.name.clone(), &callee_class);
+        let call = CallSite {
+            owner: "com/example/ClassB".to_string(),
+            name: "methodOne".to_string(),
+            descriptor: "()Ljava/lang/Object;".to_string(),
+            kind: CallKind::Virtual,
+            offset: 0,
+        };
+
+        let (return_nullness, return_type_use) = lookup_return_value(&class_map, &call, None);
+
+        assert_eq!(Nullness::Unknown, return_nullness);
+        assert!(matches!(
+            return_type_use.as_ref().map(|type_use| &type_use.kind),
+            Some(TypeUseKind::TypeVar(name)) if name == "T"
+        ));
     }
 
     #[test]
@@ -1532,7 +1876,6 @@ public class Derived extends Base {
     }
 
     #[test]
-    #[ignore = "type-use nullness is not propagated through generic method calls yet"]
     fn nullness_rule_reports_type_use_flow_from_generic_call() {
         let mut sources = jspecify_stubs();
         sources.push(SourceFile {
@@ -1555,6 +1898,142 @@ class ClassB<T> {
 public class ClassA {
     public void methodOne(ClassB<@Nullable String> varOne) {
         varOne.methodOne().toString();
+    }
+}
+"#
+            .to_string(),
+        });
+
+        let output = analyze_with_harness(sources);
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("NULLNESS"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("possible null receiver")),
+            "messages: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn nullness_rule_allows_type_use_flow_from_generic_call_with_nonnull_argument() {
+        let mut sources = jspecify_stubs();
+        sources.push(SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.NullMarked;
+@NullMarked
+class ClassB<T> {
+    private final T varOne;
+    ClassB(T varOne) {
+        this.varOne = varOne;
+    }
+    T methodOne() {
+        return varOne;
+    }
+}
+@NullMarked
+public class ClassA {
+    public void methodOne(ClassB<@NonNull String> varOne) {
+        varOne.methodOne().toString();
+    }
+}
+"#
+            .to_string(),
+        });
+
+        let output = analyze_with_harness(sources);
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("NULLNESS"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            !messages
+                .iter()
+                .any(|msg| msg.contains("possible null receiver")),
+            "messages: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn nullness_rule_allows_type_use_flow_from_raw_generic_call() {
+        let mut sources = jspecify_stubs();
+        sources.push(SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+import org.jspecify.annotations.NullMarked;
+@NullMarked
+class ClassB<T> {
+    private final T varOne;
+    ClassB(T varOne) {
+        this.varOne = varOne;
+    }
+    T methodOne() {
+        return varOne;
+    }
+}
+@NullMarked
+public class ClassA {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public void methodOne(ClassB varOne) {
+        varOne.methodOne().toString();
+    }
+}
+"#
+            .to_string(),
+        });
+
+        let output = analyze_with_harness(sources);
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("NULLNESS"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            !messages
+                .iter()
+                .any(|msg| msg.contains("possible null receiver")),
+            "messages: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn nullness_rule_reports_type_use_flow_from_generic_call_after_local_store() {
+        let mut sources = jspecify_stubs();
+        sources.push(SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
+@NullMarked
+class ClassB<T> {
+    private final T varOne;
+    ClassB(T varOne) {
+        this.varOne = varOne;
+    }
+    T methodOne() {
+        return varOne;
+    }
+}
+@NullMarked
+public class ClassA {
+    public void methodOne(ClassB<@Nullable String> varOne) {
+        String tmpValue = varOne.methodOne();
+        tmpValue.toString();
     }
 }
 "#

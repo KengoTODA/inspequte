@@ -249,6 +249,7 @@ fn scan_class_file(
         name: parsed.name,
         super_name: parsed.super_name,
         interfaces: parsed.interfaces,
+        type_parameters: parsed.type_parameters,
         referenced_classes: parsed.referenced_classes,
         fields: parsed.fields,
         methods: parsed.methods,
@@ -442,6 +443,7 @@ fn parse_jar_classes(
             name: parsed.name,
             super_name: parsed.super_name,
             interfaces: parsed.interfaces,
+            type_parameters: parsed.type_parameters,
             referenced_classes: parsed.referenced_classes,
             fields: parsed.fields,
             methods: parsed.methods,
@@ -783,6 +785,7 @@ struct ParsedClass {
     name: String,
     super_name: Option<String>,
     interfaces: Vec<String>,
+    type_parameters: Vec<TypeParameterUse>,
     referenced_classes: Vec<String>,
     fields: Vec<crate::ir::Field>,
     methods: Vec<Method>,
@@ -835,6 +838,10 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         .any(|attr| matches!(attr, jclassfile::attributes::Attribute::Record { .. }));
     let default_nullness = parse_default_nullness(class_file.attributes(), constant_pool)
         .context("parse class nullness")?;
+    let class_signature =
+        parse_signature(class_file.attributes(), constant_pool).context("parse class signature")?;
+    let type_parameters = parse_class_type_parameters(class_signature.as_deref(), default_nullness)
+        .context("parse class type parameters")?;
     let fields = parse_fields(constant_pool, class_file.fields(), default_nullness)
         .context("parse fields")?;
     let methods = parse_methods(constant_pool, class_file.methods(), default_nullness)
@@ -844,6 +851,7 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         name: class_name,
         super_name,
         interfaces,
+        type_parameters,
         referenced_classes: referenced.into_iter().collect(),
         fields,
         methods,
@@ -930,6 +938,7 @@ fn parse_class_bytes_minimal(data: &[u8]) -> Result<ParsedClass> {
         name: class_name,
         super_name,
         interfaces,
+        type_parameters: Vec::new(),
         referenced_classes: referenced.into_iter().collect(),
         fields: Vec::new(),
         methods: Vec::new(),
@@ -1470,6 +1479,25 @@ fn parse_method_type_use(
         }
     }
     Ok(Some(type_use))
+}
+
+fn parse_class_type_parameters(
+    signature: Option<&str>,
+    default_nullness: DefaultNullness,
+) -> Result<Vec<TypeParameterUse>> {
+    let Some(signature) = signature else {
+        return Ok(Vec::new());
+    };
+    let mut parser = TypeUseSignatureParser::new(signature);
+    let mut type_parameters = parser
+        .parse_type_parameters()
+        .context("parse class type parameters")?;
+    if default_nullness == DefaultNullness::NonNull {
+        for parameter in &mut type_parameters {
+            apply_default_nullness_to_type_parameter(parameter);
+        }
+    }
+    Ok(type_parameters)
 }
 
 fn parse_field_type_use(

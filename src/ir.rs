@@ -6,6 +6,7 @@ pub(crate) struct Class {
     pub(crate) name: String,
     pub(crate) super_name: Option<String>,
     pub(crate) interfaces: Vec<String>,
+    pub(crate) type_parameters: Vec<TypeParameterUse>,
     pub(crate) referenced_classes: Vec<String>,
     pub(crate) fields: Vec<Field>,
     pub(crate) methods: Vec<Method>,
@@ -167,7 +168,7 @@ pub(crate) struct MethodNullness {
 }
 
 /// Method type-use signature derived from generic metadata.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MethodTypeUse {
     pub(crate) type_parameters: Vec<TypeParameterUse>,
     pub(crate) parameters: Vec<TypeUse>,
@@ -175,7 +176,7 @@ pub(crate) struct MethodTypeUse {
 }
 
 /// Type parameter metadata with optional bounds.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TypeParameterUse {
     pub(crate) name: String,
     pub(crate) class_bound: Option<TypeUse>,
@@ -183,14 +184,14 @@ pub(crate) struct TypeParameterUse {
 }
 
 /// Type-use signature with nullness annotation metadata.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TypeUse {
     pub(crate) nullness: Nullness,
     pub(crate) kind: TypeUseKind,
 }
 
 /// Kind of type-use signature entry.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum TypeUseKind {
     Base(char),
     Array(Box<TypeUse>),
@@ -201,7 +202,7 @@ pub(crate) enum TypeUseKind {
 }
 
 /// Class type metadata with generic arguments and inner class segments.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ClassTypeUse {
     pub(crate) name: String,
     pub(crate) type_arguments: Vec<TypeUse>,

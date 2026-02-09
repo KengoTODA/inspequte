@@ -85,3 +85,8 @@ Current behavior keeps the result as non-null/unknown, so no `possible null rece
 
 ## Estimated Complexity
 **Medium-High** - touches IR, parser, and flow transfer logic, but within current architecture.
+
+## Post-mortem
+- Flow state extension with optional `TypeUse` on locals/stack integrated cleanly with existing block join logic.
+- The tricky part was preserving useful nullness when substituting `TypeVar` returns without over-trusting unresolved generics.
+- Follow-up: add harness coverage for raw-type generic calls and non-null type arguments to guard against regressions.

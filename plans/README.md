@@ -45,7 +45,7 @@ Each plan file documents:
    - Ensure threads restore interrupt status
    - Complexity: **Medium**
 
-7. **[21-type-use-nullness-flow-analysis.md](21-type-use-nullness-flow-analysis.md)**
+7. **[21-type-use-nullness-flow-analysis.done.md](21-type-use-nullness-flow-analysis.done.md)**
    - Propagate generic type-use nullness through method-call flow analysis
    - Unblock ignored nullness flow test for `ClassB<@Nullable String>` call chains
    - Complexity: **Medium-High**

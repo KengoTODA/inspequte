@@ -111,6 +111,7 @@ mod tests {
             name: name.to_string(),
             super_name: None,
             interfaces: Vec::new(),
+            type_parameters: Vec::new(),
             referenced_classes: Vec::new(),
             fields: Vec::new(),
             methods,
