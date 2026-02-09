@@ -2055,4 +2055,93 @@ public class ClassA {
             "messages: {messages:?}"
         );
     }
+
+    /// Kotlin `inline fun <reified T : Any> T.logger()` should not trigger
+    /// SLF4J_ILLEGAL_PASSED_CLASS.  The compiled helper class contains a
+    /// placeholder `java/lang/Object` LDC that is rewritten at each call-site,
+    /// so reporting it as an illegal class is a false positive.
+    ///
+    /// This test currently panics (`should_panic`) to document the false
+    /// positive.  Remove `should_panic` once the rule is fixed.
+    #[test]
+    #[should_panic(expected = "false positive")]
+    fn kotlin_reified_logger_no_false_positive() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        if harness.kotlinc().is_none() {
+            eprintln!("skipping: kotlinc not available");
+            return;
+        }
+
+        // 1. Compile SLF4J stubs (Java) to use as classpath for Kotlin.
+        let stubs = harness
+            .compile(
+                Language::Java,
+                &[
+                    SourceFile {
+                        path: "org/slf4j/Logger.java".to_string(),
+                        contents: r#"
+package org.slf4j;
+public interface Logger {}
+"#
+                        .to_string(),
+                    },
+                    SourceFile {
+                        path: "org/slf4j/LoggerFactory.java".to_string(),
+                        contents: r#"
+package org.slf4j;
+public class LoggerFactory {
+    public static Logger getLogger(Class<?> clazz) { return null; }
+}
+"#
+                        .to_string(),
+                    },
+                ],
+                &[],
+            )
+            .expect("compile SLF4J stubs");
+
+        // 2. Compile Kotlin source with the reified inline extension.
+        let kotlin_output = harness
+            .compile(
+                Language::Kotlin,
+                &[SourceFile {
+                    path: "LoggerExt.kt".to_string(),
+                    contents: r#"
+package com.example
+
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+inline fun <reified T : Any> T.logger(): Logger = LoggerFactory.getLogger(T::class.java)
+
+class ClassA {
+    val log = logger()
+}
+"#
+                    .to_string(),
+                }],
+                &[stubs.classes_dir().to_path_buf()],
+            )
+            .expect("compile Kotlin source");
+
+        // 3. Analyze with SLF4J stubs on the classpath.
+        let output = harness
+            .analyze(
+                kotlin_output.classes_dir(),
+                &[stubs.classes_dir().to_path_buf()],
+            )
+            .expect("analyze Kotlin classes");
+
+        let messages: Vec<String> = output
+            .results
+            .iter()
+            .filter(|r| r.rule_id.as_deref() == Some("SLF4J_ILLEGAL_PASSED_CLASS"))
+            .filter_map(|r| r.message.text.clone())
+            .collect();
+
+        assert!(
+            messages.is_empty(),
+            "false positive: reified inline logger should not trigger SLF4J_ILLEGAL_PASSED_CLASS, but got: {messages:?}"
+        );
+    }
 }

@@ -52,6 +52,12 @@ impl JvmTestHarness {
         Ok(Self { javac, kotlinc })
     }
 
+    /// Returns the resolved `kotlinc` path, if available.
+    #[allow(dead_code)]
+    pub(crate) fn kotlinc(&self) -> Option<&Path> {
+        self.kotlinc.as_deref()
+    }
+
     pub(crate) fn compile(
         &self,
         language: Language,
@@ -155,9 +161,15 @@ fn kotlinc_path() -> Option<PathBuf> {
             return Some(path);
         }
     }
-    let path = PathBuf::from("kotlinc");
-    if path.exists() {
-        return Some(path);
+    // Fall back to searching PATH via `which` / `command -v`.
+    if let Ok(output) = Command::new("which").arg("kotlinc").output() {
+        if output.status.success() {
+            let found = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let path = PathBuf::from(found);
+            if path.exists() {
+                return Some(path);
+            }
+        }
     }
     None
 }
