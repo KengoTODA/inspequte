@@ -5,7 +5,9 @@ plugins {
 }
 
 group = "io.github.kengotoda.inspequte"
-version = providers.fileContents(layout.projectDirectory.file("version.txt")).asText.map { it.trim() }.get()
+val pluginVersion = providers.gradleProperty("pluginVersion")
+    .orElse(providers.fileContents(layout.projectDirectory.file("version.txt")).asText.map { it.trim() })
+version = pluginVersion.get()
 
 repositories {
     mavenCentral()
