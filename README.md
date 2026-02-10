@@ -37,13 +37,14 @@ The name combines "inspect" and "cute". The CLI command is `inspequte`.
 ## Install
 Install a pre-built binary from GitHub Releases:
 - Linux (x86_64): `inspequte-<TAG>-x86_64-unknown-linux-gnu.tar.gz`
+- Linux (ARM64): `inspequte-<TAG>-aarch64-unknown-linux-gnu.tar.gz`
 - macOS (Apple Silicon): `inspequte-<TAG>-aarch64-apple-darwin.tar.gz`
 - Windows (x86_64): `inspequte-<TAG>-x86_64-pc-windows-msvc.zip`
 
 Example for Linux/macOS:
 ```bash
 TAG="$(gh release list --repo KengoTODA/inspequte --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
-TARGET="aarch64-apple-darwin" # use x86_64-unknown-linux-gnu on Linux
+TARGET="aarch64-apple-darwin" # use aarch64-unknown-linux-gnu on Linux ARM64, x86_64-unknown-linux-gnu on Linux x86_64
 curl -fL -o inspequte.tar.gz \
   "https://github.com/KengoTODA/inspequte/releases/download/${TAG}/inspequte-${TAG}-${TARGET}.tar.gz"
 tar -xzf inspequte.tar.gz
