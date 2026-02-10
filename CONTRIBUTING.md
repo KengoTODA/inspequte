@@ -12,6 +12,7 @@ We follow Conventional Commits 1.0.0. Examples:
 - Run `cargo build` for a debug build.
 - Run `cargo test` before submitting changes.
 - Use Java 21 for the test harness by setting `JAVA_HOME` to a JDK 21 installation.
+- Install Kotlin and ensure the `kotlinc` executable is available in `PATH` for Kotlin harness tests.
 
 ### Environment variables
 - `INSPEQUTE_VALIDATE_SARIF=1` validates SARIF output against the bundled schema (dev only).

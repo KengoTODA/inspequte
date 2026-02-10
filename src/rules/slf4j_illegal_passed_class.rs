@@ -92,9 +92,15 @@ fn analyze_method(
 
     let mut locals = initial_locals(method)?;
     let mut stack: Vec<ValueKind> = Vec::new();
+    let mut expect_reified_class_literal = false;
     let mut offset = 0usize;
     while offset < method.bytecode.len() {
         let opcode = method.bytecode[offset];
+        if expect_reified_class_literal
+            && !matches!(opcode, opcodes::LDC | opcodes::LDC_W | opcodes::LDC2_W)
+        {
+            expect_reified_class_literal = false;
+        }
         while instruction_index < instructions.len()
             && instructions[instruction_index].offset < offset as u32
         {
@@ -131,11 +137,17 @@ fn analyze_method(
             }
             opcodes::LDC | opcodes::LDC_W | opcodes::LDC2_W => {
                 let value = match instruction_kind {
+                    Some(InstructionKind::ConstClass(value))
+                        if expect_reified_class_literal && value == "java/lang/Object" =>
+                    {
+                        ValueKind::Unknown
+                    }
                     Some(InstructionKind::ConstClass(value)) => {
                         ValueKind::ClassLiteral(value.clone())
                     }
                     _ => ValueKind::Unknown,
                 };
+                expect_reified_class_literal = false;
                 stack.push(value);
             }
             opcodes::DUP => {
@@ -162,6 +174,7 @@ fn analyze_method(
                     if call.kind != CallKind::Static {
                         stack.pop();
                     }
+                    expect_reified_class_literal = is_kotlin_reified_operation_marker(call);
 
                     if is_get_logger_call(call, &param_types) {
                         let arg = args.first().cloned().unwrap_or(ValueKind::Unknown);
@@ -253,6 +266,12 @@ fn is_get_class_call(call: &crate::ir::CallSite) -> bool {
         && call.descriptor == "()Ljava/lang/Class;"
 }
 
+fn is_kotlin_reified_operation_marker(call: &crate::ir::CallSite) -> bool {
+    call.owner == "kotlin/jvm/internal/Intrinsics"
+        && call.name == "reifiedOperationMarker"
+        && call.descriptor == "(ILjava/lang/String;)V"
+}
+
 /// Returns true when the passed class matches the caller or any outer class.
 fn is_acceptable_class(caller_class: &str, passed_class: &str) -> bool {
     let mut current = caller_class;
@@ -273,10 +292,10 @@ fn is_acceptable_class(caller_class: &str, passed_class: &str) -> bool {
 mod tests {
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
-    fn analyze_sources(sources: Vec<SourceFile>) -> Vec<String> {
+    fn analyze_sources(language: Language, sources: Vec<SourceFile>) -> Vec<String> {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
         let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
+            .compile_and_analyze(language, &sources, &[])
             .expect("run harness analysis");
         output
             .results
@@ -329,7 +348,7 @@ public class ClassA {
 "#,
         );
 
-        let messages = analyze_sources(sources);
+        let messages = analyze_sources(Language::Java, sources);
 
         assert_eq!(messages.len(), 1);
         assert!(messages.iter().any(|msg| msg.contains("ClassB")));
@@ -355,7 +374,52 @@ public class ClassA {
 "#,
         );
 
-        let messages = analyze_sources(sources);
+        let messages = analyze_sources(Language::Java, sources);
+
+        assert!(messages.is_empty());
+    }
+
+    #[test]
+    fn slf4j_illegal_passed_class_ignores_kotlin_reified_extension() {
+        let sources = vec![
+            SourceFile {
+                path: "org/slf4j/Logger.kt".to_string(),
+                contents: r#"
+package org.slf4j
+interface Logger
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "org/slf4j/LoggerFactory.kt".to_string(),
+                contents: r#"
+package org.slf4j
+object LoggerFactory {
+    @JvmStatic
+    fun getLogger(clazz: Class<*>): Logger = object : Logger {}
+}
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/ClassA.kt".to_string(),
+                contents: r#"
+package com.example
+
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+inline fun <reified T : Any> T.logger(): Logger = LoggerFactory.getLogger(T::class.java)
+
+class ClassA {
+    val varOne: Logger = logger()
+}
+"#
+                .to_string(),
+            },
+        ];
+
+        let messages = analyze_sources(Language::Kotlin, sources);
 
         assert!(messages.is_empty());
     }

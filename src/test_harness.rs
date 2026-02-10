@@ -86,10 +86,9 @@ impl JvmTestHarness {
                 run_command(command, "javac")?;
             }
             Language::Kotlin => {
-                let kotlinc = self
-                    .kotlinc
-                    .as_ref()
-                    .context("kotlinc not available; set KOTLIN_HOME or PATH")?;
+                let kotlinc = self.kotlinc.as_ref().context(
+                    "kotlinc not available; set KOTLIN_HOME or ensure kotlin is available on PATH",
+                )?;
                 let mut command = Command::new(kotlinc);
                 command.arg("-d").arg(&classes_dir);
                 if let Some(cp) = classpath_arg(classpath) {
@@ -155,9 +154,16 @@ fn kotlinc_path() -> Option<PathBuf> {
             return Some(path);
         }
     }
-    let path = PathBuf::from("kotlinc");
-    if path.exists() {
+    if let Some(path) = find_command_in_path("kotlinc") {
         return Some(path);
+    }
+    let kotlin = find_command_in_path("kotlin")?;
+    let mut sibling = kotlin.parent()?.join("kotlinc");
+    if cfg!(windows) {
+        sibling.set_extension("bat");
+    }
+    if sibling.exists() {
+        return Some(sibling);
     }
     None
 }
@@ -183,4 +189,27 @@ fn run_command(mut command: Command, label: &str) -> Result<()> {
         anyhow::bail!("{label} failed: stdout={stdout} stderr={stderr}");
     }
     Ok(())
+}
+
+fn find_command_in_path(command: &str) -> Option<PathBuf> {
+    let path_var = std::env::var_os("PATH")?;
+    let candidates = if cfg!(windows) {
+        vec![
+            command.to_string(),
+            format!("{command}.exe"),
+            format!("{command}.bat"),
+            format!("{command}.cmd"),
+        ]
+    } else {
+        vec![command.to_string()]
+    };
+    for dir in std::env::split_paths(&path_var) {
+        for candidate in &candidates {
+            let path = dir.join(candidate);
+            if path.is_file() {
+                return Some(path);
+            }
+        }
+    }
+    None
 }
