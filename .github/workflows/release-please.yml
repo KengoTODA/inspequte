@@ -118,8 +118,11 @@ jobs:
           set -euo pipefail
           version="${{ needs.release-please.outputs.rust_tag_name }}"
           target="${{ matrix.target }}"
+          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
+          asset_target="${target//x86_64/amd64}"
+          asset_target="${asset_target//aarch64/arm64}"
           binary="inspequte${{ matrix.bin_suffix }}"
-          archive="inspequte-${version}-${target}.tar.gz"
+          archive="inspequte-${version}-${asset_target}.tar.gz"
 
           mkdir -p dist
           cp "target/${target}/release/${binary}" "dist/${binary}"
@@ -132,8 +135,10 @@ jobs:
         run: |
           $version = "${{ needs.release-please.outputs.rust_tag_name }}"
           $target = "${{ matrix.target }}"
+          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
+          $assetTarget = $target -replace 'x86_64', 'amd64' -replace 'aarch64', 'arm64'
           $binary = "inspequte${{ matrix.bin_suffix }}"
-          $archive = "inspequte-$version-$target.zip"
+          $archive = "inspequte-$version-$assetTarget.zip"
 
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Copy-Item "target/$target/release/$binary" "dist/$binary" -Force
@@ -147,9 +152,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          asset_target="${{ matrix.target }}"
+          asset_target="${asset_target//x86_64/amd64}"
+          asset_target="${asset_target//aarch64/arm64}"
           case "${{ runner.os }}" in
-            Windows) asset="inspequte-${TAG_NAME}-${{ matrix.target }}.zip" ;;
-            *) asset="inspequte-${TAG_NAME}-${{ matrix.target }}.tar.gz" ;;
+            Windows) asset="inspequte-${TAG_NAME}-${asset_target}.zip" ;;
+            *) asset="inspequte-${TAG_NAME}-${asset_target}.tar.gz" ;;
           esac
           gh release upload "${TAG_NAME}" "${asset}" --clobber
 
