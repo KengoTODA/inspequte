@@ -45,6 +45,13 @@ impl Rule for EmptyCatchRule {
                             else {
                                 continue;
                             };
+                            if is_kotlin_enum_when_mapping_handler(
+                                &class.name,
+                                &method.name,
+                                handler.catch_type.as_deref(),
+                            ) {
+                                continue;
+                            }
                             if is_empty_handler(block.instructions.as_slice()) {
                                 let message = result_message(format!(
                                     "Empty catch block in {}.{}{}",
@@ -83,6 +90,16 @@ fn is_empty_handler(instructions: &[Instruction]) -> bool {
     instructions
         .iter()
         .all(|inst| is_trivial_opcode(inst.opcode))
+}
+
+fn is_kotlin_enum_when_mapping_handler(
+    class_name: &str,
+    method_name: &str,
+    catch_type: Option<&str>,
+) -> bool {
+    method_name == "<clinit>"
+        && class_name.contains("$WhenMappings")
+        && catch_type == Some("java/lang/NoSuchFieldError")
 }
 
 fn is_trivial_opcode(opcode: u8) -> bool {
@@ -230,6 +247,44 @@ public class ClassA {
                 .join("\n");
             panic!("expected EMPTY_CATCH result, got:\n{messages}");
         }
+    }
+
+    #[test]
+    fn empty_catch_ignores_kotlin_enum_pattern_match() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "example/ClassA.kt".to_string(),
+            contents: r#"
+package example
+
+enum class ClassA {
+    ONE,
+    TWO,
+}
+
+fun methodOne(varOne: ClassA): Int = when (varOne) {
+    ClassA.ONE -> 1
+    ClassA.TWO -> 2
+}
+"#
+            .to_string(),
+        }];
+
+        let analysis = harness
+            .compile_and_analyze(Language::Kotlin, &sources, &[])
+            .expect("compile and analyze");
+
+        let empty_catch_messages: Vec<String> = analysis
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("EMPTY_CATCH"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            empty_catch_messages.is_empty(),
+            "expected no EMPTY_CATCH result, got: {empty_catch_messages:?}"
+        );
     }
 
     #[test]
