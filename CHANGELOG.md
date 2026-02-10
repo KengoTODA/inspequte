@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.15.0...inspequte-v0.15.1) (2026-02-10)
+
+
+### Bug Fixes
+
+* **ci:** release failed on linux-arm archtecture ([86479d8](https://github.com/KengoTODA/inspequte/commit/86479d8b18d484e7fd153628003fb017ea4d72da))
+* **gradle-plugin:** publish plugin with release version ([c421040](https://github.com/KengoTODA/inspequte/commit/c421040a3529de7d032b58c9be4573c901a770be))
+
 ## [0.15.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.14.0...inspequte-v0.15.0) (2026-02-10)
 
 

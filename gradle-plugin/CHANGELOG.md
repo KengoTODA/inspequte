@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.2.0...gradle-plugin-v0.2.1) (2026-02-10)
+
+
+### Bug Fixes
+
+* **gradle-plugin:** publish plugin with release version ([c421040](https://github.com/KengoTODA/inspequte/commit/c421040a3529de7d032b58c9be4573c901a770be))
+
 ## [0.2.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.1.0...gradle-plugin-v0.2.0) (2026-02-10)
 
 
