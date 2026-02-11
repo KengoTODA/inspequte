@@ -70,7 +70,6 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: gpt-5.3-codex
           safety-strategy: drop-sudo
           prompt-file: target/codex-workflow/prompts/phase1-ideate-plan.md
           output-file: target/codex-workflow/output/phase1-final-message.txt
@@ -208,7 +207,6 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: gpt-5.3-codex
           safety-strategy: drop-sudo
           prompt-file: target/codex-workflow/prompts/phase2-spec.md
           output-file: target/codex-workflow/output/phase2-final-message.txt
@@ -314,7 +312,6 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: gpt-5.3-codex
           safety-strategy: drop-sudo
           prompt-file: target/codex-workflow/prompts/phase3-impl.md
           output-file: target/codex-workflow/output/phase3-final-message.txt
@@ -472,7 +469,6 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: gpt-5.3-codex
           safety-strategy: drop-sudo
           prompt-file: target/codex-workflow/prompts/phase4-verify.md
           output-file: target/codex-workflow/output/phase4-final-message.txt
