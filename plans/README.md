@@ -40,7 +40,7 @@ Each plan file documents:
    - Performance optimization recommendation
    - Complexity: **Medium**
 
-6. **[06-interrupted-exception-handling-rule.md](06-interrupted-exception-handling-rule.md)**
+6. **[interrupted_exception/plan.md](../src/rules/interrupted_exception/plan.md)**
    - Rule to detect improper `InterruptedException` handling
    - Ensure threads restore interrupt status
    - Complexity: **Medium**
