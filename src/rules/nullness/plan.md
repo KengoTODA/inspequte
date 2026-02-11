@@ -15,7 +15,7 @@ Current behavior keeps the result as non-null/unknown, so no `possible null rece
 
 ## Scope
 - In scope:
-  - Nullness flow refinement for generic call returns in `src/rules/nullness.rs`
+  - Nullness flow refinement for generic call returns in `src/rules/nullness/mod.rs`
   - Minimal IR/parser additions required to resolve class type parameters
   - Test coverage for positive/negative generic-call flow outcomes
 - Out of scope:
@@ -30,7 +30,7 @@ Current behavior keeps the result as non-null/unknown, so no `possible null rece
    - Preserve compatibility when signature is missing (raw/erased types).
 
 2. Carry type-use through intra-method flow state
-   - Extend `State` / `StackValue` in `src/rules/nullness.rs` to optionally track `TypeUse` alongside nullness.
+   - Extend `State` / `StackValue` in `src/rules/nullness/mod.rs` to optionally track `TypeUse` alongside nullness.
    - Seed parameter local slots from `method.type_use.parameters`.
    - Propagate type-use through `ALOAD`/`ASTORE` and stack operations needed by current flow checks.
 
@@ -48,7 +48,7 @@ Current behavior keeps the result as non-null/unknown, so no `possible null rece
 
 ## Test Plan
 1. Unignore and pass existing test:
-   - `src/rules/nullness.rs`: `nullness_rule_reports_type_use_flow_from_generic_call`
+   - `src/rules/nullness/mod.rs`: `nullness_rule_reports_type_use_flow_from_generic_call`
 
 2. Add focused harness tests:
    - No report for `ClassB<@NonNull String>` chained call.
@@ -80,7 +80,7 @@ Current behavior keeps the result as non-null/unknown, so no `possible null rece
 
 ## Dependencies
 - Existing type-use parser and IR (`src/scan.rs`, `src/ir.rs`)
-- Nullness flow engine (`src/rules/nullness.rs`)
+- Nullness flow engine (`src/rules/nullness/mod.rs`)
 - Java 21 harness environment (`JAVA_HOME`)
 
 ## Estimated Complexity

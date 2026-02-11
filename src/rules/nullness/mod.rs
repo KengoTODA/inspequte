@@ -10,7 +10,7 @@ use crate::ir::{CallKind, Class, ClassTypeUse, Method, Nullness, TypeUse, TypeUs
 use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
-// TODO: refer Checkerframework stubs or somthing like it to handle nellness of standard APIs
+// TODO: refer Checkerframework stubs or something like it to handle nullness of standard APIs
 
 /// Rule that will enforce JSpecify-guided nullness checks.
 #[derive(Default)]

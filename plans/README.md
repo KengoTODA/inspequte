@@ -45,14 +45,14 @@ Each plan file documents:
    - Ensure threads restore interrupt status
    - Complexity: **Medium**
 
-7. **[21-type-use-nullness-flow-analysis.done.md](21-type-use-nullness-flow-analysis.done.md)**
+7. **[nullness/plan.md](../src/rules/nullness/plan.md)**
    - Propagate generic type-use nullness through method-call flow analysis
    - Unblock ignored nullness flow test for `ClassB<@Nullable String>` call chains
    - Complexity: **Medium-High**
 
 ## Plan Status
 
-Plans are tracked individually; plan 01 is complete and the remaining plans are in **planning** state.
+Plans are tracked individually; plan 01 and the nullness flow plan are complete, and the remaining plans are in **planning** state.
 Implementation priority will be determined based on:
 - User requests and feedback
 - Impact on analysis quality
