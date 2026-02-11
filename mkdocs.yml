@@ -1,6 +1,6 @@
 site_name: inspequte documentation
 site_description: Rule documentation for inspequte static analysis
-repo_url: https://github.com/KengoTODA/rustrospective
+repo_url: https://github.com/KengoTODA/inspequte
 docs_dir: docs
 site_dir: site
 theme:

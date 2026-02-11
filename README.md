@@ -49,6 +49,14 @@ Recommended sequence:
    ```
 5. Verify: run `inspequte-rule-verify` using `verify-input/` only (no plan/log context).
 
+You can run the full sequence with one reusable prompt:
+- `prompts/authoring-rule.md`
+
+Usage:
+1. Open `prompts/authoring-rule.md`.
+2. Replace placeholders: `<RULE_ID>`, `<RULE_IDEA_SHORT_TEXT>`, `<BASE_REF_OR_EMPTY>`.
+3. Paste the prompt into Codex and execute.
+
 Rule docs generation is deterministic:
 ```bash
 scripts/generate-rule-docs.sh
