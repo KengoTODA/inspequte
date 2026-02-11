@@ -49,13 +49,15 @@ Recommended sequence:
    ```
 5. Verify: run `inspequte-rule-verify` using `verify-input/` only (no plan/log context).
 
-You can run the full sequence with one reusable prompt:
-- `prompts/authoring-rule.md`
+Use split prompts to reduce context confusion:
+- `prompts/ideate-rule.md`
+- `prompts/authoring-plan.md`
+- `prompts/authoring-spec.md`
+- `prompts/authoring-impl.md`
+- `prompts/authoring-verify.md`
 
-Usage:
-1. Open `prompts/authoring-rule.md`.
-2. Replace placeholders: `<RULE_ID>`, `<RULE_IDEA_SHORT_TEXT>`, `<BASE_REF_OR_EMPTY>`.
-3. Paste the prompt into Codex and execute.
+Orchestration reference:
+- `prompts/authoring-rule.md`
 
 Rule docs generation is deterministic:
 ```bash
