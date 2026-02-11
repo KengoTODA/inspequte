@@ -1,0 +1,10 @@
+site_name: inspequte documentation
+site_description: Rule documentation for inspequte static analysis
+repo_url: https://github.com/KengoTODA/rustrospective
+docs_dir: docs
+site_dir: site
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Rules: rules/index.md

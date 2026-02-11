@@ -25,5 +25,8 @@ gradle-plugin/build/
 # Generated rule docs
 docs/rules/*.md
 
+# MkDocs build output
+site/
+
 # Local verification bundle for isolated rule review
 verify-input/
