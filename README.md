@@ -70,16 +70,17 @@ brew install KengoTODA/tap/inspequte
 ```
 
 Or install a pre-built binary from GitHub Releases:
-- Linux (x86_64): `inspequte-<TAG>-x86_64-unknown-linux-gnu.tar.gz`
-- Linux (ARM64): `inspequte-<TAG>-aarch64-unknown-linux-gnu.tar.gz`
-- macOS (Apple Silicon): `inspequte-<TAG>-aarch64-apple-darwin.tar.gz`
-- macOS (Intel): `inspequte-<TAG>-x86_64-apple-darwin.tar.gz`
-- Windows (x86_64): `inspequte-<TAG>-x86_64-pc-windows-msvc.zip`
+- Linux (x86_64): `inspequte-<TAG>-amd64-unknown-linux-gnu.tar.gz`
+- Linux (ARM64): `inspequte-<TAG>-arm64-unknown-linux-gnu.tar.gz`
+- macOS (Apple Silicon): `inspequte-<TAG>-arm64-apple-darwin.tar.gz`
+- macOS (Intel): `inspequte-<TAG>-amd64-apple-darwin.tar.gz`
+- Windows (x86_64): `inspequte-<TAG>-amd64-pc-windows-msvc.zip`
+(`TAG` is the GitHub release tag, for example `inspequte-v0.15.1`.)
 
 Example for Linux/macOS:
 ```bash
 TAG="$(gh release list --repo KengoTODA/inspequte --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
-TARGET="aarch64-apple-darwin" # use x86_64-apple-darwin on macOS Intel, aarch64-unknown-linux-gnu on Linux ARM64, x86_64-unknown-linux-gnu on Linux x86_64
+TARGET="arm64-apple-darwin" # use amd64-apple-darwin on macOS Intel, arm64-unknown-linux-gnu on Linux ARM64, amd64-unknown-linux-gnu on Linux x86_64
 curl -fL -o inspequte.tar.gz \
   "https://github.com/KengoTODA/inspequte/releases/download/${TAG}/inspequte-${TAG}-${TARGET}.tar.gz"
 tar -xzf inspequte.tar.gz
@@ -90,7 +91,7 @@ sudo mv inspequte /usr/local/bin/inspequte
 Example for Windows (PowerShell):
 ```powershell
 $Tag = gh release list --repo KengoTODA/inspequte --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName'
-$Asset = "inspequte-$Tag-x86_64-pc-windows-msvc.zip"
+$Asset = "inspequte-$Tag-amd64-pc-windows-msvc.zip"
 Invoke-WebRequest -Uri "https://github.com/KengoTODA/inspequte/releases/download/$Tag/$Asset" -OutFile "inspequte.zip"
 Expand-Archive -Path "inspequte.zip" -DestinationPath "."
 # Move to a directory included in PATH
