@@ -11,6 +11,7 @@ pub(crate) mod empty_catch;
 pub(crate) mod ineffective_equals;
 pub(crate) mod insecure_api;
 pub(crate) mod interrupted_exception;
+pub(crate) mod lock_not_released_on_exception_path;
 pub(crate) mod log4j2_format_should_be_const;
 pub(crate) mod log4j2_illegal_passed_class;
 pub(crate) mod log4j2_logger_should_be_final;
@@ -164,7 +165,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 23, "Expected 23 rules to be registered");
+        assert_eq!(rules.len(), 24, "Expected 24 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -184,6 +185,7 @@ mod tests {
             "INEFFECTIVE_EQUALS_HASHCODE",
             "INSECURE_API",
             "INTERRUPTED_EXCEPTION_NOT_RESTORED",
+            "LOCK_NOT_RELEASED_ON_EXCEPTION_PATH",
             "LOG4J2_FORMAT_SHOULD_BE_CONST",
             "LOG4J2_ILLEGAL_PASSED_CLASS",
             "LOG4J2_LOGGER_SHOULD_BE_FINAL",

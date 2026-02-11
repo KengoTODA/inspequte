@@ -70,6 +70,13 @@
               }
             },
             {
+              "id": "LOCK_NOT_RELEASED_ON_EXCEPTION_PATH",
+              "name": "Lock acquired without guaranteed release",
+              "shortDescription": {
+                "text": "Lock.lock() must be followed by unlock() on every reachable exit path"
+              }
+            },
+            {
               "id": "LOG4J2_FORMAT_SHOULD_BE_CONST",
               "name": "Log4j2 format should be const",
               "shortDescription": {
