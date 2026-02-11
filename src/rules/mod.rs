@@ -8,6 +8,7 @@ use crate::engine::AnalysisContext;
 
 pub(crate) mod array_equals;
 pub(crate) mod empty_catch;
+pub(crate) mod exception_cause_not_preserved;
 pub(crate) mod ineffective_equals;
 pub(crate) mod insecure_api;
 pub(crate) mod interrupted_exception;
@@ -165,7 +166,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 24, "Expected 24 rules to be registered");
+        assert_eq!(rules.len(), 25, "Expected 25 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -182,6 +183,7 @@ mod tests {
         let expected_ids = [
             "ARRAY_EQUALS",
             "EMPTY_CATCH",
+            "EXCEPTION_CAUSE_NOT_PRESERVED",
             "INEFFECTIVE_EQUALS_HASHCODE",
             "INSECURE_API",
             "INTERRUPTED_EXCEPTION_NOT_RESTORED",
