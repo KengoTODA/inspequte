@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.15.1...inspequte-v0.16.0) (2026-02-11)
+
+
+### Features
+
+* **docs:** add MkDocs rule docs generation and Pages workflow ([2e80e1b](https://github.com/KengoTODA/inspequte/commit/2e80e1b693bc1ef95679fe752fb73043402c7bc1))
+* **rules:** add lock_not_released_on_exception_path rule ([5b8bb59](https://github.com/KengoTODA/inspequte/commit/5b8bb593606c9479d6a646619a1edb9ec6e5035f))
+
 ## [0.15.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.15.0...inspequte-v0.15.1) (2026-02-10)
 
 
