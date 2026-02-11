@@ -8,6 +8,6 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - GitHub Actions: github-actions.md
   - Codex: codex.md
+  - GitHub Actions: github-actions.md
   - Rules: rules/index.md
