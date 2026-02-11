@@ -161,6 +161,22 @@ Moving targets invalidate regression detection.
 
 ---
 
+# 8. Annotation Policy
+
+## Principle
+- `@Suppress`-style annotations are not supported for findings suppression.
+- Annotation-driven rule semantics must support JSpecify only.
+- Non-JSpecify annotations must be treated as unsupported and must not change rule behavior unless `spec.md` explicitly says otherwise.
+
+## Why
+Keeping annotation semantics narrow prevents cross-ecosystem ambiguity and nondeterministic behavior.
+
+## Avoid
+- Adding logic that suppresses findings via `@Suppress` or `@SuppressWarnings`.
+- Mixing semantics from non-JSpecify annotation sets without an explicit spec change.
+
+---
+
 # Definition of Done (Per Rule)
 
 A rule is complete when:

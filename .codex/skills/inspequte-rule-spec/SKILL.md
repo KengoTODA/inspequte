@@ -37,6 +37,7 @@ Use this exact section order:
 - Do not include Rust APIs, struct names, function names, or algorithm internals.
 - Keep messages user-facing and actionable.
 - In `## Summary`, define intended rule metadata (`id`, `name`, `description`) clearly so implementation can map it directly.
+- State annotation scope explicitly: `@Suppress`-style suppression is unsupported, and only JSpecify annotations are supported for annotation-driven semantics.
 
 ## Definition of Done
 - `spec.md` exists under the target rule directory.

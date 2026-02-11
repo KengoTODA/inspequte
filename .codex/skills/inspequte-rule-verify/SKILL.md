@@ -41,3 +41,4 @@ Optional but recommended:
 - Every finding cites concrete evidence from files inside `verify-input/`.
 - Recommendation is explicit: `Go` or `No-Go`.
 - Report does not reference `plan.md` or discussion history.
+- Report calls out deviations from policy, including any `@Suppress` suppression behavior or non-JSpecify annotation semantics introduced without an explicit spec change.

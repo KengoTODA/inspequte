@@ -25,7 +25,10 @@ description: Draft or update a rule plan for inspequte from a short idea and tar
 1. Confirm target path: `src/rules/<rule-id>/plan.md`.
 2. Capture problem framing, detection strategy, non-goals, and test strategy.
 3. Add complexity and deterministic behavior constraints.
-4. Add a `## Risks` checklist with short, actionable bullets.
+4. Record annotation policy constraints in scope/non-goals:
+   - no `@Suppress`-based suppression support
+   - only JSpecify is in scope for annotation-driven semantics
+5. Add a `## Risks` checklist with short, actionable bullets.
 
 ## Definition of Done
 - `plan.md` exists at the target rule directory.

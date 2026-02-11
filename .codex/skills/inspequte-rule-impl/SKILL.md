@@ -96,6 +96,8 @@ assert!(messages.iter().any(|msg| msg.contains("expected")));
 - Do not edit `src/rules/<rule-id>/spec.md` by default.
 - Any desired behavior change requires a separate spec change request.
 - Keep implementation aligned with deterministic and low-noise principles in `src/rules/AGENTS.md`.
+- Do not implement annotation-based suppression via `@Suppress` or `@SuppressWarnings`.
+- For annotation-driven semantics, support JSpecify only and treat non-JSpecify annotations as unsupported unless the spec explicitly changes.
 - Keep tests close to the rule module to avoid a large shared test module.
 - Use ASCII-only edits unless a touched file already requires Unicode.
 - Add doc comments to new structs.

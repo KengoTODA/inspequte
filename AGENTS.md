@@ -14,6 +14,8 @@
 - Run `cargo fmt` after each code modification.
 - Span naming convention: `scope.action` (e.g., `scan.jar`, `scan.class`).
 - Rule messages for users must be intuitive and actionable: clearly state the problem and what to do to fix it.
+- Do not support suppression annotations (for example `@Suppress` / `@SuppressWarnings`) as a findings control mechanism.
+- Support only JSpecify annotations for annotation-driven rule semantics; treat non-JSpecify annotations as unsupported unless explicitly specified in the rule spec.
 
 ## Test Harness Guidelines
 - Use meaningless, generic names for variables and classes in test harness Java code.
