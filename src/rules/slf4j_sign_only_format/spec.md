@@ -27,8 +27,3 @@ Include context text in the format string so logs are readable without external 
 
 ## Message Shape
 Findings state that the SLF4J format string should include text.
-
-## Source of Truth
-- Implementation: `src/rules/slf4j_sign_only_format/mod.rs`
-- Plan: `src/rules/slf4j_sign_only_format/plan.md`
-- Behavior inferred from in-file harness tests.

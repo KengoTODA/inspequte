@@ -71,8 +71,3 @@ Findings are emitted in actionable forms such as:
 - `Nullness override: ...`
 - `Nullness flow: possible null receiver ...`
 - `Nullness flow: returning null from @NonNull method ...`
-
-## Source of Truth
-- Implementation: `src/rules/nullness/mod.rs`
-- Plan: `src/rules/nullness/plan.md`
-- Behavior inferred from in-file unit/harness tests, including generic type-use flow cases.

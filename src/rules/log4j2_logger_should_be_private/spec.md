@@ -33,8 +33,3 @@ Declare logger fields as `private` (commonly `private static final`).
 
 ## Message Shape
 Findings are reported as `Logger field <class>.<field> should be private`.
-
-## Source of Truth
-- Implementation: `src/rules/log4j2_logger_should_be_private/mod.rs`
-- Plan: `src/rules/log4j2_logger_should_be_private/plan.md`
-- Behavior inferred from in-file harness tests.

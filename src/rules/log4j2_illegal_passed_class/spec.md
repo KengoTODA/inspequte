@@ -34,8 +34,3 @@ Pass the declaring class literal (`ClassA.class`) to `getLogger`.
 
 ## Message Shape
 Findings explain that `LogManager.getLogger` should be called with the caller class and show expected/actual values.
-
-## Source of Truth
-- Implementation: `src/rules/log4j2_illegal_passed_class/mod.rs`
-- Plan: `src/rules/log4j2_illegal_passed_class/plan.md`
-- Behavior inferred from in-file harness tests.

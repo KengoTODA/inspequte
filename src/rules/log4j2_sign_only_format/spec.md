@@ -27,8 +27,3 @@ Add human-readable context text to the format string.
 
 ## Message Shape
 Findings are reported as `Log4j2 format string should include text`.
-
-## Source of Truth
-- Implementation: `src/rules/log4j2_sign_only_format/mod.rs`
-- Plan: `src/rules/log4j2_sign_only_format/plan.md`
-- Behavior inferred from in-file harness tests.

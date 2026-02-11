@@ -38,8 +38,3 @@ Use a constant format string and pass dynamic values as arguments.
 
 ## Message Shape
 Findings are reported as `SLF4J format string should be constant`.
-
-## Source of Truth
-- Implementation: `src/rules/slf4j_format_should_be_const/mod.rs`
-- Plan: `src/rules/slf4j_format_should_be_const/plan.md`
-- Behavior inferred from in-file harness tests.

@@ -50,8 +50,3 @@ Restore the interrupt status or rethrow to preserve interruption semantics.
 
 ## Message Shape
 Findings are reported as `InterruptedException not restored in <class>.<method><descriptor> handler`.
-
-## Source of Truth
-- Implementation: `src/rules/interrupted_exception/mod.rs`
-- Plan: `src/rules/interrupted_exception/plan.md`
-- Behavior inferred from in-file harness tests covering restore/rethrow/finally patterns.

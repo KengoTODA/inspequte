@@ -33,8 +33,3 @@ Declare logger fields as `final`.
 
 ## Message Shape
 Findings are reported as `Logger field <class>.<field> should be final`.
-
-## Source of Truth
-- Implementation: `src/rules/log4j2_logger_should_be_final/mod.rs`
-- Plan: `src/rules/log4j2_logger_should_be_final/plan.md`
-- Behavior inferred from in-file harness tests.

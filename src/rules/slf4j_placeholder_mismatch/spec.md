@@ -29,7 +29,3 @@ Align placeholder count with provided arguments, or rewrite message/arguments fo
 
 ## Message Shape
 Findings describe expected vs actual argument count for the SLF4J format string.
-
-## Source of Truth
-- Implementation: `src/rules/slf4j_placeholder_mismatch/mod.rs`
-- Behavior inferred from in-file harness tests, including escaped placeholders and varargs handling.

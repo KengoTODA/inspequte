@@ -28,7 +28,3 @@ Prefer immutable collection/value alternatives (for example `List<T>`) or wrap/c
 
 ## Message Shape
 Findings are reported as `Record component <class>.<component> uses array type <descriptor>`.
-
-## Source of Truth
-- Implementation: `src/rules/record_array_field/mod.rs`
-- Behavior inferred from in-file unit and harness tests.

@@ -34,8 +34,3 @@ Pass the current class literal (`ClassA.class`) or use a safe wrapper that prese
 
 ## Message Shape
 Findings explain that `LoggerFactory.getLogger` should use the caller class and show both expected and actual class.
-
-## Source of Truth
-- Implementation: `src/rules/slf4j_illegal_passed_class/mod.rs`
-- Plan: `src/rules/slf4j_illegal_passed_class/plan.md`
-- Behavior inferred from Java and Kotlin harness tests.

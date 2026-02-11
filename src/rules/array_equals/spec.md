@@ -43,7 +43,3 @@ Use `Arrays.equals(...)` (or `Arrays.deepEquals(...)` for nested arrays) when th
 
 ## Message Shape
 Findings explain that array comparison is done by reference and should use `Arrays.equals`.
-
-## Source of Truth
-- Implementation: `src/rules/array_equals/mod.rs`
-- Behavior inferred from in-file harness tests for reported and non-reported cases.

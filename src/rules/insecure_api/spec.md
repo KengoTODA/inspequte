@@ -38,7 +38,3 @@ Prefer safer alternatives, validate/whitelist inputs, and avoid dynamic command/
 
 ## Message Shape
 Findings are reported as `Insecure API call to <owner>.<method> in <class>.<method><descriptor>`.
-
-## Source of Truth
-- Implementation: `src/rules/insecure_api/mod.rs`
-- Behavior inferred from unit tests and Java harness tests.

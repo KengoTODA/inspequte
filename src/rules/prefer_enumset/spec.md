@@ -46,8 +46,3 @@ Replace enum-only set-like containers with `EnumSet` where semantics allow.
 
 ## Message Shape
 Findings explain the concrete location and recommend `EnumSet` for better performance and intent clarity.
-
-## Source of Truth
-- Implementation: `src/rules/prefer_enumset/mod.rs`
-- Plan: `src/rules/prefer_enumset/plan.md`
-- Behavior inferred from unit and harness tests for fields/methods/locals and exclusions.

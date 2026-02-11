@@ -27,8 +27,3 @@ Use Log4j2 placeholders and pass dynamic values as separate arguments.
 
 ## Message Shape
 Findings explain that Log4j2 messages should use placeholders instead of manual formatting.
-
-## Source of Truth
-- Implementation: `src/rules/log4j2_manually_provided_message/mod.rs`
-- Plan: `src/rules/log4j2_manually_provided_message/plan.md`
-- Behavior inferred from in-file harness tests.

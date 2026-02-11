@@ -46,7 +46,3 @@ If one method is overridden, override the pair with compatible semantics.
 Findings state either:
 - class overrides `equals(Object)` but not `hashCode()`, or
 - class overrides `hashCode()` but not `equals(Object)`.
-
-## Source of Truth
-- Implementation: `src/rules/ineffective_equals/mod.rs`
-- Behavior inferred from in-file tests including harness coverage for inheritance overrides.

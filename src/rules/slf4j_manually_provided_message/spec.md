@@ -27,8 +27,3 @@ Use SLF4J placeholders and pass values as arguments instead of prebuilding the m
 
 ## Message Shape
 Findings explain that SLF4J messages should use placeholders instead of manual formatting.
-
-## Source of Truth
-- Implementation: `src/rules/slf4j_manually_provided_message/mod.rs`
-- Plan: `src/rules/slf4j_manually_provided_message/plan.md`
-- Behavior inferred from in-file harness tests.

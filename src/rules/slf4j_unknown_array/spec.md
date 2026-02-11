@@ -28,8 +28,3 @@ Prefer explicit placeholder arguments or construct arrays in a way that preserve
 
 ## Message Shape
 Findings explain that an unknown array is passed to an SLF4J varargs call.
-
-## Source of Truth
-- Implementation: `src/rules/slf4j_unknown_array/mod.rs`
-- Plan: `src/rules/slf4j_unknown_array/plan.md`
-- Behavior inferred from in-file harness tests.

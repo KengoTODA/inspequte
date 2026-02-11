@@ -48,7 +48,3 @@ Handle the exception explicitly: log with context, restore state, rethrow, or co
 
 ## Message Shape
 Findings are reported as `Empty catch block in <class>.<method><descriptor>`.
-
-## Source of Truth
-- Implementation: `src/rules/empty_catch/mod.rs`
-- Behavior inferred from unit tests and Java/Kotlin harness tests in the same file.

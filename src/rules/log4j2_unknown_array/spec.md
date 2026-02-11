@@ -28,8 +28,3 @@ Prefer explicit arguments or clearly constructed arrays so logging argument stru
 
 ## Message Shape
 Findings explain that an unknown array is passed to a Log4j2 varargs logging call.
-
-## Source of Truth
-- Implementation: `src/rules/log4j2_unknown_array/mod.rs`
-- Plan: `src/rules/log4j2_unknown_array/plan.md`
-- Behavior inferred from in-file harness tests.
