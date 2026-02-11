@@ -6,20 +6,20 @@ description: Perform isolated, file-based verification of an inspequte rule chan
 # inspequte rule verify
 
 ## Required Input Directory
-- `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/`
+- `verify-input/`
 
 Required files:
-- `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/spec.md`
-- `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/diff.patch` (or equivalent change set)
-- `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/reports/*` (test/build/audit evidence)
+- `verify-input/spec.md`
+- `verify-input/diff.patch` (or equivalent change set)
+- `verify-input/reports/*` (test/build/audit evidence)
 
 Optional but recommended:
-- `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/changes/*`
-- `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/changed-files.txt`
+- `verify-input/changes/*`
+- `verify-input/changed-files.txt`
 
 ## Isolation Policy
 - Verify must only use `spec.md`, change set (`diff.patch`), and report files.
-- Do not read `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/plan.md`.
+- Do not read `src/rules/<rule-id>/plan.md`.
 - Do not use implementation discussion logs, chat context, or author intent.
 - If required input files are missing, fail with a clear blocked report.
 
@@ -30,10 +30,10 @@ Optional but recommended:
 3. `## Determinism/stability risks`
 4. `## Performance and regression concerns`
 5. `## Recommendation (Go/No-Go)`
-- Save the same report to `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/verify-report.md`.
+- Save the same report to `verify-input/verify-report.md`.
 
 ## Minimal Context Loading
-1. Read only files under `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/verify-input/`.
+1. Read only files under `verify-input/`.
 2. Avoid reading the broader repository unless a missing required file blocks verification.
 
 ## Definition of Done
@@ -41,4 +41,3 @@ Optional but recommended:
 - Every finding cites concrete evidence from files inside `verify-input/`.
 - Recommendation is explicit: `Go` or `No-Go`.
 - Report does not reference `plan.md` or discussion history.
-

@@ -8,21 +8,21 @@ description: Draft or update a rule plan for inspequte from a short idea and tar
 ## Inputs
 - Rule idea text (short problem statement).
 - Target `rule-id`.
-- Optional existing `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/plan.md`.
+- Optional existing `src/rules/<rule-id>/plan.md`.
 
 ## Outputs
-- Create or update `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/plan.md`.
+- Create or update `src/rules/<rule-id>/plan.md`.
 - Include a short risk checklist section in `plan.md`.
 - Do not create or modify `spec.md`.
 
 ## Minimal Context Loading
-1. Read `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/AGENTS.md`.
-2. Read `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/plan.md` if it exists.
+1. Read `src/rules/AGENTS.md`.
+2. Read `src/rules/<rule-id>/plan.md` if it exists.
 3. Read only one or two related rule specs if needed for scope calibration.
 4. Do not scan the whole repository.
 
 ## Workflow
-1. Confirm target path: `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/plan.md`.
+1. Confirm target path: `src/rules/<rule-id>/plan.md`.
 2. Capture problem framing, detection strategy, non-goals, and test strategy.
 3. Add complexity and deterministic behavior constraints.
 4. Add a `## Risks` checklist with short, actionable bullets.
@@ -32,4 +32,3 @@ description: Draft or update a rule plan for inspequte from a short idea and tar
 - Plan describes scope and non-goals clearly.
 - Risks are listed as a short checklist.
 - `spec.md` is untouched.
-

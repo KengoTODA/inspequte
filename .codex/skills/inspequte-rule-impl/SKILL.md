@@ -6,7 +6,7 @@ description: Implement an inspequte rule from spec.md, including tests and minim
 # inspequte rule implementation
 
 ## Inputs
-- `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/spec.md` only, as the rule contract.
+- `src/rules/<rule-id>/spec.md` only, as the rule contract.
 - Existing codebase files needed to implement the rule.
 
 ## Outputs
@@ -16,7 +16,7 @@ description: Implement an inspequte rule from spec.md, including tests and minim
 - `spec.md` must remain unchanged unless explicitly instructed otherwise.
 
 ## Minimal Context Loading
-1. Read `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/spec.md`.
+1. Read `src/rules/<rule-id>/spec.md`.
 2. Read only relevant implementation files (target rule module, shared helpers, targeted tests).
 3. Avoid repository-wide scans beyond what is required for compile/test fixes.
 
@@ -35,7 +35,7 @@ description: Implement an inspequte rule from spec.md, including tests and minim
    - Assert findings by filtering SARIF results with `rule_id`.
    - Cover report and non-report paths (TP/TN/edge, including FP/FN control).
    - Use generic Java names (`ClassA`, `ClassB`, `MethodX`, `varOne`) unless validating real JDK/library APIs.
-6. If adding a brand-new rule module, declare it in `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/mod.rs`.
+6. If adding a brand-new rule module, declare it in `src/rules/mod.rs`.
 7. If the registered rule set changes, update snapshot expectations (`INSPEQUTE_UPDATE_SNAPSHOTS=1 cargo test sarif_callgraph_snapshot`).
 8. Keep output deterministic (stable ordering and IDs; no hash-order dependence).
 9. Run `cargo fmt`, then `cargo build`, `cargo test`, and `cargo audit --format sarif`.
@@ -93,13 +93,13 @@ assert!(messages.iter().any(|msg| msg.contains("expected")));
 ```
 
 ## Guardrails
-- Do not edit `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/spec.md` by default.
+- Do not edit `src/rules/<rule-id>/spec.md` by default.
 - Any desired behavior change requires a separate spec change request.
-- Keep implementation aligned with deterministic and low-noise principles in `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/AGENTS.md`.
+- Keep implementation aligned with deterministic and low-noise principles in `src/rules/AGENTS.md`.
 - Keep tests close to the rule module to avoid a large shared test module.
 - Use ASCII-only edits unless a touched file already requires Unicode.
 - Add doc comments to new structs.
-- Rules are discovered via `inventory`; do not add manual registration in `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/engine.rs`.
+- Rules are discovered via `inventory`; do not add manual registration in `src/engine.rs`.
 - If `cargo audit` is unavailable, install it first with `cargo install cargo-audit --locked`.
 
 ## Definition of Done

@@ -8,10 +8,10 @@ description: Author or refine an inspequte rule spec from a rule idea, optional 
 ## Inputs
 - Target `rule-id`.
 - Rule idea text.
-- Optional `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/plan.md`.
+- Optional `src/rules/<rule-id>/plan.md`.
 
 ## Outputs
-- Create or update `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/spec.md`.
+- Create or update `src/rules/<rule-id>/spec.md`.
 - Keep scope contractual; avoid implementation details beyond constraints.
 
 ## Fixed Template
@@ -26,9 +26,9 @@ Use this exact section order:
 8. `## Acceptance criteria`
 
 ## Minimal Context Loading
-1. Read `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/AGENTS.md`.
-2. Read existing `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/spec.md` if present.
-3. Read `/Users/toda_k/ghq/github.com/KengoTODA/rustrospective/src/rules/<rule-id>/plan.md` if present.
+1. Read `src/rules/AGENTS.md`.
+2. Read existing `src/rules/<rule-id>/spec.md` if present.
+3. Read `src/rules/<rule-id>/plan.md` if present.
 4. Read at most one related rule spec for style alignment.
 5. Do not perform repo-wide scans.
 

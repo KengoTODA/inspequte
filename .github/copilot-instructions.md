@@ -12,6 +12,17 @@
 - Coverage for false positives and false negatives in rule tests.
 - No reliance on external JARs for tests; prefer local stubs.
 
+## Rule review workflow
+- When reviewing changes under `src/rules/`, first refer to:
+  - `.codex/skills/inspequte-rule-verify/SKILL.md`
+- Use the related verification inputs/evidence under:
+  - `verify-input/spec.md`
+  - `verify-input/diff.patch`
+  - `verify-input/reports/*`
+  - `verify-input/changes/*` (if present)
+  - `verify-input/changed-files.txt` (if present)
+- Follow the isolation policy in the skill: for verification, do not read `src/rules/<rule-id>/plan.md` or discussion logs.
+
 ## Constraints and tooling
 - Use Java 21 for harness tests via `JAVA_HOME`.
 - Run `cargo fmt` after code changes.
