@@ -6,6 +6,8 @@ use jdescriptor::{MethodDescriptor, TypeDescriptor};
 use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
 
+use crate::dataflow::opcode_semantics::{ApplyOutcome, ValueDomain, apply_default_semantics};
+use crate::dataflow::stack_machine::StackMachine;
 use crate::descriptor::method_param_count;
 use crate::engine::AnalysisContext;
 use crate::ir::Method;
@@ -66,6 +68,19 @@ enum ValueKind {
     NonArray,
 }
 
+/// Value-domain adapter used by shared default opcode semantics.
+struct ArrayValueDomain;
+
+impl ValueDomain<ValueKind> for ArrayValueDomain {
+    fn unknown_value(&self) -> ValueKind {
+        ValueKind::Unknown
+    }
+
+    fn scalar_value(&self) -> ValueKind {
+        ValueKind::NonArray
+    }
+}
+
 fn analyze_method(
     class_name: &str,
     method: &Method,
@@ -77,119 +92,54 @@ fn analyze_method(
         callsites.insert(call.offset, call);
     }
 
-    let mut locals = initial_locals(method)?;
-    let mut stack: Vec<ValueKind> = Vec::new();
+    let mut machine = StackMachine::new(ValueKind::Unknown);
+    let domain = ArrayValueDomain;
+    for (index, value) in initial_locals(method)? {
+        machine.store_local(index, value);
+    }
     let mut offset = 0usize;
     while offset < method.bytecode.len() {
         let opcode = method.bytecode[offset];
+        if apply_default_semantics(&mut machine, method, offset, opcode, &domain)
+            == ApplyOutcome::Applied
+        {
+            let length = crate::scan::opcode_length(&method.bytecode, offset)?;
+            offset += length;
+            continue;
+        }
         match opcode {
-            opcodes::ACONST_NULL => stack.push(ValueKind::Unknown),
-            opcodes::ICONST_M1
-            | opcodes::ICONST_0
-            | opcodes::ICONST_1
-            | opcodes::ICONST_2
-            | opcodes::ICONST_3
-            | opcodes::ICONST_4
-            | opcodes::ICONST_5
-            | opcodes::BIPUSH
-            | opcodes::SIPUSH => {
-                stack.push(ValueKind::NonArray);
-            }
-            opcodes::ALOAD => {
-                let index = method.bytecode.get(offset + 1).copied().unwrap_or(0) as usize;
-                ensure_local(&mut locals, index);
-                stack.push(locals[index]);
-            }
-            opcodes::ALOAD_0 | opcodes::ALOAD_1 | opcodes::ALOAD_2 | opcodes::ALOAD_3 => {
-                let index = (opcode - opcodes::ALOAD_0) as usize;
-                ensure_local(&mut locals, index);
-                stack.push(locals[index]);
-            }
-            opcodes::ILOAD => {
-                stack.push(ValueKind::NonArray);
-            }
-            opcodes::ILOAD_0 | opcodes::ILOAD_1 | opcodes::ILOAD_2 | opcodes::ILOAD_3 => {
-                stack.push(ValueKind::NonArray);
-            }
-            opcodes::ASTORE => {
-                let index = method.bytecode.get(offset + 1).copied().unwrap_or(0) as usize;
-                ensure_local(&mut locals, index);
-                let value = stack.pop().unwrap_or(ValueKind::Unknown);
-                locals[index] = value;
-            }
-            opcodes::ASTORE_0 | opcodes::ASTORE_1 | opcodes::ASTORE_2 | opcodes::ASTORE_3 => {
-                let index = (opcode - opcodes::ASTORE_0) as usize;
-                ensure_local(&mut locals, index);
-                let value = stack.pop().unwrap_or(ValueKind::Unknown);
-                locals[index] = value;
-            }
             opcodes::NEWARRAY | opcodes::ANEWARRAY => {
-                stack.pop();
-                stack.push(ValueKind::Array(1));
+                machine.pop();
+                machine.push(ValueKind::Array(1));
             }
             opcodes::MULTIANEWARRAY => {
                 let dims = method.bytecode.get(offset + 3).copied().unwrap_or(0);
                 for _ in 0..dims {
-                    stack.pop();
+                    machine.pop();
                 }
                 if dims > 0 {
-                    stack.push(ValueKind::Array(dims));
+                    machine.push(ValueKind::Array(dims));
                 } else {
-                    stack.push(ValueKind::Unknown);
+                    machine.push(ValueKind::Unknown);
                 }
-            }
-            opcodes::NEW => {
-                stack.push(ValueKind::NonArray);
-            }
-            opcodes::LDC | opcodes::LDC_W | opcodes::LDC2_W => {
-                stack.push(ValueKind::NonArray);
-            }
-            opcodes::DUP => {
-                if let Some(value) = stack.last().copied() {
-                    stack.push(value);
-                }
-            }
-            opcodes::POP => {
-                stack.pop();
-            }
-            opcodes::POP2 => {
-                stack.pop();
-                stack.pop();
             }
             opcodes::AALOAD => {
-                stack.pop();
-                let array = stack.pop().unwrap_or(ValueKind::Unknown);
+                machine.pop();
+                let array = machine.pop();
                 let value = match array {
                     ValueKind::Array(dims) if dims > 1 => ValueKind::Array(dims - 1),
                     ValueKind::Array(_) => ValueKind::NonArray,
                     _ => ValueKind::Unknown,
                 };
-                stack.push(value);
+                machine.push(value);
             }
             opcodes::ARRAYLENGTH => {
-                stack.pop();
-                stack.push(ValueKind::NonArray);
-            }
-            opcodes::IFEQ
-            | opcodes::IFNE
-            | opcodes::IFLT
-            | opcodes::IFGE
-            | opcodes::IFGT
-            | opcodes::IFLE => {
-                stack.pop();
-            }
-            opcodes::IF_ICMPEQ
-            | opcodes::IF_ICMPNE
-            | opcodes::IF_ICMPLT
-            | opcodes::IF_ICMPGE
-            | opcodes::IF_ICMPGT
-            | opcodes::IF_ICMPLE => {
-                stack.pop();
-                stack.pop();
+                machine.pop();
+                machine.push(ValueKind::NonArray);
             }
             opcodes::IF_ACMPEQ | opcodes::IF_ACMPNE => {
-                let right = stack.pop().unwrap_or(ValueKind::Unknown);
-                let left = stack.pop().unwrap_or(ValueKind::Unknown);
+                let right = machine.pop();
+                let left = machine.pop();
                 if matches!(left, ValueKind::Array(_)) && matches!(right, ValueKind::Array(_)) {
                     let message = result_message(format!(
                         "Array comparison uses reference equality: {}.{}{}",
@@ -215,9 +165,9 @@ fn analyze_method(
                 if let Some(call) = callsites.get(&(offset as u32)) {
                     let arg_count = method_param_count(&call.descriptor)?;
                     for _ in 0..arg_count {
-                        stack.pop();
+                        machine.pop();
                     }
-                    let receiver = stack.pop().unwrap_or(ValueKind::Unknown);
+                    let receiver = machine.pop();
                     if call.name == "equals"
                         && call.descriptor == "(Ljava/lang/Object;)Z"
                         && matches!(receiver, ValueKind::Array(_))
@@ -242,7 +192,7 @@ fn analyze_method(
                         );
                     }
                     if is_reference_return(&call.descriptor)? {
-                        stack.push(return_kind(&call.descriptor)?);
+                        machine.push(return_kind(&call.descriptor)?);
                     }
                 }
             }
@@ -250,10 +200,10 @@ fn analyze_method(
                 if let Some(call) = callsites.get(&(offset as u32)) {
                     let arg_count = method_param_count(&call.descriptor)?;
                     for _ in 0..arg_count {
-                        stack.pop();
+                        machine.pop();
                     }
                     if is_reference_return(&call.descriptor)? {
-                        stack.push(return_kind(&call.descriptor)?);
+                        machine.push(return_kind(&call.descriptor)?);
                     }
                 }
             }
@@ -266,10 +216,12 @@ fn analyze_method(
     Ok(results)
 }
 
-fn initial_locals(method: &Method) -> Result<Vec<ValueKind>> {
-    let mut locals = Vec::new();
+fn initial_locals(method: &Method) -> Result<BTreeMap<usize, ValueKind>> {
+    let mut locals = BTreeMap::new();
+    let mut index = 0usize;
     if !method.access.is_static {
-        locals.push(ValueKind::NonArray);
+        locals.insert(index, ValueKind::NonArray);
+        index += 1;
     }
     let descriptor =
         MethodDescriptor::from_str(&method.descriptor).context("parse method descriptor")?;
@@ -278,18 +230,14 @@ fn initial_locals(method: &Method) -> Result<Vec<ValueKind>> {
             TypeDescriptor::Array(_, dims) => ValueKind::Array(*dims),
             _ => ValueKind::NonArray,
         };
-        locals.push(value);
+        locals.insert(index, value);
+        index += 1;
         if matches!(param, TypeDescriptor::Long | TypeDescriptor::Double) {
-            locals.push(ValueKind::NonArray);
+            locals.insert(index, ValueKind::NonArray);
+            index += 1;
         }
     }
     Ok(locals)
-}
-
-fn ensure_local(locals: &mut Vec<ValueKind>, index: usize) {
-    if index >= locals.len() {
-        locals.resize(index + 1, ValueKind::Unknown);
-    }
 }
 
 fn is_reference_return(descriptor: &str) -> Result<bool> {

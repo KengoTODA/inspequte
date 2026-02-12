@@ -1,11 +1,13 @@
 use std::cell::Cell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 use anyhow::Result;
 use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
 
+use crate::dataflow::opcode_semantics::{ApplyOutcome, ValueDomain, apply_default_semantics};
+use crate::dataflow::stack_machine::{StackMachine, StackMachineConfig};
 use crate::dataflow::worklist::{
     BlockEndStep, InstructionStep, WorklistSemantics, WorklistState, analyze_method,
 };
@@ -96,13 +98,25 @@ enum Value {
     New(u32),
 }
 
+/// Value-domain adapter used by shared default opcode semantics.
+struct ExceptionValueDomain;
+
+impl ValueDomain<Value> for ExceptionValueDomain {
+    fn unknown_value(&self) -> Value {
+        Value::Other
+    }
+
+    fn scalar_value(&self) -> Value {
+        Value::Other
+    }
+}
+
 /// Symbolic execution state at a specific instruction position.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct ExecutionState {
     block_start: u32,
     instruction_index: usize,
-    stack: Vec<Value>,
-    locals: BTreeMap<usize, Value>,
+    machine: StackMachine<Value>,
     preserved_allocations: BTreeSet<u32>,
 }
 
@@ -146,8 +160,7 @@ impl WorklistSemantics for HandlerSemantics {
         vec![ExecutionState {
             block_start: self.handler_pc,
             instruction_index: 0,
-            stack: vec![Value::Caught],
-            locals: BTreeMap::new(),
+            machine: initial_machine(),
             preserved_allocations: BTreeSet::new(),
         }]
     }
@@ -168,7 +181,7 @@ impl WorklistSemantics for HandlerSemantics {
         }
 
         if instruction.opcode == opcodes::ATHROW {
-            let thrown = pop_or_unknown(&mut state.stack);
+            let thrown = state.machine.pop();
             if let Value::New(allocation_offset) = thrown
                 && !state.preserved_allocations.contains(&allocation_offset)
             {
@@ -181,7 +194,7 @@ impl WorklistSemantics for HandlerSemantics {
         prune_preserved_allocations(state);
         if self.debug_enabled
             && !self.stack_depth_dumped.get()
-            && state.stack.len() >= MAX_TRACKED_STACK_DEPTH
+            && state.machine.stack_len() >= MAX_TRACKED_STACK_DEPTH
         {
             dump_stack_depth(method, self.handler_pc, instruction, state);
             self.stack_depth_dumped.set(true);
@@ -218,180 +231,122 @@ fn analyze_handler(method: &Method, handler_pc: u32) -> Result<Vec<u32>> {
         .collect())
 }
 
+fn initial_machine() -> StackMachine<Value> {
+    let mut machine = StackMachine::with_config(
+        Value::Other,
+        StackMachineConfig {
+            max_stack_depth: Some(MAX_TRACKED_STACK_DEPTH),
+            max_locals: None,
+            max_symbolic_identities: Some(MAX_TRACKED_ALLOCATIONS),
+        },
+    );
+    machine.push(Value::Caught);
+    machine
+}
+
 fn apply_stack_effect(
     method: &Method,
     instruction: &Instruction,
     state: &mut ExecutionState,
 ) -> Result<()> {
+    let domain = ExceptionValueDomain;
+    if instruction.opcode != opcodes::NEW
+        && apply_default_semantics(
+            &mut state.machine,
+            method,
+            instruction.offset as usize,
+            instruction.opcode,
+            &domain,
+        ) == ApplyOutcome::Applied
+    {
+        return Ok(());
+    }
+
     match instruction.opcode {
-        opcodes::ALOAD
-        | opcodes::ALOAD_0
-        | opcodes::ALOAD_1
-        | opcodes::ALOAD_2
-        | opcodes::ALOAD_3 => {
-            let Some(index) = local_index_for(method, instruction) else {
-                push_stack(state, Value::Other);
-                return Ok(());
-            };
-            push_stack(
-                state,
-                state.locals.get(&index).copied().unwrap_or(Value::Other),
-            );
-        }
-        opcodes::ASTORE
-        | opcodes::ASTORE_0
-        | opcodes::ASTORE_1
-        | opcodes::ASTORE_2
-        | opcodes::ASTORE_3 => {
-            let Some(index) = local_index_for(method, instruction) else {
-                pop_or_unknown(&mut state.stack);
-                return Ok(());
-            };
-            let value = pop_or_unknown(&mut state.stack);
-            match value {
-                Value::Caught | Value::New(_) => {
-                    state.locals.insert(index, value);
-                }
-                Value::Other => {
-                    state.locals.remove(&index);
-                }
-            }
-        }
         opcodes::NEW => {
-            push_stack(state, Value::New(instruction.offset));
-        }
-        opcodes::DUP => {
-            if let Some(value) = state.stack.last().copied() {
-                push_stack(state, value);
-            }
-        }
-        opcodes::POP => {
-            pop_or_unknown(&mut state.stack);
-        }
-        opcodes::POP2 => {
-            pop_or_unknown(&mut state.stack);
-            pop_or_unknown(&mut state.stack);
+            state.machine.push(Value::New(instruction.offset));
         }
         opcodes::AALOAD => {
-            pop_or_unknown(&mut state.stack);
-            pop_or_unknown(&mut state.stack);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(2);
+            state.machine.push(Value::Other);
         }
         opcodes::AASTORE => {
-            pop_or_unknown(&mut state.stack);
-            pop_or_unknown(&mut state.stack);
-            pop_or_unknown(&mut state.stack);
+            state.machine.pop_n(3);
         }
-        opcodes::ACONST_NULL
-        | opcodes::ICONST_M1
-        | opcodes::ICONST_0
-        | opcodes::ICONST_1
-        | opcodes::ICONST_2
-        | opcodes::ICONST_3
-        | opcodes::ICONST_4
-        | opcodes::ICONST_5
-        | opcodes::BIPUSH
-        | opcodes::SIPUSH
-        | opcodes::LDC
-        | opcodes::LDC_W
-        | opcodes::LDC2_W => {
-            push_stack(state, Value::Other);
+        opcodes::IF_ACMPEQ | opcodes::IF_ACMPNE => {
+            state.machine.pop_n(2);
         }
-        opcodes::IFEQ
-        | opcodes::IFNE
-        | opcodes::IFLT
-        | opcodes::IFGE
-        | opcodes::IFGT
-        | opcodes::IFLE
-        | opcodes::IFNULL
-        | opcodes::IFNONNULL
-        | opcodes::TABLESWITCH
-        | opcodes::LOOKUPSWITCH => {
-            pop_or_unknown(&mut state.stack);
-        }
-        opcodes::IF_ICMPEQ
-        | opcodes::IF_ICMPNE
-        | opcodes::IF_ICMPLT
-        | opcodes::IF_ICMPGE
-        | opcodes::IF_ICMPGT
-        | opcodes::IF_ICMPLE
-        | opcodes::IF_ACMPEQ
-        | opcodes::IF_ACMPNE => {
-            pop_or_unknown(&mut state.stack);
-            pop_or_unknown(&mut state.stack);
-        }
-        // Primitive and non-reference loads.
+        // Primitive and non-reference loads not covered by table-driven defaults.
         0x15..=0x18 | 0x1a..=0x29 => {
-            push_stack(state, Value::Other);
+            state.machine.push(Value::Other);
         }
         // Primitive array loads.
         0x2e..=0x31 | 0x33..=0x35 => {
-            pop_n(&mut state.stack, 2);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(2);
+            state.machine.push(Value::Other);
         }
-        // Primitive stores.
+        // Primitive stores not covered by table-driven defaults.
         0x36 | 0x38 | 0x3b..=0x3e | 0x43..=0x46 => {
-            pop_n(&mut state.stack, 1);
+            state.machine.pop_n(1);
         }
-        0x37 | 0x39 | 0x3f..=0x42 | 0x47..=0x4a => {
-            pop_n(&mut state.stack, 2);
-        }
+        // Primitive stores not covered by table-driven defaults.
+        0x37 | 0x39 | 0x3f..=0x42 | 0x47..=0x4a => state.machine.pop_n(2),
         // Primitive array stores.
         0x4f..=0x52 | 0x54..=0x56 => {
-            pop_n(&mut state.stack, 3);
+            state.machine.pop_n(3);
         }
         // Stack shuffling opcodes.
         0x5a..=0x5e => {
-            push_stack(state, Value::Other);
+            state.machine.push(Value::Other);
         }
         0x5f => {
-            let right = pop_or_unknown(&mut state.stack);
-            let left = pop_or_unknown(&mut state.stack);
-            push_stack(state, right);
-            push_stack(state, left);
+            let right = state.machine.pop();
+            let left = state.machine.pop();
+            state.machine.push(right);
+            state.machine.push(left);
         }
         // Primitive arithmetic.
         0x60..=0x73 | 0x78..=0x83 | 0x94..=0x98 => {
-            pop_n(&mut state.stack, 2);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(2);
+            state.machine.push(Value::Other);
         }
         0x74..=0x77 | 0x85..=0x93 => {
-            pop_n(&mut state.stack, 1);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(1);
+            state.machine.push(Value::Other);
         }
         // iinc has no stack effect.
         0x84 => {}
         // Legacy subroutine opcodes.
         opcodes::JSR | opcodes::JSR_W => {
-            push_stack(state, Value::Other);
+            state.machine.push(Value::Other);
         }
         opcodes::GOTO | opcodes::GOTO_W => {}
         // Field access.
         0xb2 => {
-            push_stack(state, Value::Other);
+            state.machine.push(Value::Other);
         }
         0xb3 => {
-            pop_n(&mut state.stack, 1);
+            state.machine.pop_n(1);
         }
         0xb4 => {
-            pop_n(&mut state.stack, 1);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(1);
+            state.machine.push(Value::Other);
         }
         0xb5 => {
-            pop_n(&mut state.stack, 2);
+            state.machine.pop_n(2);
         }
         // INVOKEDYNAMIC callsites are currently not decoded into CallSite.
         opcodes::INVOKEDYNAMIC => {
-            pop_n(&mut state.stack, 1);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(1);
+            state.machine.push(Value::Other);
         }
         // Array/type/monitor opcodes.
         opcodes::NEWARRAY | opcodes::ANEWARRAY | opcodes::ARRAYLENGTH | 0xc0 | 0xc1 => {
-            pop_n(&mut state.stack, 1);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(1);
+            state.machine.push(Value::Other);
         }
         0xc2 | 0xc3 => {
-            pop_n(&mut state.stack, 1);
+            state.machine.pop_n(1);
         }
         opcodes::MULTIANEWARRAY => {
             let dims = method
@@ -399,8 +354,8 @@ fn apply_stack_effect(
                 .get(instruction.offset as usize + 3)
                 .copied()
                 .unwrap_or(1);
-            pop_n(&mut state.stack, dims as usize);
-            push_stack(state, Value::Other);
+            state.machine.pop_n(dims as usize);
+            state.machine.push(Value::Other);
         }
         _ => {}
     }
@@ -416,13 +371,13 @@ fn handle_invoke(call: &CallSite, state: &mut ExecutionState) -> Result<()> {
     let param_count = method_param_count(&call.descriptor)?;
     let mut args = Vec::with_capacity(param_count);
     for _ in 0..param_count {
-        args.push(pop_or_unknown(&mut state.stack));
+        args.push(state.machine.pop());
     }
 
     let receiver = if call.kind == CallKind::Static {
         None
     } else {
-        Some(pop_or_unknown(&mut state.stack))
+        Some(state.machine.pop())
     };
 
     let has_caught_argument = args.iter().any(|value| matches!(value, Value::Caught));
@@ -456,42 +411,24 @@ fn handle_invoke(call: &CallSite, state: &mut ExecutionState) -> Result<()> {
     }
 
     if let Some(value) = return_value {
-        push_stack(state, value);
+        state.machine.push(value);
     }
 
     Ok(())
 }
 
-fn push_stack(state: &mut ExecutionState, value: Value) {
-    // Keep the state space finite even when unsupported opcodes appear inside loops.
-    if state.stack.len() >= MAX_TRACKED_STACK_DEPTH {
-        state.stack.remove(0);
-    }
-    state.stack.push(value);
-}
-
 fn prune_preserved_allocations(state: &mut ExecutionState) {
-    let mut live_allocations = BTreeSet::new();
-    for value in state.stack.iter().chain(state.locals.values()) {
-        if let Value::New(offset) = value {
-            live_allocations.insert(*offset);
-        }
-    }
-    let tracked_allocations: BTreeSet<u32> = live_allocations
-        .iter()
-        .rev()
-        .take(MAX_TRACKED_ALLOCATIONS)
-        .copied()
-        .collect();
-
-    for value in &mut state.stack {
-        if let Value::New(offset) = *value
-            && !tracked_allocations.contains(&offset)
-        {
-            *value = Value::Other;
-        }
-    }
-    state.locals.retain(|_, value| match *value {
+    let tracked_allocations = state
+        .machine
+        .enforce_symbolic_identity_cap_u32(
+            |value| match value {
+                Value::New(offset) => Some(*offset),
+                _ => None,
+            },
+            |value| *value = Value::Other,
+        )
+        .unwrap_or_default();
+    state.machine.retain_locals(|_, value| match *value {
         Value::Caught => true,
         Value::New(offset) => tracked_allocations.contains(&offset),
         Value::Other => false,
@@ -527,85 +464,26 @@ fn dump_stack_depth(
         handler_pc,
         instruction.offset,
         instruction.opcode,
-        state.stack.len(),
-        state.stack.iter().rev().take(8).collect::<Vec<_>>()
+        state.machine.stack_len(),
+        state
+            .machine
+            .stack_values()
+            .iter()
+            .rev()
+            .take(8)
+            .collect::<Vec<_>>()
     );
 }
 
-fn local_index_for(method: &Method, instruction: &Instruction) -> Option<usize> {
-    let offset = instruction.offset as usize;
-    match instruction.opcode {
-        opcodes::ASTORE | opcodes::ALOAD => method
-            .bytecode
-            .get(offset + 1)
-            .copied()
-            .map(|value| value as usize),
-        opcodes::ASTORE_0 | opcodes::ALOAD_0 => Some(0),
-        opcodes::ASTORE_1 | opcodes::ALOAD_1 => Some(1),
-        opcodes::ASTORE_2 | opcodes::ALOAD_2 => Some(2),
-        opcodes::ASTORE_3 | opcodes::ALOAD_3 => Some(3),
-        _ => None,
-    }
-}
-
-fn pop_or_unknown(stack: &mut Vec<Value>) -> Value {
-    stack.pop().unwrap_or(Value::Other)
-}
-
-fn pop_n(stack: &mut Vec<Value>, count: usize) {
-    for _ in 0..count {
-        pop_or_unknown(stack);
-    }
-}
-
 fn canonicalize_state(state: &mut ExecutionState) {
-    let mut mapping: BTreeMap<u32, u32> = BTreeMap::new();
-    let mut next_id = 0u32;
-
-    for value in &state.stack {
-        if let Value::New(offset) = *value {
-            mapping.entry(offset).or_insert_with(|| {
-                let id = next_id;
-                next_id += 1;
-                id
-            });
-        }
-    }
-    for value in state.locals.values() {
-        if let Value::New(offset) = *value {
-            mapping.entry(offset).or_insert_with(|| {
-                let id = next_id;
-                next_id += 1;
-                id
-            });
-        }
-    }
-    for offset in &state.preserved_allocations {
-        mapping.entry(*offset).or_insert_with(|| {
-            let id = next_id;
-            next_id += 1;
-            id
-        });
-    }
-
-    if mapping.is_empty() {
-        return;
-    }
-
-    for value in &mut state.stack {
-        if let Value::New(offset) = *value
-            && let Some(mapped) = mapping.get(&offset)
-        {
-            *value = Value::New(*mapped);
-        }
-    }
-    for value in state.locals.values_mut() {
-        if let Value::New(offset) = *value
-            && let Some(mapped) = mapping.get(&offset)
-        {
-            *value = Value::New(*mapped);
-        }
-    }
+    let mapping = state.machine.canonicalize_symbolic_ids_u32(
+        |value| match value {
+            Value::New(offset) => Some(*offset),
+            _ => None,
+        },
+        |value, mapped| *value = Value::New(mapped),
+        state.preserved_allocations.iter().copied(),
+    );
     state.preserved_allocations = state
         .preserved_allocations
         .iter()
