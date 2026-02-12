@@ -9,5 +9,6 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Codex: codex.md
+  - AI-Centered Development: ai-centered-development.md
   - GitHub Actions: github-actions.md
   - Rules: rules/index.md
