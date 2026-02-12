@@ -23,6 +23,7 @@ pub(crate) mod log4j2_unknown_array;
 pub(crate) mod nullness;
 pub(crate) mod prefer_enumset;
 pub(crate) mod record_array_field;
+pub(crate) mod return_in_finally;
 pub(crate) mod slf4j_format_should_be_const;
 pub(crate) mod slf4j_illegal_passed_class;
 pub(crate) mod slf4j_logger_should_be_final;
@@ -166,7 +167,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 25, "Expected 25 rules to be registered");
+        assert_eq!(rules.len(), 26, "Expected 26 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -198,6 +199,7 @@ mod tests {
             "NULLNESS",
             "PREFER_ENUMSET",
             "RECORD_ARRAY_FIELD",
+            "RETURN_IN_FINALLY",
             "SLF4J_FORMAT_SHOULD_BE_CONST",
             "SLF4J_ILLEGAL_PASSED_CLASS",
             "SLF4J_LOGGER_SHOULD_BE_FINAL",

@@ -154,6 +154,13 @@
               }
             },
             {
+              "id": "RETURN_IN_FINALLY",
+              "name": "Return in finally",
+              "shortDescription": {
+                "text": "Return statements in finally blocks override exceptions or prior returns"
+              }
+            },
+            {
               "id": "SLF4J_FORMAT_SHOULD_BE_CONST",
               "name": "SLF4J format should be const",
               "shortDescription": {
