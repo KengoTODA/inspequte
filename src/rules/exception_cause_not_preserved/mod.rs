@@ -209,7 +209,16 @@ impl WorklistSemantics for HandlerSemantics {
         state: &Self::State,
         successors: &[u32],
     ) -> Result<BlockEndStep<Self::State, Self::Finding>> {
-        Ok(BlockEndStep::follow_all_successors(state, successors))
+        // Keep execution inside catch-handler suffix to avoid exploring pre-handler loops.
+        let bounded_successors = successors
+            .iter()
+            .copied()
+            .filter(|successor| *successor >= self.handler_pc)
+            .collect::<Vec<_>>();
+        Ok(BlockEndStep::follow_all_successors(
+            state,
+            &bounded_successors,
+        ))
     }
 }
 
@@ -335,11 +344,8 @@ fn apply_stack_effect(
         0xb5 => {
             state.machine.pop_n(2);
         }
-        // INVOKEDYNAMIC callsites are currently not decoded into CallSite.
-        opcodes::INVOKEDYNAMIC => {
-            state.machine.pop_n(1);
-            state.machine.push(Value::Other);
-        }
+        // INVOKEDYNAMIC is handled from InstructionKind to apply descriptor-based stack effects.
+        opcodes::INVOKEDYNAMIC => {}
         // Array/type/monitor opcodes.
         opcodes::NEWARRAY | opcodes::ANEWARRAY | opcodes::ARRAYLENGTH | 0xc0 | 0xc1 => {
             state.machine.pop_n(1);
@@ -360,8 +366,12 @@ fn apply_stack_effect(
         _ => {}
     }
 
-    if let InstructionKind::Invoke(call) = &instruction.kind {
-        handle_invoke(call, state)?;
+    match &instruction.kind {
+        InstructionKind::Invoke(call) => handle_invoke(call, state)?,
+        InstructionKind::InvokeDynamic { descriptor } => {
+            handle_invoke_dynamic_descriptor(descriptor, state)?
+        }
+        _ => {}
     }
 
     Ok(())
@@ -412,6 +422,17 @@ fn handle_invoke(call: &CallSite, state: &mut ExecutionState) -> Result<()> {
 
     if let Some(value) = return_value {
         state.machine.push(value);
+    }
+
+    Ok(())
+}
+
+fn handle_invoke_dynamic_descriptor(descriptor: &str, state: &mut ExecutionState) -> Result<()> {
+    let param_count = method_param_count(descriptor)?;
+    state.machine.pop_n(param_count);
+
+    if method_return_kind(descriptor)? != ReturnKind::Void {
+        state.machine.push(Value::Other);
     }
 
     Ok(())

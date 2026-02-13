@@ -128,6 +128,7 @@ pub(crate) struct Instruction {
 #[derive(Clone, Debug)]
 pub(crate) enum InstructionKind {
     Invoke(CallSite),
+    InvokeDynamic { descriptor: String },
     ConstString(String),
     ConstClass(String),
     Other(u8),

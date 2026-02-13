@@ -2154,6 +2154,12 @@ fn parse_bytecode(
                     InstructionKind::Other(opcode)
                 }
             }
+            opcodes::INVOKEDYNAMIC => {
+                let call_site_index = read_u16(code, offset + 1)?;
+                let descriptor = resolve_invoke_dynamic_descriptor(constant_pool, call_site_index)
+                    .context("resolve invoke dynamic descriptor")?;
+                InstructionKind::InvokeDynamic { descriptor }
+            }
             _ => InstructionKind::Other(opcode),
         };
 
@@ -2199,6 +2205,21 @@ fn resolve_method_ref(constant_pool: &[ConstantPool], index: u16) -> Result<Meth
         name,
         descriptor,
     })
+}
+
+fn resolve_invoke_dynamic_descriptor(constant_pool: &[ConstantPool], index: u16) -> Result<String> {
+    let entry = constant_pool
+        .get(index as usize)
+        .context("missing invoke dynamic entry")?;
+    let name_and_type_index = match entry {
+        ConstantPool::InvokeDynamic {
+            name_and_type_index,
+            ..
+        } => *name_and_type_index,
+        _ => anyhow::bail!("unexpected invoke dynamic entry"),
+    };
+    let (_, descriptor_index) = resolve_name_and_type(constant_pool, name_and_type_index)?;
+    resolve_utf8(constant_pool, descriptor_index).context("resolve invoke dynamic descriptor")
 }
 
 fn resolve_name_and_type(constant_pool: &[ConstantPool], index: u16) -> Result<(u16, u16)> {
