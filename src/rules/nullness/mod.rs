@@ -1,10 +1,12 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use anyhow::Result;
 use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
 
-use crate::descriptor::{ReturnKind, method_param_count, method_return_kind};
+use crate::descriptor::{
+    MethodDescriptorSummary, ReturnKind, method_descriptor_summary, method_param_count,
+};
 use crate::engine::AnalysisContext;
 use crate::ir::{CallKind, Class, ClassTypeUse, Method, Nullness, TypeUse, TypeUseKind};
 use crate::opcodes;
@@ -45,12 +47,12 @@ impl Rule for NullnessRule {
             let class_results =
                 context.with_span("class", &attributes, || -> Result<Vec<SarifResult>> {
                     let mut class_results = Vec::new();
+                    let artifact_uri = context.class_artifact_uri(class);
                     class_results.extend(check_overrides(class, &class_map));
                     for method in &class.methods {
                         if method.bytecode.is_empty() {
                             continue;
                         }
-                        let artifact_uri = context.class_artifact_uri(class);
                         class_results.extend(check_method_flow(
                             class,
                             method,
@@ -331,10 +333,8 @@ fn check_method_flow(
     artifact_uri: Option<&str>,
 ) -> Result<Vec<SarifResult>> {
     let mut results = Vec::new();
-    let mut callsite_by_offset = BTreeMap::new();
-    for call in &method.calls {
-        callsite_by_offset.insert(call.offset, call);
-    }
+    let call_infos = build_method_call_infos(method, class_map)?;
+    let call_index_by_offset = build_callsite_index_by_offset(method, &call_infos);
 
     let local_count = local_count(method)?;
     let mut initial_locals = vec![Nullness::Unknown; local_count];
@@ -414,8 +414,8 @@ fn check_method_flow(
             method,
             block,
             &in_state,
-            &callsite_by_offset,
-            class_map,
+            &call_infos,
+            &call_index_by_offset,
             artifact_uri,
         )?;
         let out_state = transfer.out_state.clone();
@@ -469,6 +469,28 @@ struct StackValue {
     is_null_literal: bool,
 }
 
+/// Descriptor-derived callsite summary cached for flow transfer.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct CallDescriptorInfo {
+    param_count: usize,
+    return_kind: ReturnKind,
+}
+
+/// Flow-transfer metadata for a callsite at a concrete bytecode offset.
+#[derive(Copy, Clone)]
+struct MethodCallInfo<'a> {
+    call: &'a crate::ir::CallSite,
+    descriptor: CallDescriptorInfo,
+    target: Option<ResolvedCallTarget<'a>>,
+}
+
+/// Resolved owner/method pair for a callsite.
+#[derive(Copy, Clone)]
+struct ResolvedCallTarget<'a> {
+    class: &'a Class,
+    method: &'a Method,
+}
+
 /// Transfer output for a basic block, including emitted results.
 #[derive(Clone)]
 struct BlockTransfer {
@@ -504,13 +526,69 @@ impl BranchRefinement {
     }
 }
 
+fn build_method_call_infos<'a>(
+    method: &'a Method,
+    class_map: &'a BTreeMap<String, &'a Class>,
+) -> Result<Vec<MethodCallInfo<'a>>> {
+    let mut infos = Vec::with_capacity(method.calls.len());
+    let mut descriptor_cache: HashMap<&str, CallDescriptorInfo> = HashMap::new();
+    for call in &method.calls {
+        let descriptor = if let Some(summary) = descriptor_cache.get(call.descriptor.as_str()) {
+            *summary
+        } else {
+            let MethodDescriptorSummary {
+                param_count,
+                return_kind,
+            } = method_descriptor_summary(&call.descriptor)?;
+            let summary = CallDescriptorInfo {
+                param_count,
+                return_kind,
+            };
+            descriptor_cache.insert(call.descriptor.as_str(), summary);
+            summary
+        };
+        infos.push(MethodCallInfo {
+            call,
+            descriptor,
+            target: resolve_call_target(class_map, call),
+        });
+    }
+    Ok(infos)
+}
+
+fn build_callsite_index_by_offset(
+    method: &Method,
+    call_infos: &[MethodCallInfo<'_>],
+) -> Vec<Option<usize>> {
+    let mut call_index_by_offset = vec![None; method.bytecode.len()];
+    for (index, info) in call_infos.iter().enumerate() {
+        let offset = info.call.offset as usize;
+        if let Some(slot) = call_index_by_offset.get_mut(offset) {
+            *slot = Some(index);
+        }
+    }
+    call_index_by_offset
+}
+
+fn resolve_call_target<'a>(
+    class_map: &'a BTreeMap<String, &'a Class>,
+    call: &crate::ir::CallSite,
+) -> Option<ResolvedCallTarget<'a>> {
+    let class = class_map.get(&call.owner).copied()?;
+    let method = class
+        .methods
+        .iter()
+        .find(|method| method.name == call.name && method.descriptor == call.descriptor)?;
+    Some(ResolvedCallTarget { class, method })
+}
+
 fn transfer_block(
     class: &Class,
     method: &Method,
     block: &crate::ir::BasicBlock,
     input: &State,
-    callsite_by_offset: &BTreeMap<u32, &crate::ir::CallSite>,
-    class_map: &BTreeMap<String, &Class>,
+    method_calls: &[MethodCallInfo<'_>],
+    call_index_by_offset: &[Option<usize>],
     artifact_uri: Option<&str>,
 ) -> Result<BlockTransfer> {
     let mut state = input.clone();
@@ -677,13 +755,14 @@ fn transfer_block(
             | opcodes::INVOKEINTERFACE
             | opcodes::INVOKESPECIAL
             | opcodes::INVOKESTATIC => {
-                let call = callsite_by_offset.get(&inst.offset).copied();
-                if let Some(call) = call {
-                    let arg_count = method_param_count(&call.descriptor)?;
-                    for _ in 0..arg_count {
+                let call_info = call_index_by_offset
+                    .get(inst.offset as usize)
+                    .and_then(|index| index.and_then(|i| method_calls.get(i)));
+                if let Some(call_info) = call_info {
+                    for _ in 0..call_info.descriptor.param_count {
                         state.stack.pop();
                     }
-                    let receiver = if call.kind != CallKind::Static {
+                    let receiver = if call_info.call.kind != CallKind::Static {
                         Some(state.stack.pop().unwrap_or(StackValue {
                             nullness: Nullness::Unknown,
                             type_use: None,
@@ -697,7 +776,9 @@ fn transfer_block(
                         if receiver.nullness == Nullness::Nullable {
                             let message = result_message(format!(
                                 "Nullness issue: possible null receiver in call to {}.{}{}",
-                                call.owner, call.name, call.descriptor
+                                call_info.call.owner,
+                                call_info.call.name,
+                                call_info.call.descriptor
                             ));
                             let line = method.line_for_offset(inst.offset);
                             let location = method_location_with_line(
@@ -715,9 +796,12 @@ fn transfer_block(
                             );
                         }
                     }
-                    if method_return_kind(&call.descriptor)? == ReturnKind::Reference {
-                        let (return_nullness, return_type_use) =
-                            lookup_return_value(class_map, call, receiver.as_ref());
+                    if call_info.descriptor.return_kind == ReturnKind::Reference {
+                        let (return_nullness, return_type_use) = lookup_return_value(
+                            call_info.target.as_ref(),
+                            call_info.call.kind,
+                            receiver.as_ref(),
+                        );
                         state.stack.push(StackValue {
                             nullness: return_nullness,
                             type_use: return_type_use,
@@ -862,20 +946,15 @@ fn this_type_use(class: &Class) -> TypeUse {
 }
 
 fn lookup_return_value(
-    class_map: &BTreeMap<String, &Class>,
-    call: &crate::ir::CallSite,
+    target: Option<&ResolvedCallTarget<'_>>,
+    call_kind: CallKind,
     receiver: Option<&StackValue>,
 ) -> (Nullness, Option<TypeUse>) {
-    let Some(class) = class_map.get(&call.owner) else {
+    let Some(target) = target else {
         return (Nullness::Unknown, None);
     };
-    let Some(method) = class
-        .methods
-        .iter()
-        .find(|method| method.name == call.name && method.descriptor == call.descriptor)
-    else {
-        return (Nullness::Unknown, None);
-    };
+    let class = target.class;
+    let method = target.method;
 
     let mut return_type_use = method
         .type_use
@@ -883,7 +962,7 @@ fn lookup_return_value(
         .and_then(|method_type_use| method_type_use.return_type.clone());
     let mut unresolved_top_level_type_variable = false;
     if let Some(ref mut return_type) = return_type_use {
-        if call.kind != CallKind::Static {
+        if call_kind != CallKind::Static {
             let substitutions = receiver
                 .and_then(|stack_value| stack_value.type_use.as_ref())
                 .map(|type_use| receiver_type_variable_substitutions(class, type_use))
@@ -1432,6 +1511,7 @@ public @interface NullnessUnspecified {}
             kind: CallKind::Virtual,
             offset: 0,
         };
+        let target = resolve_call_target(&class_map, &call);
         let receiver = StackValue {
             nullness: Nullness::NonNull,
             type_use: Some(TypeUse {
@@ -1454,7 +1534,7 @@ public @interface NullnessUnspecified {}
         };
 
         let (return_nullness, return_type_use) =
-            lookup_return_value(&class_map, &call, Some(&receiver));
+            lookup_return_value(target.as_ref(), call.kind, Some(&receiver));
 
         assert_eq!(Nullness::Nullable, return_nullness);
         assert_eq!(
@@ -1507,8 +1587,10 @@ public @interface NullnessUnspecified {}
             kind: CallKind::Virtual,
             offset: 0,
         };
+        let target = resolve_call_target(&class_map, &call);
 
-        let (return_nullness, return_type_use) = lookup_return_value(&class_map, &call, None);
+        let (return_nullness, return_type_use) =
+            lookup_return_value(target.as_ref(), call.kind, None);
 
         assert_eq!(Nullness::Unknown, return_nullness);
         assert!(matches!(
