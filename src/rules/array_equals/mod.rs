@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
@@ -11,9 +11,8 @@ use crate::dataflow::opcode_semantics::{
     apply_semantics, opcode_semantics_debug_enabled,
 };
 use crate::dataflow::stack_machine::StackMachine;
-use crate::descriptor::method_param_count;
 use crate::engine::AnalysisContext;
-use crate::ir::Method;
+use crate::ir::{CallSite, Method};
 use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
@@ -45,11 +44,11 @@ impl Rule for ArrayEqualsRule {
             let class_results =
                 context.with_span("class", &attributes, || -> Result<Vec<SarifResult>> {
                     let mut class_results = Vec::new();
+                    let artifact_uri = context.class_artifact_uri(class);
                     for method in &class.methods {
                         if method.bytecode.is_empty() {
                             continue;
                         }
-                        let artifact_uri = context.class_artifact_uri(class);
                         class_results.extend(analyze_method(
                             &class.name,
                             method,
@@ -151,16 +150,21 @@ impl SemanticsHooks<ValueKind> for ArraySemanticsHook {
     }
 }
 
+/// Cached descriptor summary used to avoid repeated parse work in invoke handling.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct CallDescriptorSummary {
+    arg_count: usize,
+    return_kind: Option<ValueKind>,
+}
+
 fn analyze_method(
     class_name: &str,
     method: &Method,
     artifact_uri: Option<&str>,
 ) -> Result<Vec<SarifResult>> {
     let mut results = Vec::new();
-    let mut callsites = BTreeMap::new();
-    for call in &method.calls {
-        callsites.insert(call.offset, call);
-    }
+    let mut next_call_index = 0usize;
+    let mut descriptor_cache = HashMap::new();
 
     let mut machine = StackMachine::new(ValueKind::Unknown);
     let domain = ArrayValueDomain;
@@ -212,49 +216,47 @@ fn analyze_method(
             continue;
         }
         match opcode {
-            opcodes::INVOKEVIRTUAL | opcodes::INVOKESPECIAL | opcodes::INVOKEINTERFACE => {
-                if let Some(call) = callsites.get(&(offset as u32)) {
-                    let arg_count = method_param_count(&call.descriptor)?;
-                    for _ in 0..arg_count {
+            opcodes::INVOKEVIRTUAL
+            | opcodes::INVOKESPECIAL
+            | opcodes::INVOKEINTERFACE
+            | opcodes::INVOKESTATIC => {
+                if let Some(call) = callsite_for_offset(method, &mut next_call_index, offset as u32)
+                {
+                    let descriptor =
+                        call_descriptor_summary(&mut descriptor_cache, &call.descriptor)?;
+                    for _ in 0..descriptor.arg_count {
                         machine.pop();
                     }
-                    let receiver = machine.pop();
-                    if call.name == "equals"
-                        && call.descriptor == "(Ljava/lang/Object;)Z"
-                        && matches!(receiver, ValueKind::Array(_))
-                    {
-                        let message = result_message(format!(
-                            "Array comparison uses equals(): {}.{}{}",
-                            class_name, method.name, method.descriptor
-                        ));
-                        let line = method.line_for_offset(offset as u32);
-                        let location = method_location_with_line(
-                            class_name,
-                            &method.name,
-                            &method.descriptor,
-                            artifact_uri,
-                            line,
-                        );
-                        results.push(
-                            SarifResult::builder()
-                                .message(message)
-                                .locations(vec![location])
-                                .build(),
-                        );
+
+                    if opcode != opcodes::INVOKESTATIC {
+                        let receiver = machine.pop();
+                        if call.name == "equals"
+                            && call.descriptor == "(Ljava/lang/Object;)Z"
+                            && matches!(receiver, ValueKind::Array(_))
+                        {
+                            let message = result_message(format!(
+                                "Array comparison uses equals(): {}.{}{}",
+                                class_name, method.name, method.descriptor
+                            ));
+                            let line = method.line_for_offset(offset as u32);
+                            let location = method_location_with_line(
+                                class_name,
+                                &method.name,
+                                &method.descriptor,
+                                artifact_uri,
+                                line,
+                            );
+                            results.push(
+                                SarifResult::builder()
+                                    .message(message)
+                                    .locations(vec![location])
+                                    .build(),
+                            );
+                        }
                     }
-                    if is_reference_return(&call.descriptor)? {
-                        machine.push(return_kind(&call.descriptor)?);
-                    }
-                }
-            }
-            opcodes::INVOKESTATIC => {
-                if let Some(call) = callsites.get(&(offset as u32)) {
-                    let arg_count = method_param_count(&call.descriptor)?;
-                    for _ in 0..arg_count {
-                        machine.pop();
-                    }
-                    if is_reference_return(&call.descriptor)? {
-                        machine.push(return_kind(&call.descriptor)?);
+
+                    if let Some(return_kind) = descriptor.return_kind {
+                        machine.push(return_kind);
                     }
                 }
             }
@@ -285,6 +287,26 @@ fn analyze_method(
     Ok(results)
 }
 
+fn callsite_for_offset<'a>(
+    method: &'a Method,
+    next_call_index: &mut usize,
+    offset: u32,
+) -> Option<&'a CallSite> {
+    while *next_call_index < method.calls.len() {
+        let call = &method.calls[*next_call_index];
+        if call.offset < offset {
+            *next_call_index += 1;
+            continue;
+        }
+        if call.offset == offset {
+            *next_call_index += 1;
+            return Some(call);
+        }
+        break;
+    }
+    None
+}
+
 fn initial_locals(method: &Method) -> Result<BTreeMap<usize, ValueKind>> {
     let mut locals = BTreeMap::new();
     let mut index = 0usize;
@@ -309,22 +331,25 @@ fn initial_locals(method: &Method) -> Result<BTreeMap<usize, ValueKind>> {
     Ok(locals)
 }
 
-fn is_reference_return(descriptor: &str) -> Result<bool> {
-    let descriptor = MethodDescriptor::from_str(descriptor).context("parse call descriptor")?;
-    Ok(matches!(
-        descriptor.return_type(),
-        TypeDescriptor::Object(_) | TypeDescriptor::Array(_, _)
-    ))
-}
+fn call_descriptor_summary<'a>(
+    cache: &mut HashMap<&'a str, CallDescriptorSummary>,
+    descriptor: &'a str,
+) -> Result<CallDescriptorSummary> {
+    if let Some(summary) = cache.get(descriptor) {
+        return Ok(*summary);
+    }
 
-fn return_kind(descriptor: &str) -> Result<ValueKind> {
-    let descriptor = MethodDescriptor::from_str(descriptor).context("parse call descriptor")?;
-    let kind = match descriptor.return_type() {
-        TypeDescriptor::Array(_, dims) => ValueKind::Array(*dims),
-        TypeDescriptor::Object(_) => ValueKind::NonArray,
-        _ => ValueKind::Unknown,
+    let parsed = MethodDescriptor::from_str(descriptor).context("parse call descriptor")?;
+    let summary = CallDescriptorSummary {
+        arg_count: parsed.parameter_types().len(),
+        return_kind: match parsed.return_type() {
+            TypeDescriptor::Array(_, dims) => Some(ValueKind::Array(*dims)),
+            TypeDescriptor::Object(_) => Some(ValueKind::NonArray),
+            _ => None,
+        },
     };
-    Ok(kind)
+    cache.insert(descriptor, summary);
+    Ok(summary)
 }
 
 #[cfg(test)]
