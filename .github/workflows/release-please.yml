@@ -294,6 +294,7 @@ jobs:
           ASSET_BRANCH: codex/benchmark-screenshots
           SCREENSHOT_PNG: ${{ steps.bench.outputs.screenshot_png }}
           TRACE_ID: ${{ steps.bench.outputs.trace_id }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
         shell: bash
         run: |
           set -euo pipefail
@@ -312,10 +313,16 @@ jobs:
             git checkout -B "${ASSET_BRANCH}"
           fi
 
+          screenshot_src="${GITHUB_WORKSPACE}/${SCREENSHOT_PNG}"
+          if [[ ! -f "${screenshot_src}" ]]; then
+            echo "Screenshot file not found: ${screenshot_src}"
+            exit 1
+          fi
+
           screenshot_name="jaeger-trace-${TRACE_ID}-run${GITHUB_RUN_ID}.png"
           asset_path=".github/benchmark-assets/${screenshot_name}"
           mkdir -p "$(dirname "${asset_path}")"
-          cp "${SCREENSHOT_PNG}" "${asset_path}"
+          cp "${screenshot_src}" "${asset_path}"
 
           git add "${asset_path}"
           if git diff --cached --quiet; then
