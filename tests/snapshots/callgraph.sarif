@@ -133,6 +133,13 @@
               }
             },
             {
+              "id": "MUTATE_UNMODIFIABLE_COLLECTION",
+              "name": "Mutation on unmodifiable collection",
+              "shortDescription": {
+                "text": "Mutation calls on known JDK unmodifiable collection values"
+              }
+            },
+            {
               "id": "NULLNESS",
               "name": "Nullness checks",
               "shortDescription": {
