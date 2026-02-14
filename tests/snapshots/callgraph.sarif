@@ -42,6 +42,13 @@
               }
             },
             {
+              "id": "ARRAY_TOSTRING",
+              "name": "Array toString",
+              "shortDescription": {
+                "text": "Array toString() produces '[type@hash]' instead of readable content"
+              }
+            },
+            {
               "id": "EMPTY_CATCH",
               "name": "Empty catch block",
               "shortDescription": {

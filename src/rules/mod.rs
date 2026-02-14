@@ -7,6 +7,7 @@ use serde_sarif::sarif::{
 use crate::engine::AnalysisContext;
 
 pub(crate) mod array_equals;
+pub(crate) mod array_tostring;
 pub(crate) mod empty_catch;
 pub(crate) mod exception_cause_not_preserved;
 pub(crate) mod ineffective_equals;
@@ -169,7 +170,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 28, "Expected 28 rules to be registered");
+        assert_eq!(rules.len(), 29, "Expected 29 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -185,6 +186,7 @@ mod tests {
         // Verify expected rule IDs are present
         let expected_ids = [
             "ARRAY_EQUALS",
+            "ARRAY_TOSTRING",
             "EMPTY_CATCH",
             "EXCEPTION_CAUSE_NOT_PRESERVED",
             "INEFFECTIVE_EQUALS_HASHCODE",
