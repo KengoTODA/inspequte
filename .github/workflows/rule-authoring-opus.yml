@@ -1,0 +1,277 @@
+name: Rule Authoring (Opus)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Optional base ref for verify-input diff (example: origin/main)"
+        required: false
+        default: ""
+        type: string
+
+env:
+  BASE_REF: ${{ inputs.base_ref }}
+  NO_GO_HISTORY_PATH: prompts/references/no-go-history.md
+
+jobs:
+  authoring:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      rule_id: ${{ steps.meta.outputs.rule_id }}
+      rule_idea: ${{ steps.meta.outputs.rule_idea }}
+      recommendation: ${{ steps.meta.outputs.recommendation }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version-file: ".java-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+
+      - name: Prepare workspace
+        run: |
+          mkdir -p target/opus-workflow/prompts
+          mkdir -p target/opus-workflow/output
+          default_branch="${{ github.event.repository.default_branch }}"
+          git fetch --quiet origin "${default_branch}"
+          if git show "origin/${default_branch}:${NO_GO_HISTORY_PATH}" > /tmp/no-go-history.md 2>/dev/null; then
+            mkdir -p "$(dirname "${NO_GO_HISTORY_PATH}")"
+            mv /tmp/no-go-history.md "${NO_GO_HISTORY_PATH}"
+          fi
+
+      - name: Write orchestration prompt
+        run: |
+          cat > target/opus-workflow/prompts/authoring-rule-opus.md <<'PROMPT'
+          You are Claude Opus working in this repository.
+
+          Follow `./prompts/authoring-rule.md` strictly and execute the full end-to-end flow in one run:
+          - ideation
+          - plan
+          - spec
+          - iterative impl <-> verify loop (up to 3 iterations)
+
+          Constraints:
+          - Respect `AGENTS.md` and `CLAUDE.md`.
+          - Use `./prompts/references/no-go-history.md` if present.
+          - Verify must use only `verify-input/` as defined in `prompts/authoring-verify.md`.
+          - If `BASE_REF` is non-empty, pass it to `scripts/prepare-verify-input.sh`.
+          - Run `cargo fmt`, `cargo build`, `cargo test`, and `cargo audit --format sarif` as part of your implementation/verification process.
+          - Run `scripts/generate-rule-docs.sh` before finishing.
+
+          Before finishing, write machine-readable metadata to `target/opus-workflow/output/final-status.env`:
+          RULE_ID=<snake_case_id>
+          RULE_IDEA=<short sentence>
+          RECOMMENDATION=<Go|No-Go>
+
+          Final response format (strict):
+          rule-id: <snake_case_id>
+          rule idea: <one short sentence>
+          recommendation: <Go|No-Go>
+          PROMPT
+
+      - name: Run Claude (Opus)
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-opus-4-1-20250805
+          prompt_file: target/opus-workflow/prompts/authoring-rule-opus.md
+        env:
+          BASE_REF: ${{ env.BASE_REF }}
+
+      - name: Extract metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f target/opus-workflow/output/final-status.env ]]; then
+            echo "Missing target/opus-workflow/output/final-status.env" >&2
+            exit 1
+          fi
+
+          source target/opus-workflow/output/final-status.env
+
+          if [[ -z "${RULE_ID:-}" || -z "${RULE_IDEA:-}" || -z "${RECOMMENDATION:-}" ]]; then
+            echo "Missing metadata values in final-status.env" >&2
+            exit 1
+          fi
+
+          if [[ "${RECOMMENDATION}" != "Go" && "${RECOMMENDATION}" != "No-Go" ]]; then
+            echo "Invalid recommendation: ${RECOMMENDATION}" >&2
+            exit 1
+          fi
+
+          {
+            echo "rule_id=${RULE_ID}"
+            echo "rule_idea<<EOF"
+            echo "${RULE_IDEA}"
+            echo "EOF"
+            echo "recommendation=${RECOMMENDATION}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Capture cumulative patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git reset -- "${NO_GO_HISTORY_PATH}" >/dev/null 2>&1 || true
+          git diff --cached --binary > target/opus-workflow/output/authoring-cumulative.patch
+
+      - name: Upload authoring artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: opus-authoring
+          path: |
+            target/opus-workflow/
+            verify-input/
+            src/rules/${{ steps.meta.outputs.rule_id }}/
+            src/rules/mod.rs
+            prompts/references/no-go-history.md
+          if-no-files-found: warn
+
+  pr_finalize:
+    runs-on: ubuntu-latest
+    needs: authoring
+    if: always() && needs.authoring.result == 'success'
+    environment: codex
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Create app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID_CLAUDE }}
+          private-key: ${{ secrets.PRIVATE_KEY_CLAUDE }}
+
+      - name: Checkout default branch
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Download authoring artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: opus-authoring
+          path: target/opus-workflow/from-authoring
+
+      - name: Apply cumulative patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_file="target/opus-workflow/from-authoring/target/opus-workflow/output/authoring-cumulative.patch"
+          if [[ ! -f "${patch_file}" ]]; then
+            echo "Missing patch: ${patch_file}" >&2
+            exit 1
+          fi
+          if [[ -s "${patch_file}" ]]; then
+            git apply --whitespace=nowarn "${patch_file}"
+          else
+            echo "authoring patch is empty; skipping apply."
+          fi
+
+      - name: Record No-Go history on default branch
+        if: needs.authoring.outputs.recommendation == 'No-Go'
+        env:
+          RULE_ID: ${{ needs.authoring.outputs.rule_id }}
+          RULE_IDEA: ${{ needs.authoring.outputs.rule_idea }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          mkdir -p "$(dirname "${NO_GO_HISTORY_PATH}")"
+          if [[ ! -f "${NO_GO_HISTORY_PATH}" ]]; then
+            {
+              echo "# Rule Ideation No-Go History"
+              echo ""
+              echo "This reference is used by \`prompts/ideate-rule.md\` to avoid proposing duplicate or low-value rule ideas."
+              echo "Append one entry each time verify returns \`No-Go\`."
+              echo ""
+              echo "## Entries"
+            } > "${NO_GO_HISTORY_PATH}"
+          fi
+
+          entry_time="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          {
+            echo ""
+            echo "## ${entry_time} | ${RULE_ID}"
+            echo "- rule-id: \`${RULE_ID}\`"
+            echo "- rule idea: ${RULE_IDEA}"
+            echo "- no-go reason: Verification returned No-Go in the Opus impl/verify loop."
+            echo "- run-url: ${run_url}"
+          } >> "${NO_GO_HISTORY_PATH}"
+
+          git add "${NO_GO_HISTORY_PATH}"
+          git commit -m "docs(prompts): record no-go rule ${RULE_ID}"
+          git push origin "HEAD:${DEFAULT_BRANCH}"
+
+      - name: Commit, push, and create PR on Go
+        if: needs.authoring.outputs.recommendation == 'Go'
+        env:
+          RULE_ID: ${{ needs.authoring.outputs.rule_id }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No changes found after authoring; PR cannot be created." >&2
+            exit 1
+          fi
+
+          branch_name="opus/${RULE_ID}-${GITHUB_RUN_ID}"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          git switch -c "${branch_name}"
+          git add -A
+          git commit -m "feat(rules): add ${RULE_ID} via opus workflow"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --set-upstream origin "${branch_name}"
+
+          gh pr create \
+            --base "${DEFAULT_BRANCH}" \
+            --head "${branch_name}" \
+            --title "feat(rules): add ${RULE_ID}" \
+            --body "Generated by rule-authoring-opus workflow run: ${run_url}"
+
+      - name: Final workflow summary
+        if: always()
+        run: |
+          {
+            echo "## Opus rule authoring workflow"
+            echo ""
+            echo "- rule-id: \`${{ needs.authoring.outputs.rule_id || 'unknown' }}\`"
+            echo "- recommendation: \`${{ needs.authoring.outputs.recommendation || 'unknown' }}\`"
+            if [[ "${{ needs.authoring.outputs.recommendation }}" == "Go" ]]; then
+              echo "- action: \`PR created\`"
+            else
+              echo "- action: \`No-Go recorded, PR skipped\`"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
