@@ -59,7 +59,7 @@ try {
   }
 
   await page.waitForTimeout(1000);
-  await page.screenshot({ path: outFile, fullPage: false });
+  await page.screenshot({ path: outFile, fullPage: true });
 } finally {
   await browser.close();
 }
