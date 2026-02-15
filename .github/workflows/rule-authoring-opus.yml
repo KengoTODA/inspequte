@@ -96,6 +96,7 @@ jobs:
       - name: Run Claude (Opus)
         uses: anthropics/claude-code-action@beta
         with:
+          mode: agent
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: claude-opus-4-1-20250805
           direct_prompt: ${{ steps.prompt.outputs.prompt }}
