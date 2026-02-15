@@ -16,6 +16,8 @@ env:
 jobs:
   authoring:
     runs-on: ubuntu-latest
+    environment: claude
+    timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
