@@ -148,6 +148,17 @@ pub(crate) fn add_current_span_event(name: &str, attributes: &[KeyValue]) {
     span.add_event(name.to_string(), attributes.to_vec());
 }
 
+/// Return the trace ID of the current span context when available.
+pub(crate) fn current_trace_id() -> Option<String> {
+    let cx = OtelContext::current();
+    let span = cx.span();
+    let span_context = span.span_context();
+    if !span_context.is_valid() {
+        return None;
+    }
+    Some(span_context.trace_id().to_string())
+}
+
 fn use_tracing_logging() -> bool {
     tracing::dispatcher::has_been_set()
 }
@@ -224,5 +235,14 @@ mod tests {
         let endpoint =
             normalize_otlp_http_trace_endpoint("http://localhost:4318/v1/logs").expect("endpoint");
         assert_eq!(endpoint, "http://localhost:4318/v1/traces");
+    }
+
+    #[test]
+    fn current_trace_id_is_available_inside_span() {
+        let telemetry = Telemetry::from_exporter(NoopExporter).expect("telemetry");
+        let trace_id = telemetry.in_span("test", &[], current_trace_id);
+        assert!(trace_id.is_some());
+        assert_eq!(trace_id.expect("trace id").len(), 32);
+        telemetry.shutdown().expect("shutdown");
     }
 }

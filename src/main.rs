@@ -35,7 +35,7 @@ use crate::baseline::{load_baseline, write_baseline};
 use crate::classpath::resolve_classpath;
 use crate::engine::{Engine, build_context_with_timings};
 use crate::scan::scan_inputs;
-use crate::telemetry::{Telemetry, init_logging, with_span};
+use crate::telemetry::{Telemetry, current_trace_id, init_logging, with_span};
 
 const DEFAULT_BASELINE_PATH: &str = ".inspequte/baseline.json";
 
@@ -147,6 +147,9 @@ fn run_scan(args: ScanArgs) -> Result<()> {
     };
     init_logging();
     let result = with_span(telemetry.as_deref(), "execution", &[], || {
+        if let Some(trace_id) = current_trace_id() {
+            eprintln!("trace-id={trace_id}");
+        }
         let mut analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
         let analysis_ref = &mut analysis;
         let baseline_result = with_span(
@@ -217,6 +220,9 @@ fn run_baseline(args: BaselineArgs) -> Result<()> {
     };
     init_logging();
     let result = with_span(telemetry.as_deref(), "execution", &[], || -> Result<()> {
+        if let Some(trace_id) = current_trace_id() {
+            eprintln!("trace-id={trace_id}");
+        }
         let analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
         write_baseline(&args.output, &analysis.results)?;
         Ok(())
