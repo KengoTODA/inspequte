@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.2.1...gradle-plugin-v0.3.0) (2026-02-17)
+
+
+### Features
+
+* **telemetry:** route debug summaries to span events ([f1c7bbe](https://github.com/KengoTODA/inspequte/commit/f1c7bbe9d93973f3c5649f9cdfdc96b25b3270b4))
+
 ## [0.2.1](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.2.0...gradle-plugin-v0.2.1) (2026-02-10)
 
 

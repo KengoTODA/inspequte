@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.19.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.18.0...inspequte-v0.19.0) (2026-02-17)
+
+
+### Features
+
+* **ci:** add Anthropic Opus rule-authoring workflow ([56e8209](https://github.com/KengoTODA/inspequte/commit/56e820992c389e15ff62366ad4c928f8421fd311))
+* **ci:** add opus rule authoring workflow ([8639e67](https://github.com/KengoTODA/inspequte/commit/8639e6764ab9208142d657df49c456ec9e58e42b))
+* **cli:** print root trace id to stderr when otel is enabled ([f32bfb4](https://github.com/KengoTODA/inspequte/commit/f32bfb495104eb3f914382af1baf36d2e1454c07))
+* **rules:** add BIGDECIMAL_FROM_DOUBLE rule ([2e4a5c0](https://github.com/KengoTODA/inspequte/commit/2e4a5c0fcc9fea6daaae9a8670b6701185d4c945))
+* **skill:** add OSS false-positive hunting workflow ([05f920d](https://github.com/KengoTODA/inspequte/commit/05f920d17ac6488658e230e205dca2a689bf2742))
+* **skill:** improve oss fp-hunt triage workflow ([f27cca5](https://github.com/KengoTODA/inspequte/commit/f27cca598d06fb40f5b02257625f490d8bb6978f))
+* **skill:** unify jaeger screenshot capture workflow ([7445e3b](https://github.com/KengoTODA/inspequte/commit/7445e3bd87b797b57a79bb9ca554cef62df71ff0))
+* **telemetry:** route debug summaries to span events ([f1c7bbe](https://github.com/KengoTODA/inspequte/commit/f1c7bbe9d93973f3c5649f9cdfdc96b25b3270b4))
+
+
+### Bug Fixes
+
+* **ci:** capture Jaeger screenshot as full page ([415daca](https://github.com/KengoTODA/inspequte/commit/415daca0f69eafc3975941e77c0fd51e0a493418))
+* **ci:** migrate claude-code-action from [@beta](https://github.com/beta) to [@v1](https://github.com/v1) ([f3cc9c8](https://github.com/KengoTODA/inspequte/commit/f3cc9c8a49bfd45090d0e3ed87f49dc1d1126d01))
+* **ci:** remove quotes from heredoc delimiter in rule-authoring-opus.yml ([100818d](https://github.com/KengoTODA/inspequte/commit/100818d9f258c51806a6fb341bcab9843438b26b))
+* **ci:** set mode to agent for claude-code-action on workflow_dispatch ([dc963a2](https://github.com/KengoTODA/inspequte/commit/dc963a2dc9ebd849e5b90a44fb3c429a21a950be))
+* **nullness:** deduplicate identical findings ([d979811](https://github.com/KengoTODA/inspequte/commit/d97981173b056a4e3b74357792fb9b7e67ac0976))
+* **rules:** limit ineffective-equals to analysis targets ([e491076](https://github.com/KengoTODA/inspequte/commit/e4910766630c0047b984e2ee8c3a9c47a0a1f609))
+
+
+### Performance Improvements
+
+* **nullness:** cache invoke descriptor and call target metadata ([49f17c5](https://github.com/KengoTODA/inspequte/commit/49f17c5d54987bf9c257813d724fd68e70582f92))
+
 ## [0.18.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.17.0...inspequte-v0.18.0) (2026-02-13)
 
 
