@@ -65,8 +65,52 @@ impl Rule for NullnessRule {
             results.extend(class_results);
         }
 
-        Ok(results)
+        Ok(deduplicate_results(results))
     }
+}
+
+fn deduplicate_results(results: Vec<SarifResult>) -> Vec<SarifResult> {
+    let mut seen = BTreeSet::new();
+    let mut deduped = Vec::with_capacity(results.len());
+    for result in results {
+        let key = result_dedup_key(&result);
+        if seen.insert(key) {
+            deduped.push(result);
+        }
+    }
+    deduped
+}
+
+fn result_dedup_key(result: &SarifResult) -> (String, String, i64, String) {
+    let message = result.message.text.clone().unwrap_or_default();
+    let (artifact_uri, line, logical) = if let Some(location) = result
+        .locations
+        .as_ref()
+        .and_then(|locations| locations.first())
+    {
+        let artifact_uri = location
+            .physical_location
+            .as_ref()
+            .and_then(|physical| physical.artifact_location.as_ref())
+            .and_then(|artifact| artifact.uri.clone())
+            .unwrap_or_default();
+        let line = location
+            .physical_location
+            .as_ref()
+            .and_then(|physical| physical.region.as_ref())
+            .and_then(|region| region.start_line)
+            .unwrap_or(0);
+        let logical = location
+            .logical_locations
+            .as_ref()
+            .and_then(|logicals| logicals.first())
+            .and_then(|logical| logical.name.clone())
+            .unwrap_or_default();
+        (artifact_uri, line, logical)
+    } else {
+        (String::new(), 0, String::new())
+    };
+    (message, artifact_uri, line, logical)
 }
 
 fn check_overrides(class: &Class, class_map: &BTreeMap<String, &Class>) -> Vec<SarifResult> {
@@ -1239,6 +1283,50 @@ public @interface NullnessUnspecified {}
         harness
             .compile_and_analyze(Language::Java, &sources, &[])
             .expect("run harness analysis")
+    }
+
+    #[test]
+    fn deduplicate_results_removes_identical_result_entries() {
+        let duplicate_a = SarifResult::builder()
+            .message(result_message(
+                "Nullness issue: possible null receiver in call to a/b/C.m()V",
+            ))
+            .locations(vec![crate::rules::method_location_with_line(
+                "a/b/C",
+                "methodX",
+                "()V",
+                Some("file:///tmp/C.class"),
+                Some(42),
+            )])
+            .build();
+        let duplicate_b = SarifResult::builder()
+            .message(result_message(
+                "Nullness issue: possible null receiver in call to a/b/C.m()V",
+            ))
+            .locations(vec![crate::rules::method_location_with_line(
+                "a/b/C",
+                "methodX",
+                "()V",
+                Some("file:///tmp/C.class"),
+                Some(42),
+            )])
+            .build();
+        let distinct = SarifResult::builder()
+            .message(result_message(
+                "Nullness issue: possible null receiver in call to a/b/C.m()V",
+            ))
+            .locations(vec![crate::rules::method_location_with_line(
+                "a/b/C",
+                "methodX",
+                "()V",
+                Some("file:///tmp/C.class"),
+                Some(43),
+            )])
+            .build();
+
+        let deduped = deduplicate_results(vec![duplicate_a, duplicate_b, distinct]);
+
+        assert_eq!(2, deduped.len());
     }
 
     #[test]
