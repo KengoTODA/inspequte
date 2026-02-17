@@ -23,6 +23,9 @@ impl Rule for IneffectiveEqualsRule {
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
         let mut results = Vec::new();
         for class in &context.classes {
+            if !context.is_analysis_target_class(class) {
+                continue;
+            }
             let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
             if let Some(uri) = context.class_artifact_uri(class) {
                 attributes.push(KeyValue::new("inspequte.artifact_uri", uri));
@@ -201,6 +204,64 @@ public class ClassA {
             messages
                 .iter()
                 .any(|msg| msg.contains("overrides equals without hashCode"))
+        );
+    }
+
+    #[test]
+    fn ineffective_equals_rule_ignores_classpath_classes() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let dependency_sources = vec![SourceFile {
+            path: "com/example/ClassB.java".to_string(),
+            contents: r#"
+package com.example;
+public class ClassB {
+    @Override
+    public boolean equals(Object varOne) {
+        return varOne instanceof ClassB;
+    }
+}
+"#
+            .to_string(),
+        }];
+        let dependency_output = harness
+            .compile(Language::Java, &dependency_sources, &[])
+            .expect("compile dependency classes");
+
+        let app_sources = vec![SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+public class ClassA {
+    public void methodX() {}
+}
+"#
+            .to_string(),
+        }];
+        let app_output = harness
+            .compile(
+                Language::Java,
+                &app_sources,
+                &[dependency_output.classes_dir().to_path_buf()],
+            )
+            .expect("compile app classes");
+
+        let analysis = harness
+            .analyze(
+                app_output.classes_dir(),
+                &[dependency_output.classes_dir().to_path_buf()],
+            )
+            .expect("run harness analysis");
+
+        let messages: Vec<String> = analysis
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("INEFFECTIVE_EQUALS_HASHCODE"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+
+        assert!(
+            messages.is_empty(),
+            "classpath classes must be out of scope for INEFFECTIVE_EQUALS_HASHCODE: {messages:?}"
         );
     }
 }

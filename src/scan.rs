@@ -111,7 +111,9 @@ pub(crate) fn scan_inputs(
             artifacts.push(artifact);
         }
         for mut class in output.classes.drain(..) {
-            class.artifact_index += offset;
+            if class.artifact_index >= 0 {
+                class.artifact_index += offset;
+            }
             classes.push(class);
         }
         class_count += output.class_count;
