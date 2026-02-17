@@ -12,6 +12,7 @@
 - Use Java 21 for the test harness via `JAVA_HOME`.
 - Use release-please with crates.io trusted publisher (OIDC).
 - Run `cargo fmt` after each code modification.
+- Prefer simplicity over backward compatibility; avoid compatibility shims or fallback paths unless they come for free without adding complexity.
 - Span naming convention: `scope.action` (e.g., `scan.jar`, `scan.class`).
 - Rule messages for users must be intuitive and actionable: clearly state the problem and what to do to fix it.
 - Do not support suppression annotations (for example `@Suppress` / `@SuppressWarnings`) as a findings control mechanism.
