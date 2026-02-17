@@ -30,6 +30,65 @@ export PATH="${repo_root}/target/debug:${PATH}"
 
 "${repo_root}/.codex/skills/jaeger-spotbugs-benchmark/scripts/start-jaeger.sh" >/dev/null
 
+decode_file_uri() {
+  local uri="$1"
+  uri="${uri#file://}"
+  printf '%s' "${uri}"
+}
+
+declare -A rule_spec_map=()
+while IFS=$'\t' read -r rule_id rule_dir; do
+  if [ -n "${rule_id}" ] && [ -n "${rule_dir}" ]; then
+    rule_spec_map["${rule_id}"]="${repo_root}/src/rules/${rule_dir}/spec.md"
+  fi
+done < <(
+  rg -n 'id:' "${repo_root}"/src/rules/*/mod.rs | while IFS=: read -r path _line text; do
+    rule_id="$(printf '%s' "${text}" | sed -n 's/.*id:[[:space:]]*"\([A-Z0-9_]*\)".*/\1/p')"
+    if [ -n "${rule_id}" ]; then
+      rule_dir="$(basename "$(dirname "${path}")")"
+      printf '%s\t%s\n' "${rule_id}" "${rule_dir}"
+    fi
+  done
+)
+
+lookup_rule_spec() {
+  local rule="$1"
+  local spec_path="${rule_spec_map[${rule}]:-}"
+  if [ -n "${spec_path}" ] && [ -f "${spec_path}" ]; then
+    printf '%s' "${spec_path#${repo_root}/}"
+    return 0
+  fi
+  printf 'N/A'
+}
+
+classify_finding() {
+  local rule="$1"
+  local file_uri="$2"
+  local line="$3"
+  local spec_ref="$4"
+
+  if ! [[ "${line}" =~ ^[0-9]+$ ]]; then
+    line=0
+  fi
+
+  if [[ "${file_uri}" == *"/.gradle/caches/modules-2/"* ]]; then
+    printf 'FP\tclasspath dependency finding is out of scope (spec=%s)' "${spec_ref}"
+    return 0
+  fi
+
+  if [ "${line}" -eq 0 ]; then
+    printf 'FAILED\tline=0 cannot be mapped to actionable source (spec=%s)' "${spec_ref}"
+    return 0
+  fi
+
+  if [ "${spec_ref}" = "N/A" ]; then
+    printf 'FAILED\trule spec was not found; manual review required'
+    return 0
+  fi
+
+  printf 'FAILED\tmanual rule validation required using spec=%s' "${spec_ref}"
+}
+
 run_fixture() {
   local name="$1"
   local dir="$2"
@@ -69,10 +128,31 @@ run_fixture() {
         continue
       fi
 
+      local -A seen=()
       jq -r '
         .runs[]?.results[]? |
-        "- [ ] status=UNTRIAGED rule=\(.ruleId // "") file=\(.locations[0].physicalLocation.artifactLocation.uri // "") line=\(.locations[0].physicalLocation.region.startLine // 0) message=\((.message.text // "") | gsub("\\n"; " "))"
-      ' "${sarif}"
+        [
+          (.ruleId // ""),
+          (.locations[0].physicalLocation.artifactLocation.uri // ""),
+          ((.locations[0].physicalLocation.region.startLine // 0) | tostring),
+          ((.message.text // "") | gsub("[\\n\\r\\t]+"; " "))
+        ] | @tsv
+      ' "${sarif}" | while IFS=$'\t' read -r rule file line message; do
+        local key status reason classification spec_ref
+        key="${rule}"$'\t'"${file}"$'\t'"${line}"$'\t'"${message}"
+        spec_ref="$(lookup_rule_spec "${rule}")"
+        if [[ -n "${seen[${key}]+x}" ]]; then
+          status="FP"
+          reason="duplicate finding (same rule, file, line, message; spec=${spec_ref})"
+        else
+          seen["${key}"]=1
+          classification="$(classify_finding "${rule}" "${file}" "${line}" "${spec_ref}")"
+          status="${classification%%$'\t'*}"
+          reason="${classification#*$'\t'}"
+        fi
+        printf -- "- [ ] status=%s rule=%s file=%s line=%s message=%s reason=%s\n" \
+          "${status}" "${rule}" "${file}" "${line}" "${message}" "${reason}"
+      done
       echo
       total=$((total + count))
     done < <(find "${out_dir}/inspequte" -type f -name 'report.sarif' | sort)
@@ -89,13 +169,14 @@ triage_files=(
   "${repo_root}/target/oss-fp/triage/okhttp-eventsource.md"
 )
 
-read -r triage_total triage_untriaged triage_tp triage_fp dep_findings line0_findings kotlin_findings nullness_findings nullness_unique <<EOF
+read -r triage_total triage_untriaged triage_tp triage_fp triage_failed dep_findings line0_findings kotlin_findings nullness_findings nullness_unique <<EOF
 $(awk '
 BEGIN {
   total = 0
   untriaged = 0
   tp = 0
   fp = 0
+  failed = 0
   dep = 0
   line0 = 0
   kotlin = 0
@@ -105,6 +186,7 @@ BEGIN {
 /status=UNTRIAGED/ { untriaged++ }
 /status=TP/ { tp++ }
 /status=FP/ { fp++ }
+/status=FAILED/ { failed++ }
 /\.gradle\/caches\/modules-2/ { dep++ }
 / line=0 / { line0++ }
 /\/build\/classes\/kotlin\// { kotlin++ }
@@ -119,7 +201,7 @@ END {
   for (item in unique_nullness) {
     unique_count++
   }
-  printf "%d %d %d %d %d %d %d %d %d\n", total, untriaged, tp, fp, dep, line0, kotlin, nullness, unique_count
+  printf "%d %d %d %d %d %d %d %d %d %d\n", total, untriaged, tp, fp, failed, dep, line0, kotlin, nullness, unique_count
 }
 ' "${triage_files[@]}")
 EOF
@@ -132,20 +214,20 @@ fi
 assessment="preliminary"
 if [ "${triage_total}" -eq 0 ]; then
   assessment="no-findings"
-elif [ "${triage_untriaged}" -eq 0 ]; then
+elif [ "${triage_untriaged}" -eq 0 ] && [ "${triage_failed}" -eq 0 ]; then
   assessment="triaged"
+elif [ "${triage_untriaged}" -eq 0 ] && [ "${triage_failed}" -gt 0 ]; then
+  assessment="needs-manual-review"
 fi
-
-fp_summary="Most FP risk appears to come from dependency bytecode scope and duplicate nullness reporting, not project-owned source."
 
 fp_thoughts_json="$(
   jq -n \
     --arg assessment "${assessment}" \
-    --arg summary "${fp_summary}" \
     --argjson total "${triage_total}" \
     --argjson untriaged "${triage_untriaged}" \
     --argjson tp "${triage_tp}" \
     --argjson fp "${triage_fp}" \
+    --argjson failed "${triage_failed}" \
     --argjson dep "${dep_findings}" \
     --argjson line0 "${line0_findings}" \
     --argjson kotlin "${kotlin_findings}" \
@@ -154,12 +236,12 @@ fp_thoughts_json="$(
     --argjson null_dup "${nullness_duplicate}" \
     '{
       assessment: $assessment,
-      summary: $summary,
       triage_status: {
         total_findings: $total,
         untriaged: $untriaged,
         tp: $tp,
-        fp: $fp
+        fp: $fp,
+        failed: $failed
       },
       fp_signals: {
         dependency_cache_findings: $dep,
@@ -169,27 +251,35 @@ fp_thoughts_json="$(
         unique_nullness_findings: $null_unique,
         duplicated_nullness_findings: $null_dup
       },
-      final_thoughts: [
+      facts: [
         {
-          id: "dependency-scope-noise",
-          confidence: (if $dep > 0 then "high" else "low" end),
-          thought: "Many findings come from third-party jars in Gradle cache. These are likely non-actionable for OSS owner triage unless dependency scanning is explicitly desired."
+          id: "failed_findings",
+          value: $failed
         },
         {
-          id: "line-zero-actionability",
-          confidence: (if $line0 > 0 then "high" else "low" end),
-          thought: "Class-level findings with line=0 are hard to action and should be considered FP candidates or downgraded in OSS workflows."
+          id: "dependency_cache_findings",
+          value: $dep
         },
         {
-          id: "nullness-duplication-noise",
-          confidence: (if $null_dup > 0 then "medium" else "low" end),
-          thought: "Repeated NULLNESS alerts on the same target inflate noise and should be deduplicated by rule, file, line, and message."
+          id: "line_zero_locations",
+          value: $line0
+        },
+        {
+          id: "kotlin_generated_findings",
+          value: $kotlin
+        },
+        {
+          id: "nullness_findings",
+          value: $nullness
+        },
+        {
+          id: "unique_nullness_findings",
+          value: $null_unique
+        },
+        {
+          id: "duplicated_nullness_findings",
+          value: $null_dup
         }
-      ],
-      recommended_followups: [
-        "Exclude external dependency jars from default OSS FP-hunt scope or tag them as dependency findings.",
-        "Deduplicate identical findings before report generation.",
-        "For Kotlin bytecode, avoid duplicated reports for synthetic accessors/bridges and keep one actionable location."
       ]
     }'
 )"

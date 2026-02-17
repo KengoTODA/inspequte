@@ -28,7 +28,7 @@ If one fixture is not buildable, replace it with another thin OSS fixture of the
 
 ## Workflow
 1. Execute `.codex/skills/inspequte-oss-fp-hunt/scripts/run-once.sh` from repository root.
-2. The script clones fixtures, enables `io.github.kengotoda.inspequte` with local `includeBuild`, runs analysis tasks, and exports SARIF + triage placeholders.
+2. The script clones fixtures, enables `io.github.kengotoda.inspequte` with local `includeBuild`, runs analysis tasks, exports SARIF, and writes triage ledgers with first-pass `TP`/`FP`/`FAILED` classification plus reason and `spec=...` reference.
 3. Export trace JSON and resolve trace ID:
    - `trace_json="$(JAEGER_OUT_DIR=target/oss-fp/jaeger .codex/skills/jaeger-spotbugs-benchmark/scripts/export-jaeger-trace.sh)"`
    - `trace_id="$(basename "${trace_json}" .json)"`
@@ -40,16 +40,19 @@ If one fixture is not buildable, replace it with another thin OSS fixture of the
    - `screenshot_png="$(JAEGER_OUT_DIR=target/oss-fp/jaeger node scripts/capture-jaeger-trace-screenshot.mjs "${trace_id}")"`
 6. Analyze trace:
    - `.codex/skills/jaeger-spotbugs-benchmark/scripts/analyze-trace-json.sh "${trace_json}"`
-7. Review findings one-by-one in each triage ledger and classify `TP` or `FP` with short code evidence.
+7. Review findings one-by-one in each triage ledger and adjust status only when code evidence contradicts the first-pass classification.
 
 ## Finding triage rules
-For each SARIF result:
+First-pass automated classification in `run-once.sh`:
+- `FP` when file is under `/.gradle/caches/modules-2/` (classpath dependency out of scope).
+- `FAILED` when `line=0` (non-actionable location; requires manual rule/location handling).
+- `FP` when duplicated by exact key `(rule, file, line, message)` after first occurrence.
+- Other findings are marked `FAILED` with `spec=<path>` to the corresponding rule spec file.
+
+Manual review policy:
 - Confirm referenced file/line exists in fixture source.
-- Compare finding message against actual code and expected rule intent.
-- Mark:
-  - `TP`: rule behavior matches real problem.
-  - `FP`: finding is not actionable or contradicts code semantics.
-- Add short reason and suggested rule/test follow-up.
+- Compare finding message and source code against the referenced `spec.md`.
+- Resolve `FAILED` items first, then override status only with short code-backed reason.
 
 ## Guardrails
 - Do not edit fixture repositories outside `target/oss-fp/workdir/`.
