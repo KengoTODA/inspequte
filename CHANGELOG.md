@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.20.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.19.0...inspequte-v0.20.0) (2026-02-18)
+
+
+### Features
+
+* **rules:** add EXPLICIT_GC_CALL rule ([3921c20](https://github.com/KengoTODA/inspequte/commit/3921c20a88f886f1b80a31bcc51b2760b5cb1645))
+* **rules:** add PRINT_STACK_TRACE rule ([e20dba6](https://github.com/KengoTODA/inspequte/commit/e20dba66afe2231013a8ca60189dcfc8f33455ff))
+* **rules:** add SYSTEM_EXIT rule with Kotlin main/exitProcess support ([89237ed](https://github.com/KengoTODA/inspequte/commit/89237ed85096f4b0a30ce70fe6d97458a7922566))
+
 ## [0.19.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.18.0...inspequte-v0.19.0) (2026-02-17)
 
 
