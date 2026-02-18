@@ -10,6 +10,7 @@ pub(crate) mod array_equals;
 pub(crate) mod bigdecimal_from_double;
 pub(crate) mod empty_catch;
 pub(crate) mod exception_cause_not_preserved;
+pub(crate) mod explicit_gc_call;
 pub(crate) mod ineffective_equals;
 pub(crate) mod insecure_api;
 pub(crate) mod interrupted_exception;
@@ -171,7 +172,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 30, "Expected 30 rules to be registered");
+        assert_eq!(rules.len(), 31, "Expected 31 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -189,6 +190,7 @@ mod tests {
             "ARRAY_EQUALS",
             "BIGDECIMAL_FROM_DOUBLE",
             "EMPTY_CATCH",
+            "EXPLICIT_GC_CALL",
             "EXCEPTION_CAUSE_NOT_PRESERVED",
             "INEFFECTIVE_EQUALS_HASHCODE",
             "INSECURE_API",

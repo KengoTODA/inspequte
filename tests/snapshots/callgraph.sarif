@@ -63,6 +63,13 @@
               }
             },
             {
+              "id": "EXPLICIT_GC_CALL",
+              "name": "Explicit GC call",
+              "shortDescription": {
+                "text": "Direct calls to explicit GC APIs should be avoided"
+              }
+            },
+            {
               "id": "INEFFECTIVE_EQUALS_HASHCODE",
               "name": "Ineffective equals/hashCode",
               "shortDescription": {
