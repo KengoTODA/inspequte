@@ -41,6 +41,7 @@ pub(crate) mod slf4j_unknown_array;
 pub(crate) mod string_case_without_locale;
 pub(crate) mod system_exit;
 pub(crate) mod thread_run_direct_call;
+pub(crate) mod url_equals_call;
 
 /// Metadata describing an analysis rule.
 #[derive(Clone, Debug)]
@@ -176,7 +177,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 35, "Expected 35 rules to be registered");
+        assert_eq!(rules.len(), 36, "Expected 36 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -226,6 +227,7 @@ mod tests {
             "STRING_CASE_WITHOUT_LOCALE",
             "SYSTEM_EXIT",
             "THREAD_RUN_DIRECT_CALL",
+            "URL_EQUALS_CALL",
         ];
 
         for expected_id in &expected_ids {

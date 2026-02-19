@@ -278,6 +278,13 @@
               "shortDescription": {
                 "text": "Direct Thread.run() calls execute synchronously on the current thread"
               }
+            },
+            {
+              "id": "URL_EQUALS_CALL",
+              "name": "URL equals call",
+              "shortDescription": {
+                "text": "URL.equals may trigger host resolution and surprising equality semantics"
+              }
             }
           ],
           "semanticVersion": "0.0.0"
