@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           distribution: "temurin"
           java-version-file: ".java-version"
@@ -94,7 +94,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Run Claude (Opus)
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@0cf5eeec4f908121edd03a81411b55485994f8d3 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_CLAUDE_KEY }}
           prompt: ${{ steps.prompt.outputs.prompt }}
@@ -165,7 +165,7 @@ jobs:
     steps:
       - name: Create app token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.APP_ID_CLAUDE }}
           private-key: ${{ secrets.PRIVATE_KEY_CLAUDE }}
@@ -179,7 +179,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Download authoring artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: opus-authoring
           path: target/opus-workflow/from-authoring

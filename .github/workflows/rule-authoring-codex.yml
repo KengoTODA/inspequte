@@ -71,7 +71,7 @@ jobs:
 
       - name: Phase 1 - Ideate + Plan
         id: codex_phase1
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@086169432f1d2ab2f4057540b1754d550f6a1189 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -162,7 +162,7 @@ jobs:
           persist-credentials: false
 
       - name: Download phase-1 artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: codex-phase1
           path: target/codex-workflow/from-phase1
@@ -210,7 +210,7 @@ jobs:
 
       - name: Phase 2 - Spec from Plan
         id: codex_phase2
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@086169432f1d2ab2f4057540b1754d550f6a1189 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -258,7 +258,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           distribution: "temurin"
           java-version-file: ".java-version"
@@ -269,7 +269,7 @@ jobs:
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
 
       - name: Download phase-2 artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: codex-phase2
           path: target/codex-workflow/from-phase2
@@ -316,7 +316,7 @@ jobs:
 
       - name: Phase 3 - Implement from Spec
         id: codex_phase3
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@086169432f1d2ab2f4057540b1754d550f6a1189 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -417,7 +417,7 @@ jobs:
           persist-credentials: false
 
       - name: Download phase-3 artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: codex-phase3
           path: target/codex-workflow/from-phase3
@@ -439,7 +439,7 @@ jobs:
 
       - name: Create app token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.APP_ID_CODEX }}
           private-key: ${{ secrets.PRIVATE_KEY_CODEX }}
@@ -501,7 +501,7 @@ jobs:
           persist-credentials: false
 
       - name: Download phase-3 artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: codex-phase3
           path: target/codex-workflow/from-phase3
@@ -559,7 +559,7 @@ jobs:
 
       - name: Phase 4 - Verify from Spec and verify-input
         id: codex_phase4
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@086169432f1d2ab2f4057540b1754d550f6a1189 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -627,7 +627,7 @@ jobs:
     steps:
       - name: Create app token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.APP_ID_CODEX }}
           private-key: ${{ secrets.PRIVATE_KEY_CODEX }}
@@ -641,7 +641,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Download phase-4 artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: codex-phase4
           path: target/codex-workflow/from-phase4
