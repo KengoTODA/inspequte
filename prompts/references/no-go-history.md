@@ -44,3 +44,11 @@ Append one entry each time verify returns `No-Go`.
 - run-url: N/A (local user decision)
 - status: abandoned (2026-02-18)
 - actions: reverted all uncommitted rule files and registration/snapshot changes; documented rationale to avoid re-proposing this rule for JDK 18+ baseline projects.
+
+## 2026-02-19T21:35:13Z | file_delete_result_ignored
+- rule-id: `file_delete_result_ignored`
+- rule idea: Detect `java.io.File.delete()` calls where the boolean result is ignored.
+- no-go reason: ignoring the return value can be intentional in some cleanup paths, and the rule can become noisy when the developer explicitly chooses not to check deletion success.
+- run-url: N/A (local user decision)
+- status: abandoned (2026-02-19)
+- actions: reverted all uncommitted rule files and registration/snapshot changes; recorded this entry to avoid re-proposing the same noisy direction.
