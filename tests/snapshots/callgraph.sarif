@@ -63,6 +63,13 @@
               }
             },
             {
+              "id": "BIGDECIMAL_SET_SCALE_WITHOUT_ROUNDING",
+              "name": "BigDecimal setScale without rounding",
+              "shortDescription": {
+                "text": "BigDecimal.setScale(int) can throw when rounding is required"
+              }
+            },
+            {
               "id": "DELETE_ON_EXIT_CALL",
               "name": "File.deleteOnExit call",
               "shortDescription": {

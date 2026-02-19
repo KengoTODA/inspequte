@@ -10,6 +10,7 @@ pub(crate) mod array_equals;
 pub(crate) mod bigdecimal_divide_without_rounding;
 pub(crate) mod bigdecimal_equals_call;
 pub(crate) mod bigdecimal_from_double;
+pub(crate) mod bigdecimal_setscale_without_rounding;
 pub(crate) mod delete_on_exit_call;
 pub(crate) mod empty_catch;
 pub(crate) mod exception_cause_not_preserved;
@@ -181,7 +182,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 40, "Expected 40 rules to be registered");
+        assert_eq!(rules.len(), 41, "Expected 41 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -200,6 +201,7 @@ mod tests {
             "BIGDECIMAL_DIVIDE_WITHOUT_ROUNDING",
             "BIGDECIMAL_FROM_DOUBLE",
             "BIGDECIMAL_EQUALS_CALL",
+            "BIGDECIMAL_SET_SCALE_WITHOUT_ROUNDING",
             "DELETE_ON_EXIT_CALL",
             "EMPTY_CATCH",
             "EXPLICIT_GC_CALL",
