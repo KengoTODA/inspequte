@@ -42,6 +42,13 @@
               }
             },
             {
+              "id": "BIGDECIMAL_DIVIDE_WITHOUT_ROUNDING",
+              "name": "BigDecimal divide without rounding",
+              "shortDescription": {
+                "text": "BigDecimal.divide(BigDecimal) can throw on non-terminating decimals"
+              }
+            },
+            {
               "id": "BIGDECIMAL_EQUALS_CALL",
               "name": "BigDecimal equals call",
               "shortDescription": {
