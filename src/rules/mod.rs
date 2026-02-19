@@ -24,6 +24,7 @@ pub(crate) mod log4j2_sign_only_format;
 pub(crate) mod log4j2_unknown_array;
 pub(crate) mod mutate_unmodifiable_collection;
 pub(crate) mod nullness;
+pub(crate) mod optional_get_call;
 pub(crate) mod prefer_enumset;
 pub(crate) mod print_stack_trace;
 pub(crate) mod record_array_field;
@@ -173,7 +174,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 32, "Expected 32 rules to be registered");
+        assert_eq!(rules.len(), 33, "Expected 33 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -206,6 +207,7 @@ mod tests {
             "LOG4J2_UNKNOWN_ARRAY",
             "MUTATE_UNMODIFIABLE_COLLECTION",
             "NULLNESS",
+            "OPTIONAL_GET_CALL",
             "PREFER_ENUMSET",
             "PRINT_STACK_TRACE",
             "RECORD_ARRAY_FIELD",

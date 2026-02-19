@@ -161,6 +161,13 @@
               }
             },
             {
+              "id": "OPTIONAL_GET_CALL",
+              "name": "Optional direct getter call",
+              "shortDescription": {
+                "text": "Optional.get/getAs* can throw when empty"
+              }
+            },
+            {
               "id": "PREFER_ENUMSET",
               "name": "Prefer EnumSet for enum collections",
               "shortDescription": {
