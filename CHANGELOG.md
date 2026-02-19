@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.21.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.20.0...inspequte-v0.21.0) (2026-02-19)
+
+
+### Features
+
+* **rules:** add BIGDECIMAL_DIVIDE_WITHOUT_ROUNDING rule ([354a5bb](https://github.com/KengoTODA/inspequte/commit/354a5bbbb1929cb7141acce698ec1093b1b77e76))
+* **rules:** add BIGDECIMAL_EQUALS_CALL rule ([7b82bbd](https://github.com/KengoTODA/inspequte/commit/7b82bbdb7fe056f3dacef6a6ec84f1fc893cc9ed))
+* **rules:** add BIGDECIMAL_SET_SCALE_WITHOUT_ROUNDING rule ([bce533e](https://github.com/KengoTODA/inspequte/commit/bce533ee4d024f778c323a650b39669d8d32ad49))
+* **rules:** add DELETE_ON_EXIT_CALL rule ([0ea65c8](https://github.com/KengoTODA/inspequte/commit/0ea65c8c84e866d7ddec5447084e18fa98e38252))
+* **rules:** add DESERIALIZATION_READ_OBJECT_CALL rule ([36091bf](https://github.com/KengoTODA/inspequte/commit/36091bf9d778458a6401b02345d56833c79d1baf))
+* **rules:** add OPTIONAL_GET_CALL rule ([b4e4eab](https://github.com/KengoTODA/inspequte/commit/b4e4eab7135e111decb13af2834eb49fd754eb3a))
+* **rules:** add RUN_FINALIZATION_CALL rule ([7f327ab](https://github.com/KengoTODA/inspequte/commit/7f327ab969256764356002a491a02cc0e9b6eefd))
+* **rules:** add RUNTIME_HALT_CALL rule ([ad94eb2](https://github.com/KengoTODA/inspequte/commit/ad94eb2f4ddf707d559ab11930ac47561ad1f481))
+* **rules:** add THREAD_RUN_DIRECT_CALL rule ([c512e73](https://github.com/KengoTODA/inspequte/commit/c512e7373fd51f83460277509d6d4d4a75cd7edd))
+* **rules:** add URL_EQUALS_CALL rule ([5ee86bb](https://github.com/KengoTODA/inspequte/commit/5ee86bbbcb403b5f91284b1f570450f80fb0d68e))
+
 ## [0.20.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.19.0...inspequte-v0.20.0) (2026-02-18)
 
 
