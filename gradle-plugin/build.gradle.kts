@@ -1,6 +1,7 @@
 plugins {
     `java-gradle-plugin`
     `kotlin-dsl`
+    jacoco
     id("com.gradle.plugin-publish") version "2.0.0"
 }
 
@@ -43,4 +44,11 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    finalizedBy(tasks.named("jacocoTestReport"))
+}
+
+tasks.named<JacocoReport>("jacocoTestReport") {
+    reports {
+        xml.required.set(true)
+    }
 }

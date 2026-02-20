@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -32,6 +33,13 @@ jobs:
           name: gradle-plugin-reports
           path: gradle-plugin/build/reports
           if-no-files-found: warn
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: gradle-plugin/build/reports/jacoco/test/jacocoTestReport.xml
+          flags: gradle-plugin
+          fail_ci_if_error: true
   cli:
     runs-on: ubuntu-latest
     permissions:
@@ -72,6 +80,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: target/coverage/lcov.info
+          flags: cli
           fail_ci_if_error: true
       - name: Upload smoke test logs
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
