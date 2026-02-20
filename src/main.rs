@@ -21,7 +21,6 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
-use jsonschema::JSONSchema;
 use opentelemetry::KeyValue;
 use serde_json::json;
 use serde_sarif::sarif::Result as SarifResult;
@@ -489,14 +488,15 @@ fn should_validate_sarif() -> bool {
 fn validate_sarif(sarif: &Sarif) -> Result<()> {
     let schema = serde_json::from_str(include_str!("assets/sarif-2.1.0.json"))
         .context("load SARIF schema")?;
-    let compiled = JSONSchema::compile(&schema)
+    let compiled = jsonschema::validator_for(&schema)
         .map_err(|err| anyhow::anyhow!("compile SARIF schema: {err}"))?;
     let value = serde_json::to_value(sarif).context("serialize SARIF")?;
-    if let Err(errors) = compiled.validate(&value) {
-        let message = errors
-            .map(|error| error.to_string())
-            .collect::<Vec<_>>()
-            .join("\n");
+    let errors: Vec<String> = compiled
+        .iter_errors(&value)
+        .map(|error| error.to_string())
+        .collect();
+    if !errors.is_empty() {
+        let message = errors.join("\n");
         anyhow::bail!("SARIF schema validation failed:\n{message}");
     }
     Ok(())
