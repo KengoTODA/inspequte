@@ -105,6 +105,13 @@
               }
             },
             {
+              "id": "FUTURE_GET_WITHOUT_TIMEOUT",
+              "name": "Future.get without timeout",
+              "shortDescription": {
+                "text": "Timeout-free Future.get calls can block indefinitely"
+              }
+            },
+            {
               "id": "INEFFECTIVE_EQUALS_HASHCODE",
               "name": "Ineffective equals/hashCode",
               "shortDescription": {

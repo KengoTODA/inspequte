@@ -16,6 +16,7 @@ pub(crate) mod deserialization_read_object_call;
 pub(crate) mod empty_catch;
 pub(crate) mod exception_cause_not_preserved;
 pub(crate) mod explicit_gc_call;
+pub(crate) mod future_get_without_timeout;
 pub(crate) mod ineffective_equals;
 pub(crate) mod insecure_api;
 pub(crate) mod interrupted_exception;
@@ -183,7 +184,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 42, "Expected 42 rules to be registered");
+        assert_eq!(rules.len(), 43, "Expected 43 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -211,6 +212,7 @@ mod tests {
             "INEFFECTIVE_EQUALS_HASHCODE",
             "INSECURE_API",
             "INTERRUPTED_EXCEPTION_NOT_RESTORED",
+            "FUTURE_GET_WITHOUT_TIMEOUT",
             "LOCK_NOT_RELEASED_ON_EXCEPTION_PATH",
             "LOG4J2_FORMAT_SHOULD_BE_CONST",
             "LOG4J2_ILLEGAL_PASSED_CLASS",
