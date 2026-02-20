@@ -19,6 +19,7 @@ pub(crate) mod explicit_gc_call;
 pub(crate) mod future_get_without_timeout;
 pub(crate) mod ineffective_equals;
 pub(crate) mod insecure_api;
+pub(crate) mod integer_getinteger_call;
 pub(crate) mod interrupted_exception;
 pub(crate) mod lock_not_released_on_exception_path;
 pub(crate) mod log4j2_format_should_be_const;
@@ -211,7 +212,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 46, "Expected 46 rules to be registered");
+        assert_eq!(rules.len(), 47, "Expected 47 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -238,6 +239,7 @@ mod tests {
             "EXCEPTION_CAUSE_NOT_PRESERVED",
             "INEFFECTIVE_EQUALS_HASHCODE",
             "INSECURE_API",
+            "INTEGER_GETINTEGER_CALL",
             "INTERRUPTED_EXCEPTION_NOT_RESTORED",
             "FUTURE_GET_WITHOUT_TIMEOUT",
             "LOCK_NOT_RELEASED_ON_EXCEPTION_PATH",

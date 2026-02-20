@@ -126,6 +126,13 @@
               }
             },
             {
+              "id": "INTEGER_GETINTEGER_CALL",
+              "name": "Integer.getInteger call",
+              "shortDescription": {
+                "text": "Integer.getInteger reads system properties, not numeric input strings"
+              }
+            },
+            {
               "id": "INTERRUPTED_EXCEPTION_NOT_RESTORED",
               "name": "InterruptedException not properly handled",
               "shortDescription": {
