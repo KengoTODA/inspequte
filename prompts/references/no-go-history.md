@@ -52,3 +52,11 @@ Append one entry each time verify returns `No-Go`.
 - run-url: N/A (local user decision)
 - status: abandoned (2026-02-19)
 - actions: reverted all uncommitted rule files and registration/snapshot changes; recorded this entry to avoid re-proposing the same noisy direction.
+
+## 2026-02-20T11:20:49Z | url_same_file_call
+- rule-id: `url_same_file_call`
+- rule idea: Detect `java.net.URL.sameFile(URL)` calls in analysis target classes.
+- no-go reason: `sameFile(URL)` semantics intentionally compare the URL target identity, and this usage is considered explicit and acceptable by user policy.
+- run-url: N/A (local user decision)
+- status: abandoned (2026-02-20)
+- actions: reverted all uncommitted rule files and registration/snapshot changes; recorded this entry to avoid re-proposing this direction.
