@@ -60,3 +60,11 @@ Append one entry each time verify returns `No-Go`.
 - run-url: N/A (local user decision)
 - status: abandoned (2026-02-20)
 - actions: reverted all uncommitted rule files and registration/snapshot changes; recorded this entry to avoid re-proposing this direction.
+
+## 2026-02-20T12:18:05Z | thread_yield_call
+- rule-id: `thread_yield_call`
+- rule idea: Detect direct `java.lang.Thread.yield()` calls in analysis target classes.
+- no-go reason: user policy marked this direction as No-Go.
+- run-url: N/A (local user decision)
+- status: abandoned (2026-02-20)
+- actions: canceled commit `29f66d2`, reverted registration/snapshot impact, and removed rule files from the working tree.
