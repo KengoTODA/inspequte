@@ -383,6 +383,13 @@
               "shortDescription": {
                 "text": "URL.hashCode may trigger host resolution and surprising hash semantics"
               }
+            },
+            {
+              "id": "URL_OPENSTREAM_CALL",
+              "name": "URL.openStream call",
+              "shortDescription": {
+                "text": "URL.openStream can hide timeout and connection configuration"
+              }
             }
           ],
           "semanticVersion": "0.0.0"
