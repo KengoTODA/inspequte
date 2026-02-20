@@ -322,6 +322,13 @@
               }
             },
             {
+              "id": "STRING_INTERN_CALL",
+              "name": "String intern call",
+              "shortDescription": {
+                "text": "String.intern can increase global pool pressure and contention"
+              }
+            },
+            {
               "id": "SYSTEM_EXIT",
               "name": "System.exit call",
               "shortDescription": {
