@@ -203,6 +203,13 @@
               }
             },
             {
+              "id": "OBJECT_WAIT_WITHOUT_TIMEOUT",
+              "name": "Object.wait without timeout",
+              "shortDescription": {
+                "text": "Timeout-free Object.wait calls can block indefinitely"
+              }
+            },
+            {
               "id": "OPTIONAL_GET_CALL",
               "name": "Optional direct getter call",
               "shortDescription": {
