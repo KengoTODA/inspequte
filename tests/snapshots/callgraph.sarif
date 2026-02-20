@@ -371,6 +371,13 @@
               }
             },
             {
+              "id": "THREAD_SLEEP_CALL",
+              "name": "Thread.sleep call",
+              "shortDescription": {
+                "text": "Thread.sleep introduces timing-coupled blocking"
+              }
+            },
+            {
               "id": "URL_EQUALS_CALL",
               "name": "URL equals call",
               "shortDescription": {
@@ -382,6 +389,13 @@
               "name": "URL hashCode call",
               "shortDescription": {
                 "text": "URL.hashCode may trigger host resolution and surprising hash semantics"
+              }
+            },
+            {
+              "id": "URL_OPENSTREAM_CALL",
+              "name": "URL.openStream call",
+              "shortDescription": {
+                "text": "URL.openStream can hide timeout and connection configuration"
               }
             }
           ],

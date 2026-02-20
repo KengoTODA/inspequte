@@ -54,8 +54,10 @@ pub(crate) mod string_case_without_locale;
 pub(crate) mod string_intern_call;
 pub(crate) mod system_exit;
 pub(crate) mod thread_run_direct_call;
+pub(crate) mod thread_sleep_call;
 pub(crate) mod url_equals_call;
 pub(crate) mod url_hashcode_call;
+pub(crate) mod url_openstream_call;
 
 /// Metadata describing an analysis rule.
 #[derive(Clone, Debug)]
@@ -215,7 +217,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 50, "Expected 50 rules to be registered");
+        assert_eq!(rules.len(), 51, "Expected 51 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -278,8 +280,10 @@ mod tests {
             "STRING_INTERN_CALL",
             "SYSTEM_EXIT",
             "THREAD_RUN_DIRECT_CALL",
+            "THREAD_SLEEP_CALL",
             "URL_EQUALS_CALL",
             "URL_HASHCODE_CALL",
+            "URL_OPENSTREAM_CALL",
         ];
 
         for expected_id in &expected_ids {
