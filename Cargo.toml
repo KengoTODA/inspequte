@@ -32,7 +32,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry", "std"] }
 
 [dev-dependencies]
-ureq = "=3.1.4"
+ureq = "=3.2.0"
 tempfile = "=3.25.0"
 
 [[bin]]
