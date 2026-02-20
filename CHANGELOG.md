@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.22.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.21.0...inspequte-v0.22.0) (2026-02-20)
+
+
+### Features
+
+* add automation-details-id support for SARIF runs ([1c7bd26](https://github.com/KengoTODA/inspequte/commit/1c7bd263bd848359bf069ee38c4bd726a89e278b))
+* **rules:** add BOOLEAN_GETBOOLEAN_CALL rule ([68844e6](https://github.com/KengoTODA/inspequte/commit/68844e6cc949f7c3e9f35d6e18d4213f309388cd))
+* **rules:** add COMPARETO_OVERFLOW rule ([064d7a2](https://github.com/KengoTODA/inspequte/commit/064d7a273e7db82f1750c1ba4b4ccae2a4fe69c5))
+* **rules:** add FUTURE_GET_WITHOUT_TIMEOUT rule ([90ac744](https://github.com/KengoTODA/inspequte/commit/90ac744c6286ab8730e71a58c38e080c918950c9))
+* **rules:** add INTEGER_GETINTEGER_CALL rule ([d42b4e3](https://github.com/KengoTODA/inspequte/commit/d42b4e3a47e6ccb9ca9dc3b54927643c3cc3a7f3))
+* **rules:** add LONG_GETLONG_CALL rule ([02483f4](https://github.com/KengoTODA/inspequte/commit/02483f469fcb4c9c62d8888a9422a8fb7328394f))
+* **rules:** add OBJECT_WAIT_WITHOUT_TIMEOUT rule ([3fb9c7e](https://github.com/KengoTODA/inspequte/commit/3fb9c7e53f61b52e9c5b7033b0a46d81a15e69cd))
+* **rules:** add STRING_INTERN_CALL rule ([1599c4a](https://github.com/KengoTODA/inspequte/commit/1599c4a8298a91b155f45c1b214dd8b8333cecad))
+* **rules:** add THREAD_SLEEP_CALL rule ([cfc3087](https://github.com/KengoTODA/inspequte/commit/cfc30870adc5b15b76fe13a22734022abb78b0a1))
+* **rules:** add URL_HASHCODE_CALL rule ([f7ed459](https://github.com/KengoTODA/inspequte/commit/f7ed459d96f19db46f039417ee7bfcccaa333ee1))
+* **rules:** add URL_OPENSTREAM_CALL rule ([2fe0e3c](https://github.com/KengoTODA/inspequte/commit/2fe0e3ce60be9ddef55a01cae1a911e95404d837))
+
+
+### Bug Fixes
+
+* **deps:** update dependency org.junit:junit-bom to v5.14.3 ([#71](https://github.com/KengoTODA/inspequte/issues/71)) ([93b8b50](https://github.com/KengoTODA/inspequte/commit/93b8b50d05a8cc99178622afc189db8e57396fc4))
+* **deps:** update dependency org.junit:junit-bom to v6 ([1efbbf8](https://github.com/KengoTODA/inspequte/commit/1efbbf8954e314b4a80d42debbc129b91f0cd1c0))
+* **deps:** update dependency org.junit:junit-bom to v6 ([60165ae](https://github.com/KengoTODA/inspequte/commit/60165aef4bc75154d54e3d2f347265d5418f39dd))
+* migrate from jsonschema v0.17 to v0.42 API ([a98dd64](https://github.com/KengoTODA/inspequte/commit/a98dd641ada2fbbb2deadb65f98e271b631f1ab4))
+* migrate jsonschema API from v0.17 to v0.42 ([5c6bbab](https://github.com/KengoTODA/inspequte/commit/5c6bbab50719397015a502f355b008c696341c5f))
+* **scripts:** skip empty rule directories in generate-rule-docs.sh ([38f24f0](https://github.com/KengoTODA/inspequte/commit/38f24f05238ece5aa1298d7f1c915d91f07b4b9b))
+* use SourceFile attribute for SARIF source URIs ([4b9f687](https://github.com/KengoTODA/inspequte/commit/4b9f687f277e2f87567b56d0160db85d0432d795))
+
+
+### Performance Improvements
+
+* **ci:** run tests once for coverage by splitting collection and reporting ([66cebeb](https://github.com/KengoTODA/inspequte/commit/66cebeb5ceb4d36b88daeed15b0d4049baab209c))
+
 ## [0.21.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.20.0...inspequte-v0.21.0) (2026-02-19)
 
 

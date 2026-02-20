@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.3.0...gradle-plugin-v0.4.0) (2026-02-20)
+
+
+### Features
+
+* add automation-details-id support for SARIF runs ([1c7bd26](https://github.com/KengoTODA/inspequte/commit/1c7bd263bd848359bf069ee38c4bd726a89e278b))
+
+
+### Bug Fixes
+
+* **deps:** update dependency org.junit:junit-bom to v5.14.3 ([#71](https://github.com/KengoTODA/inspequte/issues/71)) ([93b8b50](https://github.com/KengoTODA/inspequte/commit/93b8b50d05a8cc99178622afc189db8e57396fc4))
+* **deps:** update dependency org.junit:junit-bom to v6 ([1efbbf8](https://github.com/KengoTODA/inspequte/commit/1efbbf8954e314b4a80d42debbc129b91f0cd1c0))
+* **deps:** update dependency org.junit:junit-bom to v6 ([60165ae](https://github.com/KengoTODA/inspequte/commit/60165aef4bc75154d54e3d2f347265d5418f39dd))
+
 ## [0.3.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.2.1...gradle-plugin-v0.3.0) (2026-02-17)
 
 
