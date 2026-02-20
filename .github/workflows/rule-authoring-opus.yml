@@ -179,7 +179,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Download authoring artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: opus-authoring
           path: target/opus-workflow/from-authoring

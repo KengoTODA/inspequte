@@ -162,7 +162,7 @@ jobs:
           persist-credentials: false
 
       - name: Download phase-1 artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: codex-phase1
           path: target/codex-workflow/from-phase1
@@ -269,7 +269,7 @@ jobs:
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
 
       - name: Download phase-2 artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: codex-phase2
           path: target/codex-workflow/from-phase2
@@ -417,7 +417,7 @@ jobs:
           persist-credentials: false
 
       - name: Download phase-3 artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: codex-phase3
           path: target/codex-workflow/from-phase3
@@ -501,7 +501,7 @@ jobs:
           persist-credentials: false
 
       - name: Download phase-3 artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: codex-phase3
           path: target/codex-workflow/from-phase3
@@ -641,7 +641,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Download phase-4 artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: codex-phase4
           path: target/codex-workflow/from-phase4
