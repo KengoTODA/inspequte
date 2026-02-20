@@ -77,6 +77,13 @@
               }
             },
             {
+              "id": "COMPARETO_OVERFLOW",
+              "name": "compareTo integer subtraction overflow",
+              "shortDescription": {
+                "text": "compareTo using integer subtraction can overflow for extreme values"
+              }
+            },
+            {
               "id": "DELETE_ON_EXIT_CALL",
               "name": "File.deleteOnExit call",
               "shortDescription": {
