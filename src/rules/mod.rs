@@ -12,6 +12,7 @@ pub(crate) mod bigdecimal_equals_call;
 pub(crate) mod bigdecimal_from_double;
 pub(crate) mod bigdecimal_setscale_without_rounding;
 pub(crate) mod boolean_getboolean_call;
+pub(crate) mod compareto_overflow;
 pub(crate) mod delete_on_exit_call;
 pub(crate) mod deserialization_read_object_call;
 pub(crate) mod empty_catch;
@@ -214,7 +215,7 @@ mod tests {
     fn all_rules_registers_expected_rules() {
         let rules = all_rules();
         // Verify we have the expected number of rules
-        assert_eq!(rules.len(), 49, "Expected 49 rules to be registered");
+        assert_eq!(rules.len(), 50, "Expected 50 rules to be registered");
 
         // Verify all rule IDs are unique
         let mut ids: Vec<_> = rules.iter().map(|r| r.metadata().id).collect();
@@ -235,6 +236,7 @@ mod tests {
             "BIGDECIMAL_EQUALS_CALL",
             "BIGDECIMAL_SET_SCALE_WITHOUT_ROUNDING",
             "BOOLEAN_GETBOOLEAN_CALL",
+            "COMPARETO_OVERFLOW",
             "DESERIALIZATION_READ_OBJECT_CALL",
             "DELETE_ON_EXIT_CALL",
             "EMPTY_CATCH",

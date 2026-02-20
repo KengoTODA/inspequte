@@ -69,6 +69,7 @@ pub(crate) const INVOKESPECIAL: u8 = 0xb7;
 pub(crate) const INVOKESTATIC: u8 = 0xb8;
 pub(crate) const INVOKEINTERFACE: u8 = 0xb9;
 pub(crate) const INVOKEDYNAMIC: u8 = 0xba;
+pub(crate) const ISUB: u8 = 0x64;
 pub(crate) const LDC: u8 = 0x12;
 pub(crate) const LDC_W: u8 = 0x13;
 pub(crate) const LDC2_W: u8 = 0x14;
