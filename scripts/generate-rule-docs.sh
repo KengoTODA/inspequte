@@ -27,6 +27,11 @@ for rule_dir in "${rule_dirs[@]}"; do
   rule_key="$(echo "$rule_id" | tr '[:upper:]' '[:lower:]')"
   spec_path="$rule_dir/spec.md"
 
+  # Skip empty directories (e.g. no-go rules whose files were removed)
+  if [[ -z "$(ls -A "$rule_dir")" ]]; then
+    continue
+  fi
+
   if [[ -n "${seen_rule_ids[$rule_key]:-}" ]]; then
     fail "duplicate rule ID detected: $rule_id"
   fi
