@@ -12,4 +12,9 @@ abstract class InspequteExtension @Inject constructor(objects: ObjectFactory) {
      * Optional OpenTelemetry collector URL passed to the CLI via `--otel`.
      */
     val otel: Property<String> = objects.property(String::class.java)
+
+    /**
+     * Optional prefix for `--automation-details-id`; each source set appends `/<sourceSetName>`.
+     */
+    val automationDetailsIdPrefix: Property<String> = objects.property(String::class.java)
 }

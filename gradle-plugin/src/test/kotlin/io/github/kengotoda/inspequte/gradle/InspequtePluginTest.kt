@@ -15,6 +15,11 @@ class InspequtePluginTest {
         return sourceSets.getByName("main").getTaskName("inspequte", null)
     }
 
+    private fun taskArgs(project: org.gradle.api.Project): List<String> {
+        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
+        return task.argumentProviders.flatMap { it.asArguments() }
+    }
+
     @Test
     fun `registers inspequte tasks for java source sets`() {
         val project = ProjectBuilder.builder().build()
@@ -65,8 +70,7 @@ class InspequtePluginTest {
         val extension = project.extensions.getByType(InspequteExtension::class.java)
         extension.otel.set("http://localhost:8080")
 
-        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
-        val args = task.argumentProviders.flatMap { it.asArguments() }
+        val args = taskArgs(project)
 
         assertTrue(args.contains("--otel"))
         assertTrue(args.windowed(size = 2, step = 1).any { it[0] == "--otel" && it[1] == "http://localhost:8080" })
@@ -82,12 +86,70 @@ class InspequtePluginTest {
         val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
 
         task.setInspequteOtel("http://localhost:4318/")
-        val args = task.argumentProviders.flatMap { it.asArguments() }
+        val args = taskArgs(project)
 
         assertEquals("http://localhost:4318/", task.otel.get())
         assertTrue(args.windowed(size = 2, step = 1).any {
             it[0] == "--otel" && it[1] == "http://localhost:4318/"
         })
+    }
+
+    @Test
+    fun `forwards default automation details id to inspequte arguments`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+
+        val args = taskArgs(project)
+
+        assertTrue(args.contains("--automation-details-id"))
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--automation-details-id" && it[1] == "inspequte/./main"
+        })
+    }
+
+    @Test
+    fun `forwards extension automation details id prefix to inspequte arguments`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val extension = project.extensions.getByType(InspequteExtension::class.java)
+        extension.automationDetailsIdPrefix.set("inspequte/custom-path")
+
+        val args = taskArgs(project)
+
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--automation-details-id" && it[1] == "inspequte/custom-path/main"
+        })
+    }
+
+    @Test
+    fun `task option overrides automation details id`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
+
+        task.setInspequteAutomationDetailsId("inspequte/override/main")
+        val args = taskArgs(project)
+
+        assertEquals("inspequte/override/main", task.automationDetailsId.get())
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--automation-details-id" && it[1] == "inspequte/override/main"
+        })
+    }
+
+    @Test
+    fun `empty task automation details id disables forwarding`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
+
+        task.setInspequteAutomationDetailsId("   ")
+        val args = taskArgs(project)
+
+        assertFalse(args.contains("--automation-details-id"))
     }
 
     @Test

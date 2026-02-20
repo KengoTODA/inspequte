@@ -1,5 +1,6 @@
 package io.github.kengotoda.inspequte.gradle
 
+import java.io.File
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
@@ -31,6 +32,7 @@ class InspequtePlugin : Plugin<Project> {
         inspequteAvailable: Provider<Boolean>,
         extension: InspequteExtension
     ) {
+        val defaultAutomationDetailsIdPrefix = defaultAutomationDetailsIdPrefix(project)
         val outputDir = project.layout.buildDirectory.dir("inspequte/${sourceSet.name}")
         val writeInputsTaskName = sourceSet.getTaskName("writeInspequteInputs", null)
         val inspequteTaskName = sourceSet.getTaskName("inspequte", null)
@@ -54,6 +56,12 @@ class InspequtePlugin : Plugin<Project> {
             inputs.files(writeInputsTask.flatMap { it.inputsFile }, writeInputsTask.flatMap { it.classpathFile })
             outputs.file(reportFile)
             otel.convention(extension.otel)
+            val automationDetailsIdPrefix = extension.automationDetailsIdPrefix
+                .map { prefix -> prefix.trim().trimEnd('/').ifEmpty { defaultAutomationDetailsIdPrefix } }
+                .orElse(defaultAutomationDetailsIdPrefix)
+            automationDetailsId.convention(automationDetailsIdPrefix.map { prefix ->
+                "$prefix/${sourceSet.name}"
+            })
 
             onlyIf {
                 val available = inspequteAvailable.get()
@@ -67,11 +75,23 @@ class InspequtePlugin : Plugin<Project> {
             }
 
             executable("inspequte")
-            argumentProviders.add(InspequteArgumentProvider(writeInputsTask, reportFile, otel))
+            argumentProviders.add(
+                InspequteArgumentProvider(writeInputsTask, reportFile, otel, automationDetailsId)
+            )
         }
 
         project.tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
             dependsOn(inspequteTask)
         }
+    }
+
+    private fun defaultAutomationDetailsIdPrefix(project: Project): String {
+        val rootPath = project.rootProject.projectDir.toPath().toAbsolutePath().normalize()
+        val projectPath = project.projectDir.toPath().toAbsolutePath().normalize()
+        val relativePath = rootPath.relativize(projectPath)
+            .toString()
+            .replace(File.separatorChar, '/')
+            .ifEmpty { "." }
+        return "inspequte/$relativePath"
     }
 }

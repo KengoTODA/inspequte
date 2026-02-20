@@ -11,7 +11,8 @@ import org.gradle.process.CommandLineArgumentProvider
 class InspequteArgumentProvider(
     private val writeInputsTask: Provider<WriteInspequteInputsTask>,
     private val reportFile: Provider<RegularFile>,
-    private val otelUrl: Provider<String>
+    private val otelUrl: Provider<String>,
+    private val automationDetailsId: Provider<String>
 ) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> {
         val inputsPath = writeInputsTask.get().inputsFile.get().asFile.absolutePath
@@ -28,6 +29,13 @@ class InspequteArgumentProvider(
                 validateOtelUrl(url)
                 args.add("--otel")
                 args.add(url)
+            }
+        }
+        if (automationDetailsId.isPresent) {
+            val id = automationDetailsId.get().trim()
+            if (id.isNotEmpty()) {
+                args.add("--automation-details-id")
+                args.add(id)
             }
         }
 

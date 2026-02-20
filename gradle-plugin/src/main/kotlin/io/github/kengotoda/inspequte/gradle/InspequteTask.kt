@@ -17,11 +17,26 @@ abstract class InspequteTask : Exec() {
     @get:Optional
     abstract val otel: Property<String>
 
+    /**
+     * Optional SARIF run automation details ID passed as `--automation-details-id`.
+     */
+    @get:Input
+    @get:Optional
+    abstract val automationDetailsId: Property<String>
+
     @Option(
         option = "inspequte-otel",
         description = "OpenTelemetry collector URL forwarded to inspequte --otel."
     )
     fun setInspequteOtel(value: String) {
         otel.set(value)
+    }
+
+    @Option(
+        option = "inspequte-automation-details-id",
+        description = "SARIF run automation details ID forwarded to inspequte --automation-details-id."
+    )
+    fun setInspequteAutomationDetailsId(value: String) {
+        automationDetailsId.set(value)
     }
 }

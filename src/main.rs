@@ -26,8 +26,8 @@ use opentelemetry::KeyValue;
 use serde_json::json;
 use serde_sarif::sarif::Result as SarifResult;
 use serde_sarif::sarif::{
-    Artifact, Invocation, PropertyBag, ReportingDescriptor, Run, SCHEMA_URL, Sarif, Tool,
-    ToolComponent,
+    Artifact, Invocation, PropertyBag, ReportingDescriptor, Run, RunAutomationDetails, SCHEMA_URL,
+    Sarif, Tool, ToolComponent,
 };
 use tracing::error;
 
@@ -61,6 +61,12 @@ struct ScanArgs {
     input: InputArgs,
     #[arg(long, value_name = "PATH")]
     output: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "ID",
+        help = "Optional SARIF run.automationDetails.id (GitHub code scanning category)."
+    )]
+    automation_details_id: Option<String>,
     #[arg(
         long,
         value_name = "URL",
@@ -177,6 +183,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
                     invocation,
                     analysis.rules,
                     analysis.results,
+                    args.automation_details_id.clone(),
                 );
                 if should_validate_sarif() {
                     validate_sarif(&sarif)?;
@@ -501,6 +508,7 @@ fn build_sarif(
     invocation: Invocation,
     rules: Vec<ReportingDescriptor>,
     results: Vec<SarifResult>,
+    automation_details_id: Option<String>,
 ) -> Sarif {
     with_span(telemetry, "sarif.build", &[], || {
         let semantic_version = env!("CARGO_PKG_VERSION").to_string();
@@ -523,19 +531,43 @@ fn build_sarif(
             extensions: None,
             properties: None,
         };
-        let run = if artifacts.is_empty() {
-            Run::builder()
+        let automation_details = automation_details_id.and_then(|value| {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(
+                    RunAutomationDetails::builder()
+                        .id(trimmed.to_string())
+                        .build(),
+                )
+            }
+        });
+        let run = match (artifacts, automation_details) {
+            (artifacts, Some(automation_details)) if artifacts.is_empty() => Run::builder()
                 .tool(tool)
                 .invocations(vec![invocation])
                 .results(results)
-                .build()
-        } else {
-            Run::builder()
+                .automation_details(automation_details)
+                .build(),
+            (artifacts, None) if artifacts.is_empty() => Run::builder()
+                .tool(tool)
+                .invocations(vec![invocation])
+                .results(results)
+                .build(),
+            (artifacts, Some(automation_details)) => Run::builder()
                 .tool(tool)
                 .invocations(vec![invocation])
                 .results(results)
                 .artifacts(artifacts)
-                .build()
+                .automation_details(automation_details)
+                .build(),
+            (artifacts, None) => Run::builder()
+                .tool(tool)
+                .invocations(vec![invocation])
+                .results(results)
+                .artifacts(artifacts)
+                .build(),
         };
 
         Sarif::builder()
@@ -652,6 +684,23 @@ mod tests {
     }
 
     #[test]
+    fn cli_accepts_automation_details_id_option() {
+        let cli = Cli::try_parse_from([
+            "inspequte",
+            "--input",
+            "target/classes",
+            "--automation-details-id",
+            "inspequte/./main",
+        ])
+        .expect("parse CLI");
+
+        assert_eq!(
+            cli.scan.automation_details_id.as_deref(),
+            Some("inspequte/./main")
+        );
+    }
+
+    #[test]
     fn sarif_is_minimal_and_valid_shape() {
         let invocation = build_invocation(&InvocationStats {
             scan_duration_ms: 0,
@@ -666,7 +715,7 @@ mod tests {
             artifact_count: 0,
             classpath_class_count: 0,
         });
-        let sarif = build_sarif(None, Vec::new(), invocation, Vec::new(), Vec::new());
+        let sarif = build_sarif(None, Vec::new(), invocation, Vec::new(), Vec::new(), None);
         let value = serde_json::to_value(&sarif).expect("serialize SARIF");
 
         assert_eq!(value["version"], "2.1.0");
@@ -689,6 +738,38 @@ mod tests {
         assert_eq!(
             value["runs"][0]["invocations"][0]["executionSuccessful"],
             true
+        );
+        assert!(value["runs"][0]["automationDetails"].is_null());
+    }
+
+    #[test]
+    fn sarif_includes_automation_details_id_when_requested() {
+        let invocation = build_invocation(&InvocationStats {
+            scan_duration_ms: 0,
+            classpath_duration_ms: 0,
+            analysis_call_graph_duration_ms: 0,
+            analysis_artifact_duration_ms: 0,
+            analysis_call_graph_hierarchy_duration_ms: 0,
+            analysis_call_graph_index_duration_ms: 0,
+            analysis_call_graph_edges_duration_ms: 0,
+            analysis_rules_duration_ms: 0,
+            class_count: 0,
+            artifact_count: 0,
+            classpath_class_count: 0,
+        });
+        let sarif = build_sarif(
+            None,
+            Vec::new(),
+            invocation,
+            Vec::new(),
+            Vec::new(),
+            Some("inspequte/./main".to_string()),
+        );
+        let value = serde_json::to_value(&sarif).expect("serialize SARIF");
+
+        assert_eq!(
+            value["runs"][0]["automationDetails"]["id"],
+            "inspequte/./main"
         );
     }
 
@@ -724,6 +805,7 @@ mod tests {
             invocation,
             analysis.rules,
             analysis.results,
+            None,
         );
         let mut actual_value = serde_json::to_value(&sarif).expect("serialize SARIF");
         normalize_sarif_for_snapshot(&mut actual_value);

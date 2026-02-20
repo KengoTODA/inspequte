@@ -132,6 +132,12 @@ xattr -d com.apple.quarantine /usr/local/bin/inspequte
 inspequte --input app.jar --classpath lib/ --output results.sarif
 ```
 
+Set SARIF `run.automationDetails.id` (GitHub code scanning category):
+```
+inspequte --input app.jar --classpath lib/ --output results.sarif \
+  --automation-details-id "inspequte/./main"
+```
+
 Create a baseline of current findings to suppress them in future runs:
 ```
 inspequte baseline --input app.jar --classpath lib/ --output inspequte.baseline.json
@@ -160,6 +166,8 @@ plugins {
 inspequte {
     // Optional: forward OTLP collector URL to inspequte via --otel
     otel.set("http://localhost:4318/")
+    // Optional: prefix for --automation-details-id (task appends /<sourceSet>)
+    automationDetailsIdPrefix.set("inspequte/custom-path")
 }
 
 // Registered automatically:
@@ -171,8 +179,12 @@ inspequte {
 
 The plugin hooks all generated `inspequte*` tasks into `check`.
 The `inspequte` command must be available in `PATH`.
+By default, each task sets `--automation-details-id` to
+`inspequte/<project relative path>/<sourceSet>`.
 You can also pass the collector URL from CLI for a task run:
 `./gradlew inspequte --inspequte-otel http://localhost:8080`
+You can override a task's automation details id from CLI:
+`./gradlew inspequte --inspequte-automation-details-id "inspequte/override/main"`
 
 ## SARIF output (example)
 ```json
