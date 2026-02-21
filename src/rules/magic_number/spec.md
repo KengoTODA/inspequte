@@ -58,6 +58,8 @@ The rule applies to all non-synthetic, non-bridge methods, including `<clinit>` 
 - Annotation element default values — stored in `AnnotationDefault` attributes, never in `Code` attributes.
 - Kotlin `companion object { const val NAME = <value> }` — `const val` compiles to a JVM `static final` field
   carrying a `ConstantValue` attribute; no `bipush`/`sipush`/`ldc` instruction appears in `<clinit>`.
+- Kotlin default parameter values — the default value appears only in the compiler-generated synthetic method
+  `<method>$default` (which carries `ACC_SYNTHETIC`) and is therefore skipped.
 - Enum constructor arguments whose values are in the allowlist — reported only for non-allowlisted values
   (known false positive; see edge cases below).
 - `@Suppress`-style annotation suppression is not supported.
@@ -245,6 +247,25 @@ public @interface MaxRetryA {
 
 Not reported: annotation element default values are stored in the `AnnotationDefault` attribute, not in a `Code`
 attribute. Annotation element methods carry no bytecode, so no push instruction is ever scanned.
+
+### Edge — Kotlin default parameter values
+
+```kotlin
+class ClassA {
+    fun methodOne(a: Int = 3600): Int = a
+}
+```
+
+Not reported: `kotlinc` compiles the default value into a synthetic overload named `methodOne$default`, which
+carries the `ACC_SYNTHETIC` flag on the JVM. The rule skips all synthetic methods, so `sipush 3600` inside
+`methodOne$default` is never scanned. The regular `methodOne(I)I` method contains no numeric push at all.
+
+The suppression chain is:
+
+```
+methodOne(I)I            → no magic number (receives a as parameter)
+methodOne$default(...)   → ACC_SYNTHETIC → skipped by rule
+```
 
 ## Output
 

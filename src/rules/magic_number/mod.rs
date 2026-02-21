@@ -661,4 +661,36 @@ public @interface MaxRetryA {
             "did not expect findings for annotation element defaults: {messages:?}"
         );
     }
+
+    #[test]
+    fn ignores_kotlin_default_arg_value() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // Kotlin default parameter values compile into a synthetic
+        // companion method named `<method>$default` that carries the
+        // ACC_SYNTHETIC flag. The rule skips all synthetic methods, so
+        // the default value (here 3600, loaded via sipush) must not be
+        // reported even though it is not in the allowlist.
+        // Skip gracefully when kotlinc is not available on this system.
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+class ClassA {
+    fun methodOne(a: Int = 3600): Int = a
+}
+"#
+            .to_string(),
+        }];
+
+        let output = match harness.compile_and_analyze(Language::Kotlin, &sources, &[]) {
+            Ok(out) => out,
+            Err(_) => return, // kotlinc not available on this system
+        };
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages.is_empty(),
+            "did not expect findings for Kotlin default arg value 3600 \
+             (should be in synthetic method and therefore skipped): {messages:?}"
+        );
+    }
 }
