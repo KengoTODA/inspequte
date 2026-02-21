@@ -55,10 +55,10 @@ jobs:
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
       - name: Build
         run: cargo build --release
+      - name: Test and compute coverage
+        run: bash scripts/coverage.sh
       - name: Smoke test (SpotBugs jars)
         run: bash scripts/smoke-spotbugs.sh
-      - name: Coverage
-        run: bash scripts/coverage.sh
       - name: Upload artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
