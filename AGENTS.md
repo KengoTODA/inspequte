@@ -41,6 +41,29 @@
 - **Add a short post-mortem to completed plan files.**
   - Include 2-3 bullets: what went well, what was tricky, and any follow-ups.
 
+## Parallel Rule Development with Git Worktrees
+
+Rule modules are auto-discovered by `build.rs` — no manual edits to `src/rules/mod.rs` are needed when adding a new rule.
+
+To develop multiple rules concurrently without merge conflicts:
+
+```bash
+# Create an isolated worktree for each rule under development
+git fetch origin main
+git worktree add ../inspequte-rule-foo -b claude/new-rule-foo origin/main
+git worktree add ../inspequte-rule-bar -b claude/new-rule-bar origin/main
+
+# Each worktree is independent.
+# Simply add src/rules/<RULE_ID>/mod.rs with register_rule!(...) inside.
+# build.rs detects new directories automatically on the next cargo build.
+
+# When the branch is merged, remove the worktree
+git worktree remove ../inspequte-rule-foo
+```
+
+Tests in `src/rules/mod.rs` verify only structural properties (unique IDs, non-empty metadata)
+and do not enumerate rule IDs or count rules, so adding a new rule requires no test changes.
+
 ## Release checklist
 - Always run `cargo test`.
 - Verify with `cargo build`, `cargo test`, and `cargo audit --format sarif`.
