@@ -68,6 +68,8 @@ pub(crate) struct MethodAccess {
     pub(crate) is_public: bool,
     pub(crate) is_static: bool,
     pub(crate) is_abstract: bool,
+    pub(crate) is_synthetic: bool,
+    pub(crate) is_bridge: bool,
 }
 
 /// Exception handler metadata from the Code attribute.
@@ -129,9 +131,15 @@ pub(crate) struct Instruction {
 #[derive(Clone, Debug)]
 pub(crate) enum InstructionKind {
     Invoke(CallSite),
-    InvokeDynamic { descriptor: String },
+    InvokeDynamic {
+        descriptor: String,
+    },
     ConstString(String),
     ConstClass(String),
+    /// Integer or long constant loaded via bipush, sipush, or ldc/ldc2_w.
+    ConstInt(i64),
+    /// Float or double constant loaded via ldc/ldc2_w.
+    ConstFloat(f64),
     Other(u8),
 }
 

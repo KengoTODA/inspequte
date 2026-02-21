@@ -138,6 +138,8 @@ mod tests {
             is_public: true,
             is_static: false,
             is_abstract: false,
+            is_synthetic: false,
+            is_bridge: false,
         }
     }
 

@@ -1163,6 +1163,8 @@ fn parse_methods(
             is_public: access_flags.contains(MethodFlags::ACC_PUBLIC),
             is_static: access_flags.contains(MethodFlags::ACC_STATIC),
             is_abstract: access_flags.contains(MethodFlags::ACC_ABSTRACT),
+            is_synthetic: access_flags.contains(MethodFlags::ACC_SYNTHETIC),
+            is_bridge: access_flags.contains(MethodFlags::ACC_BRIDGE),
         };
         let nullness = parse_method_nullness(
             constant_pool,
@@ -2156,6 +2158,15 @@ fn parse_bytecode(
                 calls.push(call.clone());
                 InstructionKind::Invoke(call)
             }
+            opcodes::BIPUSH => {
+                let value = code.get(offset + 1).copied().context("bipush operand")? as i8;
+                InstructionKind::ConstInt(value as i64)
+            }
+            opcodes::SIPUSH => {
+                let bytes = code.get(offset + 1..offset + 3).context("sipush operand")?;
+                let value = i16::from_be_bytes([bytes[0], bytes[1]]);
+                InstructionKind::ConstInt(value as i64)
+            }
             opcodes::LDC => {
                 let index = code.get(offset + 1).copied().context("ldc index")? as u16;
                 if let Some(value) = resolve_string_literal(constant_pool, index)? {
@@ -2163,6 +2174,8 @@ fn parse_bytecode(
                     InstructionKind::ConstString(value)
                 } else if let Some(value) = resolve_class_literal(constant_pool, index)? {
                     InstructionKind::ConstClass(value)
+                } else if let Some(kind) = resolve_numeric_literal(constant_pool, index)? {
+                    kind
                 } else {
                     InstructionKind::Other(opcode)
                 }
@@ -2174,6 +2187,8 @@ fn parse_bytecode(
                     InstructionKind::ConstString(value)
                 } else if let Some(value) = resolve_class_literal(constant_pool, index)? {
                     InstructionKind::ConstClass(value)
+                } else if let Some(kind) = resolve_numeric_literal(constant_pool, index)? {
+                    kind
                 } else {
                     InstructionKind::Other(opcode)
                 }
@@ -2378,6 +2393,22 @@ fn resolve_class_literal(constant_pool: &[ConstantPool], index: u16) -> Result<O
         .context("missing constant pool entry")?;
     match entry {
         ConstantPool::Class { name_index } => Ok(Some(resolve_utf8(constant_pool, *name_index)?)),
+        _ => Ok(None),
+    }
+}
+
+fn resolve_numeric_literal(
+    constant_pool: &[ConstantPool],
+    index: u16,
+) -> Result<Option<InstructionKind>> {
+    let entry = constant_pool
+        .get(index as usize)
+        .context("missing constant pool entry")?;
+    match entry {
+        ConstantPool::Integer { value } => Ok(Some(InstructionKind::ConstInt(*value as i64))),
+        ConstantPool::Long { value } => Ok(Some(InstructionKind::ConstInt(*value))),
+        ConstantPool::Float { value } => Ok(Some(InstructionKind::ConstFloat(*value as f64))),
+        ConstantPool::Double { value } => Ok(Some(InstructionKind::ConstFloat(*value))),
         _ => Ok(None),
     }
 }

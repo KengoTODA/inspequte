@@ -1337,6 +1337,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::NonNull,
@@ -1362,6 +1364,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::Nullable,
@@ -1404,6 +1408,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::Unknown,
@@ -1429,6 +1435,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::Unknown,
@@ -1470,6 +1478,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::NonNull,
@@ -1509,6 +1519,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: true,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::Unknown,
@@ -1565,6 +1577,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::NonNull,
@@ -1641,6 +1655,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::NonNull,

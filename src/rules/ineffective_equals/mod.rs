@@ -93,6 +93,8 @@ mod tests {
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness::unknown(method_param_count(descriptor).expect("param count")),
             type_use: None,
