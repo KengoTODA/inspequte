@@ -48,8 +48,6 @@ index_tmp="$(mktemp "$docs_root/.index.md.XXXXXX")"
 {
   echo "# Rules"
   echo
-  echo "This index is generated from \`src/rules/*/spec.md\` by \`scripts/generate-rule-docs.sh\`."
-  echo
 } >"$index_tmp"
 
 for rule_id in "${rule_ids[@]}"; do
