@@ -537,18 +537,23 @@ public class ClassA {
     }
 
     #[test]
-    fn ignores_enum_constructor_args() {
+    fn ignores_enum_constructor_args_in_allowlist() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        // Enum constant declarations with small integer constructor arguments
-        // should not be reported. Values 0 and 1 are loaded via iconst_0 /
-        // iconst_1 — opcodes the rule does not track — so they never reach
-        // the bipush / sipush / ldc scanning path.
+        // Enum constant declarations that pass allowlisted values as
+        // constructor arguments must not be reported. Values 8 and 32 are
+        // powers-of-two in the allowlist and are loaded via `bipush` (not
+        // `iconst_*`), so they exercise the actual scan path.
+        //
+        // NOTE: non-allowlisted values such as 9 or 200 DO appear as
+        // `bipush`/`sipush` in the compiler-generated `<clinit>` and are
+        // currently reported as false positives. That is a known limitation
+        // documented in spec.md.
         let sources = vec![SourceFile {
             path: "com/example/EnumA.java".to_string(),
             contents: r#"
 package com.example;
 public enum EnumA {
-    ITEM_ONE(0), ITEM_TWO(1);
+    ITEM_ONE(8), ITEM_TWO(32);
     private final int valOne;
     EnumA(int valOne) { this.valOne = valOne; }
     public int getValOne() { return valOne; }
@@ -561,7 +566,39 @@ public enum EnumA {
         let messages = magic_number_messages(&output);
         assert!(
             messages.is_empty(),
-            "did not expect findings for enum constructor args 0 and 1: {messages:?}"
+            "did not expect findings for enum constructor args 8 and 32: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn reports_enum_constructor_args_outside_allowlist() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // Known limitation: non-allowlisted integer values passed as enum
+        // constructor arguments appear as `bipush`/`sipush` in the
+        // compiler-generated `<clinit>` and are currently reported as
+        // magic numbers. This test documents the false-positive behaviour
+        // so that any future fix (e.g. skipping `<clinit>` for enum classes)
+        // is captured as a deliberate change.
+        let sources = vec![SourceFile {
+            path: "com/example/EnumA.java".to_string(),
+            contents: r#"
+package com.example;
+public enum EnumA {
+    ITEM_ONE(9), ITEM_TWO(200);
+    private final int valOne;
+    EnumA(int valOne) { this.valOne = valOne; }
+    public int getValOne() { return valOne; }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            !messages.is_empty(),
+            "expected findings for non-allowlisted enum constructor args 9 and 200 \
+             (known false positives from compiler-generated <clinit>)"
         );
     }
 

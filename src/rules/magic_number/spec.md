@@ -58,8 +58,8 @@ The rule applies to all non-synthetic, non-bridge methods, including `<clinit>` 
 - Annotation element default values — stored in `AnnotationDefault` attributes, never in `Code` attributes.
 - Kotlin `companion object { const val NAME = <value> }` — `const val` compiles to a JVM `static final` field
   carrying a `ConstantValue` attribute; no `bipush`/`sipush`/`ldc` instruction appears in `<clinit>`.
-- Enum constructor arguments whose values fall in the allowlist or the `iconst_*` range (−1 through 5) — those
-  integer pushes never reach the scanned opcodes.
+- Enum constructor arguments whose values are in the allowlist — reported only for non-allowlisted values
+  (known false positive; see edge cases below).
 - `@Suppress`-style annotation suppression is not supported.
 - Non-JSpecify annotation semantics are not supported.
 
@@ -193,19 +193,31 @@ class Dispatcher {
 Not reported: `200` and `404` are case values within a `tableswitch` /
 `lookupswitch` instruction and are excluded.
 
-### Edge — enum constructor arguments (allowlist / iconst range)
+### Edge — enum constructor arguments (known false positives for non-allowlisted values)
 
 ```java
+// NOT reported — 8 and 32 are in the allowlist (powers of two)
 enum EnumA {
-    ITEM_ONE(0), ITEM_TWO(1);
+    ITEM_ONE(8), ITEM_TWO(32);
     private final int valOne;
     EnumA(int valOne) { this.valOne = valOne; }
 }
+
+// REPORTED (false positive) — 9 and 200 are not in the allowlist
+enum EnumB {
+    ITEM_ONE(9), ITEM_TWO(200);
+    private final int valOne;
+    EnumB(int valOne) { this.valOne = valOne; }
+}
 ```
 
-Not reported: the values `0` and `1` fall in the `iconst_*` opcode range (−1 through 5); `javac` uses `iconst_0` /
-`iconst_1`, which are not tracked by this rule. Values outside the allowlist that exceed the `iconst_*` range (e.g.
-`OK(200)`) do appear as `sipush` in `<clinit>` and **are** reported — a known limitation for enum classes.
+Enum constant declarations pass their constructor arguments through the compiler-generated `<clinit>`. The JVM
+instruction stream in `<clinit>` is indistinguishable from user-written code at the bytecode level: for
+`ITEM_TWO(200)`, `javac` emits `sipush 200` followed by `invokespecial <init>`, exactly as it would for a
+hand-written magic number.
+
+Allowlisted values such as `8` and `32` are excluded by the normal allowlist check. Non-allowlisted values such
+as `9` and `200` are reported as magic numbers — a **known false positive** for enum classes.
 
 ### Edge — Kotlin companion object `const val`
 
