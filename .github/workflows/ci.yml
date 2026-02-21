@@ -55,8 +55,6 @@ jobs:
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
       - name: Build
         run: cargo build --release
-      - name: Test
-        run: cargo test
       - name: Smoke test (SpotBugs jars)
         run: bash scripts/smoke-spotbugs.sh
       - name: Coverage
