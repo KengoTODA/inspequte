@@ -452,4 +452,87 @@ public class ClassA {
             "did not expect findings for collection capacity: {messages:?}"
         );
     }
+
+    #[test]
+    fn ignores_bridge_method() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // A generic interface with a covariant return override produces a
+        // synthetic bridge method that contains the same numeric literal.
+        let sources = vec![
+            SourceFile {
+                path: "com/example/Supplier.java".to_string(),
+                contents: r#"
+package com.example;
+public interface Supplier<T> {
+    T get();
+}
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/ClassA.java".to_string(),
+                contents: r#"
+package com.example;
+public class ClassA implements Supplier<Integer> {
+    @Override
+    public Integer get() {
+        return 3600;
+    }
+}
+"#
+                .to_string(),
+            },
+        ];
+
+        let output = compile_and_analyze(&harness, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        // The bridge method `get()Ljava/lang/Object;` delegates to
+        // `get()Ljava/lang/Integer;`. Only the real method should report.
+        let bridge_findings: Vec<_> = messages
+            .iter()
+            .filter(|msg| msg.contains("()Ljava/lang/Object;"))
+            .collect();
+        assert!(
+            bridge_findings.is_empty(),
+            "did not expect findings in bridge method: {bridge_findings:?}"
+        );
+        // The real method `get()Ljava/lang/Integer;` still reports the literal.
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("3600") && msg.contains("()Ljava/lang/Integer;")),
+            "expected finding in the real method get()Ljava/lang/Integer;, got {messages:?}"
+        );
+    }
+
+    #[test]
+    fn ignores_synthetic_lambda_method() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // A lambda capturing a magic number is compiled into a synthetic
+        // method (lambda$methodOne$0). The rule should skip it.
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+import java.util.function.IntSupplier;
+public class ClassA {
+    public IntSupplier methodOne() {
+        return () -> 3600;
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        // The literal 3600 lives exclusively in the synthetic method
+        // `lambda$methodOne$0`. The real `methodOne` only contains an
+        // invokedynamic (no numeric constant). Skipping synthetic methods
+        // means zero findings overall.
+        assert!(
+            messages.is_empty(),
+            "did not expect any findings — magic number is only in synthetic lambda: {messages:?}"
+        );
+    }
 }
