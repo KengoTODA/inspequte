@@ -22,9 +22,9 @@ zip = "8.0.0"
 jsonschema = "0.42.0"
 futures-util = "0.3"
 opentelemetry = "0.31"
-opentelemetry-otlp = { version = "0.31", features = ["http-proto", "reqwest-client"] }
+opentelemetry-otlp = { version = "0.31", features = ["http-proto", "reqwest-blocking-client"] }
 opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "trace"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking"] }
 tokio = { version = "1", features = ["full"] }
 rayon = "1"
 inventory = "0.3"
