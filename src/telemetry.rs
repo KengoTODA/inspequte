@@ -3,7 +3,10 @@ use opentelemetry::trace::{Span, TraceContextExt, Tracer, TracerProvider as Otel
 use opentelemetry::{Context as OtelContext, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::Resource;
-use opentelemetry_sdk::trace::{SdkTracerProvider, SimpleSpanProcessor, SpanExporter};
+use opentelemetry_sdk::trace::{
+    BatchConfigBuilder, BatchSpanProcessor, SdkTracerProvider, SpanExporter,
+};
+use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -70,12 +73,19 @@ impl Telemetry {
 
     fn from_exporter<E: SpanExporter + 'static>(exporter: E) -> Result<Self> {
         let resource = Resource::builder().with_service_name("inspequte").build();
-        // SimpleSpanProcessor exports each span synchronously via
-        // futures_executor::block_on. BatchSpanProcessor requires a Tokio
-        // runtime thread for async export, which is incompatible with rayon
-        // worker threads used during analysis. The synchronous export adds
-        // per-span HTTP overhead; this is acceptable for profiling scenarios.
-        let processor = SimpleSpanProcessor::new(exporter);
+        // BatchSpanProcessor in opentelemetry-sdk 0.31 uses std::thread::spawn
+        // and std::sync::mpsc channels internally, so on_end() is a plain
+        // channel send that works safely from rayon worker threads. The
+        // background export thread calls futures_executor::block_on, which is
+        // compatible with reqwest-blocking-client.
+        let batch_config = BatchConfigBuilder::default()
+            .with_max_queue_size(65_536)
+            .with_max_export_batch_size(4096)
+            .with_scheduled_delay(Duration::from_millis(200))
+            .build();
+        let processor = BatchSpanProcessor::builder(exporter)
+            .with_batch_config(batch_config)
+            .build();
         let provider = SdkTracerProvider::builder()
             .with_resource(resource)
             .with_span_processor(processor)
