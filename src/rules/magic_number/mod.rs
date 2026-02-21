@@ -5,7 +5,7 @@ use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
 
 use crate::engine::AnalysisContext;
-use crate::ir::InstructionKind;
+use crate::ir::{Class, InstructionKind, Method};
 use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
@@ -47,56 +47,158 @@ impl Rule for MagicNumberRule {
                             continue;
                         }
 
-                        let instructions = collect_instructions(method);
-                        for (idx, inst) in instructions.iter().enumerate() {
-                            let value_str = match &inst.kind {
-                                InstructionKind::ConstInt(v) => {
-                                    if is_int_allowlisted(*v, &allowlist) {
-                                        continue;
-                                    }
-                                    format_int(*v)
-                                }
-                                InstructionKind::ConstFloat(v) => {
-                                    if is_float_allowlisted(*v) {
-                                        continue;
-                                    }
-                                    format_float(*v)
-                                }
-                                _ => continue,
-                            };
+                        scan_method_body(
+                            method,
+                            &class.name,
+                            artifact_uri.as_deref(),
+                            &allowlist,
+                            &mut class_results,
+                        );
 
-                            if is_array_creation_context(&instructions, idx) {
-                                continue;
-                            }
-                            if is_collection_capacity_context(&instructions, idx) {
-                                continue;
-                            }
-
-                            let message = result_message(format!(
-                                "Magic number {} in {}.{}{}",
-                                value_str, class.name, method.name, method.descriptor
-                            ));
-                            let line = method.line_for_offset(inst.offset);
-                            let location = method_location_with_line(
-                                &class.name,
-                                &method.name,
-                                &method.descriptor,
-                                artifact_uri.as_deref(),
-                                line,
-                            );
-                            class_results.push(
-                                SarifResult::builder()
-                                    .message(message)
-                                    .locations(vec![location])
-                                    .build(),
-                            );
-                        }
+                        // Scan lambda bodies reachable via invokedynamic and
+                        // attribute any magic numbers to this enclosing method.
+                        scan_lambda_bodies(
+                            method,
+                            class,
+                            artifact_uri.as_deref(),
+                            &allowlist,
+                            &mut class_results,
+                        );
                     }
                     Ok(class_results)
                 })?;
             results.extend(class_results);
         }
         Ok(results)
+    }
+}
+
+/// Scan a method body for magic numbers and append findings to `results`.
+fn scan_method_body(
+    method: &Method,
+    class_name: &str,
+    artifact_uri: Option<&str>,
+    allowlist: &HashSet<i64>,
+    results: &mut Vec<SarifResult>,
+) {
+    let instructions = collect_instructions(method);
+    for (idx, inst) in instructions.iter().enumerate() {
+        let value_str = match &inst.kind {
+            InstructionKind::ConstInt(v) => {
+                if is_int_allowlisted(*v, allowlist) {
+                    continue;
+                }
+                format_int(*v)
+            }
+            InstructionKind::ConstFloat(v) => {
+                if is_float_allowlisted(*v) {
+                    continue;
+                }
+                format_float(*v)
+            }
+            _ => continue,
+        };
+
+        if is_array_creation_context(&instructions, idx) {
+            continue;
+        }
+        if is_collection_capacity_context(&instructions, idx) {
+            continue;
+        }
+
+        let message = result_message(format!(
+            "Magic number {} in {}.{}{}",
+            value_str, class_name, method.name, method.descriptor
+        ));
+        let line = method.line_for_offset(inst.offset);
+        let location = method_location_with_line(
+            class_name,
+            &method.name,
+            &method.descriptor,
+            artifact_uri,
+            line,
+        );
+        results.push(
+            SarifResult::builder()
+                .message(message)
+                .locations(vec![location])
+                .build(),
+        );
+    }
+}
+
+/// Find lambda implementation methods reachable from invokedynamic
+/// instructions in `method` and scan them for magic numbers, attributing
+/// any findings to the enclosing real method.
+fn scan_lambda_bodies(
+    method: &Method,
+    class: &Class,
+    artifact_uri: Option<&str>,
+    allowlist: &HashSet<i64>,
+    results: &mut Vec<SarifResult>,
+) {
+    let instructions = collect_instructions(method);
+    for inst in &instructions {
+        let impl_name = match &inst.kind {
+            InstructionKind::InvokeDynamic {
+                impl_method: Some(name),
+                ..
+            } => name,
+            _ => continue,
+        };
+
+        let Some(lambda_method) = class
+            .methods
+            .iter()
+            .find(|m| m.access.is_synthetic && m.name == *impl_name)
+        else {
+            continue;
+        };
+
+        let lambda_instructions = collect_instructions(lambda_method);
+        for (idx, lambda_inst) in lambda_instructions.iter().enumerate() {
+            let value_str = match &lambda_inst.kind {
+                InstructionKind::ConstInt(v) => {
+                    if is_int_allowlisted(*v, allowlist) {
+                        continue;
+                    }
+                    format_int(*v)
+                }
+                InstructionKind::ConstFloat(v) => {
+                    if is_float_allowlisted(*v) {
+                        continue;
+                    }
+                    format_float(*v)
+                }
+                _ => continue,
+            };
+
+            if is_array_creation_context(&lambda_instructions, idx) {
+                continue;
+            }
+            if is_collection_capacity_context(&lambda_instructions, idx) {
+                continue;
+            }
+
+            let message = result_message(format!(
+                "Magic number {} in {}.{}{}",
+                value_str, class.name, method.name, method.descriptor
+            ));
+            let line = lambda_method.line_for_offset(lambda_inst.offset);
+            let location = method_location_with_line(
+                &class.name,
+                &method.name,
+                &method.descriptor,
+                artifact_uri,
+                line,
+            );
+            results.push(
+                SarifResult::builder()
+                    .message(message)
+                    .locations(vec![location])
+                    .build(),
+            );
+        }
     }
 }
 
@@ -108,7 +210,7 @@ struct FlatInstruction {
 }
 
 /// Flatten all CFG block instructions into a single ordered list.
-fn collect_instructions(method: &crate::ir::Method) -> Vec<FlatInstruction> {
+fn collect_instructions(method: &Method) -> Vec<FlatInstruction> {
     let mut flat = Vec::new();
     for block in &method.cfg.blocks {
         for inst in &block.instructions {
@@ -506,10 +608,11 @@ public class ClassA implements Supplier<Integer> {
     }
 
     #[test]
-    fn ignores_synthetic_lambda_method() {
+    fn reports_lambda_magic_number_as_enclosing_method() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
         // A lambda capturing a magic number is compiled into a synthetic
-        // method (lambda$methodOne$0). The rule should skip it.
+        // method (lambda$methodOne$0). The rule should attribute it to the
+        // enclosing real method `methodOne`.
         let sources = vec![SourceFile {
             path: "com/example/ClassA.java".to_string(),
             contents: r#"
@@ -526,13 +629,13 @@ public class ClassA {
 
         let output = compile_and_analyze(&harness, &sources, &[]);
         let messages = magic_number_messages(&output);
-        // The literal 3600 lives exclusively in the synthetic method
-        // `lambda$methodOne$0`. The real `methodOne` only contains an
-        // invokedynamic (no numeric constant). Skipping synthetic methods
-        // means zero findings overall.
-        assert!(
-            messages.is_empty(),
-            "did not expect any findings — magic number is only in synthetic lambda: {messages:?}"
+        // The literal 3600 in the lambda is attributed to `methodOne`.
+        // No finding should reference the synthetic lambda method name.
+        assert_eq!(
+            messages,
+            vec![
+                "Magic number 3600 in com/example/ClassA.methodOne()Ljava/util/function/IntSupplier;"
+            ],
         );
     }
 }

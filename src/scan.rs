@@ -849,10 +849,26 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         parse_signature(class_file.attributes(), constant_pool).context("parse class signature")?;
     let type_parameters = parse_class_type_parameters(class_signature.as_deref(), default_nullness)
         .context("parse class type parameters")?;
+    let bootstrap_methods: Vec<&jclassfile::attributes::BootstrapMethodRecord> = class_file
+        .attributes()
+        .iter()
+        .filter_map(|attr| match attr {
+            jclassfile::attributes::Attribute::BootstrapMethods {
+                bootstrap_methods, ..
+            } => Some(bootstrap_methods.iter()),
+            _ => None,
+        })
+        .flatten()
+        .collect();
     let fields = parse_fields(constant_pool, class_file.fields(), default_nullness)
         .context("parse fields")?;
-    let methods = parse_methods(constant_pool, class_file.methods(), default_nullness)
-        .context("parse method bytecode")?;
+    let methods = parse_methods(
+        constant_pool,
+        class_file.methods(),
+        default_nullness,
+        &bootstrap_methods,
+    )
+    .context("parse method bytecode")?;
 
     Ok(ParsedClass {
         name: class_name,
@@ -1149,6 +1165,7 @@ fn parse_methods(
     constant_pool: &[ConstantPool],
     methods: &[jclassfile::methods::MethodInfo],
     default_nullness: DefaultNullness,
+    bootstrap_methods: &[&jclassfile::attributes::BootstrapMethodRecord],
 ) -> Result<Vec<Method>> {
     let mut parsed = Vec::new();
     for method in methods {
@@ -1199,7 +1216,7 @@ fn parse_methods(
         let line_numbers =
             parse_line_numbers(code_attributes, constant_pool).context("parse line numbers")?;
         let (instructions, calls, string_literals) =
-            parse_bytecode(code, constant_pool).context("parse bytecode")?;
+            parse_bytecode(code, constant_pool, bootstrap_methods).context("parse bytecode")?;
         let exception_handlers =
             parse_exception_handlers(exception_table, constant_pool).context("parse handlers")?;
         let local_variable_types =
@@ -2121,6 +2138,7 @@ fn is_reference_type(ty: &TypeDescriptor) -> bool {
 fn parse_bytecode(
     code: &[u8],
     constant_pool: &[ConstantPool],
+    bootstrap_methods: &[&jclassfile::attributes::BootstrapMethodRecord],
 ) -> Result<(Vec<Instruction>, Vec<CallSite>, Vec<String>)> {
     let mut instructions = Vec::new();
     let mut calls = Vec::new();
@@ -2197,7 +2215,15 @@ fn parse_bytecode(
                 let call_site_index = read_u16(code, offset + 1)?;
                 let descriptor = resolve_invoke_dynamic_descriptor(constant_pool, call_site_index)
                     .context("resolve invoke dynamic descriptor")?;
-                InstructionKind::InvokeDynamic { descriptor }
+                let impl_method = resolve_invoke_dynamic_impl_method(
+                    constant_pool,
+                    call_site_index,
+                    bootstrap_methods,
+                );
+                InstructionKind::InvokeDynamic {
+                    descriptor,
+                    impl_method,
+                }
             }
             _ => InstructionKind::Other(opcode),
         };
@@ -2259,6 +2285,47 @@ fn resolve_invoke_dynamic_descriptor(constant_pool: &[ConstantPool], index: u16)
     };
     let (_, descriptor_index) = resolve_name_and_type(constant_pool, name_and_type_index)?;
     resolve_utf8(constant_pool, descriptor_index).context("resolve invoke dynamic descriptor")
+}
+
+/// Resolve the implementation method name from an invokedynamic's bootstrap method.
+///
+/// Returns `Some(method_name)` when the bootstrap arguments contain a
+/// `MethodHandle` pointing to a `Methodref` in the same class (i.e. a lambda
+/// implementation method like `lambda$methodOne$0`).
+fn resolve_invoke_dynamic_impl_method(
+    constant_pool: &[ConstantPool],
+    call_site_index: u16,
+    bootstrap_methods: &[&jclassfile::attributes::BootstrapMethodRecord],
+) -> Option<String> {
+    let entry = constant_pool.get(call_site_index as usize)?;
+    let bsm_index = match entry {
+        ConstantPool::InvokeDynamic {
+            bootstrap_method_attr_index,
+            ..
+        } => *bootstrap_method_attr_index,
+        _ => return None,
+    };
+    let bsm = bootstrap_methods.get(bsm_index as usize)?;
+    let args = bsm.bootstrap_arguments();
+    // bootstrap_arguments[1] is the implementation MethodHandle (per LambdaMetafactory spec).
+    let impl_handle_index = args.get(1)?;
+    let handle = constant_pool.get(*impl_handle_index as usize)?;
+    let reference_index = match handle {
+        ConstantPool::MethodHandle {
+            reference_index, ..
+        } => *reference_index,
+        _ => return None,
+    };
+    let method_ref = constant_pool.get(reference_index as usize)?;
+    let name_and_type_index = match method_ref {
+        ConstantPool::Methodref {
+            name_and_type_index,
+            ..
+        } => *name_and_type_index,
+        _ => return None,
+    };
+    let (name_index, _) = resolve_name_and_type(constant_pool, name_and_type_index).ok()?;
+    resolve_utf8(constant_pool, name_index).ok()
 }
 
 fn resolve_name_and_type(constant_pool: &[ConstantPool], index: u16) -> Result<(u16, u16)> {

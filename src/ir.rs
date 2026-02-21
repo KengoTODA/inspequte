@@ -133,6 +133,7 @@ pub(crate) enum InstructionKind {
     Invoke(CallSite),
     InvokeDynamic {
         descriptor: String,
+        impl_method: Option<String>,
     },
     ConstString(String),
     ConstClass(String),
