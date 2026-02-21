@@ -30,3 +30,6 @@ site/
 
 # Local verification bundle for isolated rule review
 verify-input/
+
+# Node.js dependencies (used by benchmark/screenshot scripts)
+node_modules/

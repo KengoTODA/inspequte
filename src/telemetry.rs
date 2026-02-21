@@ -1,38 +1,31 @@
 use anyhow::{Context, Result, anyhow};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer, TracerProvider as OtelTracerProvider};
 use opentelemetry::{Context as OtelContext, KeyValue};
-use opentelemetry_otlp::{SpanExporterBuilder, WithExportConfig};
+use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::Resource;
-use opentelemetry_sdk::export::trace::SpanExporter;
-use opentelemetry_sdk::runtime::Tokio;
-use opentelemetry_sdk::trace::{BatchConfigBuilder, BatchSpanProcessor, Config, TracerProvider};
-use std::sync::Once;
-use std::sync::atomic::{AtomicBool, Ordering};
+use opentelemetry_sdk::trace::{
+    BatchConfigBuilder, BatchSpanProcessor, SdkTracerProvider, SpanExporter,
+};
 use std::time::Duration;
-use tracing::error;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 /// Telemetry handle for OpenTelemetry tracing.
 pub(crate) struct Telemetry {
-    tracer: opentelemetry_sdk::trace::Tracer,
-    provider: TracerProvider,
-    _runtime: tokio::runtime::Runtime,
+    tracer: opentelemetry_sdk::trace::SdkTracer,
+    provider: SdkTracerProvider,
 }
 
 impl Telemetry {
     /// Initialize telemetry with an OTLP HTTP exporter.
     pub(crate) fn new(endpoint: String) -> Result<Self> {
         let endpoint = normalize_otlp_http_trace_endpoint(&endpoint)?;
-        let exporter = SpanExporterBuilder::from(
-            opentelemetry_otlp::new_exporter()
-                .http()
-                .with_endpoint(endpoint)
-                .with_http_client(reqwest::Client::new()),
-        )
-        .build_span_exporter()
-        .context("build OTLP span exporter")?;
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint(endpoint)
+            .build()
+            .context("build OTLP span exporter")?;
         Self::from_exporter(exporter)
     }
 
@@ -78,40 +71,28 @@ impl Telemetry {
         Ok(())
     }
 
-    fn from_exporter<E: SpanExporter + 'static>(exporter: E) -> Result<Self>
-    where
-        E: SpanExporter + 'static,
-    {
-        let resource_attributes = vec![KeyValue::new("service.name", "inspequte")];
-        let resource = Resource::new(resource_attributes);
-        install_error_handler();
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .context("build Tokio runtime")?;
-        let _guard = runtime.enter();
+    fn from_exporter<E: SpanExporter + 'static>(exporter: E) -> Result<Self> {
+        let resource = Resource::builder().with_service_name("inspequte").build();
+        // BatchSpanProcessor in opentelemetry-sdk 0.31 uses std::thread::spawn
+        // and std::sync::mpsc channels internally, so on_end() is a plain
+        // channel send that works safely from rayon worker threads. The
+        // background export thread calls futures_executor::block_on, which is
+        // compatible with reqwest-blocking-client.
         let batch_config = BatchConfigBuilder::default()
             .with_max_queue_size(65_536)
             .with_max_export_batch_size(4096)
             .with_scheduled_delay(Duration::from_millis(200))
-            .with_max_export_timeout(Duration::from_secs(10))
-            .with_max_concurrent_exports(2)
             .build();
-        let processor = BatchSpanProcessor::builder(exporter, Tokio)
+        let processor = BatchSpanProcessor::builder(exporter)
             .with_batch_config(batch_config)
             .build();
-        let provider = TracerProvider::builder()
+        let provider = SdkTracerProvider::builder()
+            .with_resource(resource)
             .with_span_processor(processor)
-            .with_config(Config::default().with_resource(resource))
             .build();
         let tracer = provider.tracer("inspequte");
         opentelemetry::global::set_tracer_provider(provider.clone());
-        Ok(Self {
-            tracer,
-            provider,
-            _runtime: runtime,
-        })
+        Ok(Self { tracer, provider })
     }
 }
 
@@ -159,32 +140,6 @@ pub(crate) fn current_trace_id() -> Option<String> {
     Some(span_context.trace_id().to_string())
 }
 
-fn use_tracing_logging() -> bool {
-    tracing::dispatcher::has_been_set()
-}
-
-fn log_otel_error_once(message: &str) {
-    if use_tracing_logging() {
-        error!("OpenTelemetry export error occurred: {message}");
-    } else {
-        eprintln!("OpenTelemetry export error occurred: {message}");
-    }
-}
-
-fn install_error_handler() {
-    static SET_ERROR_HANDLER: Once = Once::new();
-    static LOGGED_ERROR: AtomicBool = AtomicBool::new(false);
-    SET_ERROR_HANDLER.call_once(|| {
-        let _ = opentelemetry::global::set_error_handler(move |err| {
-            let message = err.to_string();
-            if LOGGED_ERROR.swap(true, Ordering::Relaxed) {
-                return;
-            }
-            log_otel_error_once(&message);
-        });
-    });
-}
-
 /// Optional telemetry span helper.
 pub(crate) fn with_span<T, F>(
     telemetry: Option<&Telemetry>,
@@ -204,15 +159,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::future::BoxFuture;
-    use opentelemetry_sdk::export::trace::{ExportResult, SpanData, SpanExporter};
+    use opentelemetry_sdk::error::OTelSdkResult;
+    use opentelemetry_sdk::trace::{SpanData, SpanExporter};
 
     #[derive(Debug)]
     struct NoopExporter;
 
     impl SpanExporter for NoopExporter {
-        fn export(&mut self, _batch: Vec<SpanData>) -> BoxFuture<'static, ExportResult> {
-            Box::pin(async { Ok(()) })
+        async fn export(&self, _batch: Vec<SpanData>) -> OTelSdkResult {
+            Ok(())
         }
     }
 
