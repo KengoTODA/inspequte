@@ -10,8 +10,6 @@ readability and maintainability.
 Magic numbers are unnamed numeric literals embedded directly in code.
 They make code harder to understand the purpose of a code piece.
 It also makes code less robust to change if a magic number is changed in one location but remains unchanged.
-The numbers 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100, 1000, 0L, 1L, 2L, 0.0, 1.0, 0.0F and 1.0F are NOT reported by this
-inspection.
 
 ```java
 // Bad: what does 3600 mean?
