@@ -46,14 +46,6 @@ impl Rule for MagicNumberRule {
                         if method.name == "hashCode" && method.descriptor == "()I" {
                             continue;
                         }
-                        // Enum <clinit> is entirely compiler-generated: it
-                        // initialises the enum constants, including any
-                        // user-supplied constructor arguments. Scanning it
-                        // would produce false positives for every non-trivial
-                        // constant value passed to an enum constructor.
-                        if class.is_enum && method.name == "<clinit>" {
-                            continue;
-                        }
 
                         let instructions = collect_instructions(method);
                         for (idx, inst) in instructions.iter().enumerate() {
@@ -547,18 +539,16 @@ public class ClassA {
     #[test]
     fn ignores_enum_constructor_args() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        // Enum constant declarations pass their arguments through <clinit>,
-        // which is entirely compiler-generated. The rule skips <clinit> for
-        // enum classes to avoid false positives on these constructor args.
-        // Values 9 and 200 are intentionally outside the iconst_* opcode
-        // range (−1 through 5) and outside the allowlist, so they generate
-        // bipush / sipush instructions and would be reported by a naive scan.
+        // Enum constant declarations with small integer constructor arguments
+        // should not be reported. Values 0 and 1 are loaded via iconst_0 /
+        // iconst_1 — opcodes the rule does not track — so they never reach
+        // the bipush / sipush / ldc scanning path.
         let sources = vec![SourceFile {
             path: "com/example/EnumA.java".to_string(),
             contents: r#"
 package com.example;
 public enum EnumA {
-    ITEM_ONE(9), ITEM_TWO(200);
+    ITEM_ONE(0), ITEM_TWO(1);
     private final int valOne;
     EnumA(int valOne) { this.valOne = valOne; }
     public int getValOne() { return valOne; }
@@ -571,7 +561,7 @@ public enum EnumA {
         let messages = magic_number_messages(&output);
         assert!(
             messages.is_empty(),
-            "did not expect findings for enum constructor args 9 and 200: {messages:?}"
+            "did not expect findings for enum constructor args 0 and 1: {messages:?}"
         );
     }
 

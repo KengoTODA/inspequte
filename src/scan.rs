@@ -258,7 +258,6 @@ fn scan_class_file(
         methods: parsed.methods,
         artifact_index,
         is_record: parsed.is_record,
-        is_enum: parsed.is_enum,
     });
     Ok(())
 }
@@ -454,7 +453,6 @@ fn parse_jar_classes(
             methods: parsed.methods,
             artifact_index: jar_index,
             is_record: parsed.is_record,
-            is_enum: parsed.is_enum,
         });
     }
 
@@ -797,7 +795,6 @@ struct ParsedClass {
     fields: Vec<crate::ir::Field>,
     methods: Vec<Method>,
     is_record: bool,
-    is_enum: bool,
 }
 
 fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
@@ -846,9 +843,6 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         .attributes()
         .iter()
         .any(|attr| matches!(attr, jclassfile::attributes::Attribute::Record { .. }));
-    let is_enum = class_file
-        .access_flags()
-        .contains(jclassfile::class_file::ClassFlags::ACC_ENUM);
     let default_nullness = parse_default_nullness(class_file.attributes(), constant_pool)
         .context("parse class nullness")?;
     let class_signature =
@@ -870,7 +864,6 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         fields,
         methods,
         is_record,
-        is_enum,
     })
 }
 
@@ -959,7 +952,6 @@ fn parse_class_bytes_minimal(data: &[u8]) -> Result<ParsedClass> {
         fields: Vec::new(),
         methods: Vec::new(),
         is_record: false,
-        is_enum: false,
     })
 }
 

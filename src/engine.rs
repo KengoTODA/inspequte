@@ -394,7 +394,6 @@ mod tests {
             methods: Vec::new(),
             artifact_index,
             is_record: false,
-            is_enum: false,
         }
     }
 
@@ -497,7 +496,6 @@ mod tests {
             methods: Vec::new(),
             artifact_index: 0,
             is_record: false,
-            is_enum: false,
         }];
         let artifacts = vec![
             Artifact::builder()
@@ -551,7 +549,6 @@ mod tests {
             methods: Vec::new(),
             artifact_index: 0,
             is_record: false,
-            is_enum: false,
         }];
         let artifacts = vec![
             Artifact::builder()
@@ -584,7 +581,6 @@ mod tests {
             methods: Vec::new(),
             artifact_index: 0,
             is_record: false,
-            is_enum: false,
         }];
         let artifacts = vec![
             Artifact::builder()

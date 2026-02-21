@@ -78,7 +78,6 @@ mod tests {
                 methods: Vec::new(),
                 artifact_index: 0,
                 is_record: false,
-                is_enum: false,
             },
             Class {
                 name: "com/example/Bar".to_string(),
@@ -91,7 +90,6 @@ mod tests {
                 methods: Vec::new(),
                 artifact_index: 1,
                 is_record: false,
-                is_enum: false,
             },
         ];
 
@@ -113,7 +111,6 @@ mod tests {
             methods: Vec::new(),
             artifact_index: 0,
             is_record: false,
-            is_enum: false,
         }];
 
         let result = resolve_classpath(&classes);
@@ -135,7 +132,6 @@ mod tests {
                 methods: Vec::new(),
                 artifact_index: 0,
                 is_record: false,
-                is_enum: false,
             },
             Class {
                 name: "com/example/Foo".to_string(),
@@ -148,7 +144,6 @@ mod tests {
                 methods: Vec::new(),
                 artifact_index: 1,
                 is_record: false,
-                is_enum: false,
             },
         ];
 

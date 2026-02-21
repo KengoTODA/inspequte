@@ -13,7 +13,6 @@ pub(crate) struct Class {
     pub(crate) methods: Vec<Method>,
     pub(crate) artifact_index: i64,
     pub(crate) is_record: bool,
-    pub(crate) is_enum: bool,
 }
 
 /// Field definition for a class.
