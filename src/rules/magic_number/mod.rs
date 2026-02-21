@@ -535,4 +535,93 @@ public class ClassA {
             "did not expect any findings — magic number is only in synthetic lambda: {messages:?}"
         );
     }
+
+    #[test]
+    fn ignores_enum_constructor_args() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // Enum constant declarations with small integer constructor arguments
+        // should not be reported. Values 0 and 1 are loaded via iconst_0 /
+        // iconst_1 — opcodes the rule does not track — so they never reach
+        // the bipush / sipush / ldc scanning path.
+        let sources = vec![SourceFile {
+            path: "com/example/EnumA.java".to_string(),
+            contents: r#"
+package com.example;
+public enum EnumA {
+    ITEM_ONE(0), ITEM_TWO(1);
+    private final int valOne;
+    EnumA(int valOne) { this.valOne = valOne; }
+    public int getValOne() { return valOne; }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages.is_empty(),
+            "did not expect findings for enum constructor args 0 and 1: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn ignores_kotlin_companion_const_val() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // Kotlin `const val` in a companion object compiles to a JVM
+        // `public static final` field carrying a ConstantValue attribute.
+        // The JVM initialises such fields directly from the attribute —
+        // no bipush/sipush/ldc instruction appears in <clinit> — so the
+        // rule must not report any finding.
+        // Skip gracefully when kotlinc is not available on this system.
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+class ClassA {
+    companion object {
+        const val CONST_VAL = 3600
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = match harness.compile_and_analyze(Language::Kotlin, &sources, &[]) {
+            Ok(out) => out,
+            Err(_) => return, // kotlinc not available on this system
+        };
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages.is_empty(),
+            "did not expect findings for Kotlin companion object const val: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn ignores_annotation_element_default() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // Annotation element default values are stored in the
+        // AnnotationDefault attribute, not in any Code attribute.
+        // Annotation element methods carry no bytecode, so the rule
+        // must produce no findings even for non-allowlisted default values.
+        let sources = vec![SourceFile {
+            path: "com/example/MaxRetryA.java".to_string(),
+            contents: r#"
+package com.example;
+public @interface MaxRetryA {
+    int maxAttempts() default 3;
+    long timeoutMs() default 1000;
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages.is_empty(),
+            "did not expect findings for annotation element defaults: {messages:?}"
+        );
+    }
 }

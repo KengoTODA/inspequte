@@ -55,6 +55,11 @@ The rule applies to all non-synthetic, non-bridge methods, including `<clinit>` 
 - Cross-class analysis to determine whether a value is defined as a named constant elsewhere.
 - Inlined compile-time constants that are indistinguishable from raw literals at the bytecode level (fundamental
   limitation, documented as a known source of false positives).
+- Annotation element default values — stored in `AnnotationDefault` attributes, never in `Code` attributes.
+- Kotlin `companion object { const val NAME = <value> }` — `const val` compiles to a JVM `static final` field
+  carrying a `ConstantValue` attribute; no `bipush`/`sipush`/`ldc` instruction appears in `<clinit>`.
+- Enum constructor arguments whose values fall in the allowlist or the `iconst_*` range (−1 through 5) — those
+  integer pushes never reach the scanned opcodes.
 - `@Suppress`-style annotation suppression is not supported.
 - Non-JSpecify annotation semantics are not supported.
 
@@ -187,6 +192,47 @@ class Dispatcher {
 
 Not reported: `200` and `404` are case values within a `tableswitch` /
 `lookupswitch` instruction and are excluded.
+
+### Edge — enum constructor arguments (allowlist / iconst range)
+
+```java
+enum EnumA {
+    ITEM_ONE(0), ITEM_TWO(1);
+    private final int valOne;
+    EnumA(int valOne) { this.valOne = valOne; }
+}
+```
+
+Not reported: the values `0` and `1` fall in the `iconst_*` opcode range (−1 through 5); `javac` uses `iconst_0` /
+`iconst_1`, which are not tracked by this rule. Values outside the allowlist that exceed the `iconst_*` range (e.g.
+`OK(200)`) do appear as `sipush` in `<clinit>` and **are** reported — a known limitation for enum classes.
+
+### Edge — Kotlin companion object `const val`
+
+```kotlin
+class ClassA {
+    companion object {
+        const val CONST_VAL = 3600
+    }
+}
+```
+
+Not reported: `const val` compiles to a JVM `static final` field with a `ConstantValue` attribute. The JVM
+initialises the field directly from that attribute; no push instruction appears in `<clinit>`. This is the Kotlin
+equivalent of a Java compile-time constant. By contrast, a non-`const` companion object property (`val`) generates
+`<clinit>` code and its initialiser value **is** reported.
+
+### Edge — annotation element default values
+
+```java
+public @interface MaxRetryA {
+    int maxAttempts() default 3;
+    long timeoutMs() default 1000;
+}
+```
+
+Not reported: annotation element default values are stored in the `AnnotationDefault` attribute, not in a `Code`
+attribute. Annotation element methods carry no bytecode, so no push instruction is ever scanned.
 
 ## Output
 
