@@ -58,8 +58,8 @@ The rule applies to all non-synthetic, non-bridge methods, including `<clinit>` 
 - Annotation element default values — stored in `AnnotationDefault` attributes, never in `Code` attributes.
 - Kotlin `companion object { const val NAME = <value> }` — `const val` compiles to a JVM `static final` field
   carrying a `ConstantValue` attribute; no `bipush`/`sipush`/`ldc` instruction appears in `<clinit>`.
-- Enum constructor arguments whose values fall in the allowlist or the `iconst_*` range (−1 through 5) — those
-  integer pushes never reach the scanned opcodes.
+- Enum constructor arguments — the rule skips `<clinit>` for enum classes entirely, since that method is
+  compiler-generated and its numeric pushes (e.g. `sipush 200`) exist only to initialise enum constants.
 - `@Suppress`-style annotation suppression is not supported.
 - Non-JSpecify annotation semantics are not supported.
 
@@ -193,19 +193,19 @@ class Dispatcher {
 Not reported: `200` and `404` are case values within a `tableswitch` /
 `lookupswitch` instruction and are excluded.
 
-### Edge — enum constructor arguments (allowlist / iconst range)
+### Edge — enum constructor arguments
 
 ```java
 enum EnumA {
-    ITEM_ONE(0), ITEM_TWO(1);
+    ITEM_ONE(9), ITEM_TWO(200);
     private final int valOne;
     EnumA(int valOne) { this.valOne = valOne; }
 }
 ```
 
-Not reported: the values `0` and `1` fall in the `iconst_*` opcode range (−1 through 5); `javac` uses `iconst_0` /
-`iconst_1`, which are not tracked by this rule. Values outside the allowlist that exceed the `iconst_*` range (e.g.
-`OK(200)`) do appear as `sipush` in `<clinit>` and **are** reported — a known limitation for enum classes.
+Not reported: enum constant declarations pass their arguments through the compiler-generated `<clinit>`. The rule
+skips `<clinit>` entirely for enum classes to avoid false positives on these values. Values like `9` and `200`
+generate `bipush` / `sipush` instructions and would be falsely reported by a naive scan of `<clinit>`.
 
 ### Edge — Kotlin companion object `const val`
 

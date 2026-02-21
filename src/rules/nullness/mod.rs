@@ -1194,6 +1194,7 @@ mod tests {
             methods,
             artifact_index: 0,
             is_record: false,
+            is_enum: false,
         }
     }
 
