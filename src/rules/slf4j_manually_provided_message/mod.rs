@@ -177,7 +177,7 @@ fn analyze_method(
                     }
 
                     if is_slf4j_logger_call(call) {
-                        if let Some(format_index) = slf4j_format_index(&param_types) {
+                        if let Some(format_index) = slf4j_format_index(param_types) {
                             let format_arg = args
                                 .get(format_index)
                                 .copied()
