@@ -147,8 +147,8 @@ fn analyze_method(
                     }
 
                     if is_slf4j_logger_call(call) {
-                        if let Some(format_index) = slf4j_format_index(&param_types) {
-                            if is_message_only_overload(&param_types, format_index) {
+                        if let Some(format_index) = slf4j_format_index(param_types) {
+                            if is_message_only_overload(param_types, format_index) {
                                 // Message-only overloads are allowed.
                             } else if let Some(ValueKind::FormatString(text)) =
                                 args.get(format_index).cloned()
