@@ -18,7 +18,7 @@ pub(crate) struct ClasspathIndex {
 ///
 /// If `allow_duplicate_classes` is true, duplicates emit a warning and the
 /// class from the artifact with the lexicographically smallest URI is used,
-/// ensuring deterministic behaviour regardless of scan order.
+/// ensuring deterministic behavior regardless of scan order.
 pub(crate) fn resolve_classpath(
     classes: &[Class],
     artifacts: &[Artifact],
@@ -231,6 +231,11 @@ mod tests {
         assert!(result.is_ok());
         let index = result.unwrap();
         assert!(index.classes.contains_key("com/example/Foo"));
+        assert_eq!(
+            index.classes["com/example/Foo"],
+            0,
+            "when artifacts are empty, the first duplicate encountered should win"
+        );
     }
 
     #[test]
