@@ -32,7 +32,7 @@ use tracing::error;
 
 use crate::baseline::{load_baseline, write_baseline};
 use crate::classpath::resolve_classpath;
-use crate::engine::{Engine, build_context_with_timings};
+use crate::engine::{Engine, RuleFilter, build_context_with_timings};
 use crate::scan::scan_inputs;
 use crate::telemetry::{Telemetry, current_trace_id, init_logging, with_span};
 
@@ -58,6 +58,8 @@ struct Cli {
 struct ScanArgs {
     #[command(flatten)]
     input: InputArgs,
+    #[command(flatten)]
+    filter: RuleFilterArgs,
     #[arg(long, value_name = "PATH")]
     output: Option<PathBuf>,
     #[arg(
@@ -96,6 +98,27 @@ struct InputArgs {
     classpath: Vec<String>,
 }
 
+/// Rule filtering options (mutually exclusive).
+#[derive(Args, Debug, Clone)]
+struct RuleFilterArgs {
+    /// Run only these rules (comma-separated IDs or @file with newline-separated IDs).
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_name = "RULE_ID",
+        conflicts_with = "exclude"
+    )]
+    only: Vec<String>,
+    /// Skip these rules (comma-separated IDs or @file with newline-separated IDs).
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_name = "RULE_ID",
+        conflicts_with = "only"
+    )]
+    exclude: Vec<String>,
+}
+
 /// Expanded input configuration after resolving @file references.
 #[derive(Debug, Clone)]
 struct ExpandedInputArgs {
@@ -115,6 +138,8 @@ enum Command {
 struct BaselineArgs {
     #[command(flatten)]
     input: InputArgs,
+    #[command(flatten)]
+    filter: RuleFilterArgs,
     #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
     output: PathBuf,
     #[arg(
@@ -144,6 +169,7 @@ fn run(cli: Cli) -> Result<()> {
 }
 
 fn run_scan(args: ScanArgs) -> Result<()> {
+    let filter = resolve_rule_filter(&args.filter)?;
     let expanded = expand_input_args(&args.input)?;
 
     let telemetry = match &args.otel {
@@ -155,7 +181,12 @@ fn run_scan(args: ScanArgs) -> Result<()> {
         if let Some(trace_id) = current_trace_id() {
             eprintln!("trace-id={trace_id}");
         }
-        let mut analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
+        let mut analysis = analyze(
+            &expanded.input,
+            &expanded.classpath,
+            telemetry.clone(),
+            &filter,
+        )?;
         let analysis_ref = &mut analysis;
         let baseline_result = with_span(
             telemetry.as_deref(),
@@ -219,6 +250,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 }
 
 fn run_baseline(args: BaselineArgs) -> Result<()> {
+    let filter = resolve_rule_filter(&args.filter)?;
     let expanded = expand_input_args(&args.input)?;
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
@@ -229,7 +261,12 @@ fn run_baseline(args: BaselineArgs) -> Result<()> {
         if let Some(trace_id) = current_trace_id() {
             eprintln!("trace-id={trace_id}");
         }
-        let analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
+        let analysis = analyze(
+            &expanded.input,
+            &expanded.classpath,
+            telemetry.clone(),
+            &filter,
+        )?;
         write_baseline(&args.output, &analysis.results)?;
         Ok(())
     });
@@ -336,6 +373,7 @@ fn analyze(
     input: &[PathBuf],
     classpath: &[PathBuf],
     telemetry: Option<Arc<Telemetry>>,
+    filter: &RuleFilter,
 ) -> Result<AnalysisOutput> {
     let scan_started_at = Instant::now();
     let scan = with_span(
@@ -360,7 +398,7 @@ fn analyze(
     let (context, context_timings) =
         build_context_with_timings(classes, &artifacts, telemetry.clone());
     let analysis_rules_started_at = Instant::now();
-    let engine = Engine::new();
+    let engine = Engine::new_with_filter(filter);
     let analysis = with_span(
         telemetry.as_deref(),
         "analysis_rules",
@@ -388,6 +426,65 @@ fn analyze(
         rules: analysis.rules,
         results: analysis.results,
     })
+}
+
+fn expand_rule_id_args(ids: &[String]) -> Result<Vec<String>> {
+    let mut expanded = Vec::new();
+    for id in ids {
+        if let Some(path_str) = id.strip_prefix('@') {
+            if path_str.is_empty() {
+                anyhow::bail!("empty @file reference in rule filter");
+            }
+            let path = PathBuf::from(path_str);
+            let content = fs::read_to_string(&path)
+                .with_context(|| format!("failed to read rule filter file {}", path.display()))?;
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                expanded.push(line.to_string());
+            }
+        } else {
+            expanded.push(id.clone());
+        }
+    }
+    Ok(expanded)
+}
+
+fn known_rule_ids() -> Vec<&'static str> {
+    crate::rules::all_rules()
+        .into_iter()
+        .map(|r| r.metadata().id)
+        .collect()
+}
+
+fn validate_rule_ids(ids: &[String], known: &[&str]) -> Result<()> {
+    let unknown: Vec<&str> = ids
+        .iter()
+        .map(String::as_str)
+        .filter(|id| !known.contains(id))
+        .collect();
+    if !unknown.is_empty() {
+        anyhow::bail!("unknown rule IDs: {}", unknown.join(", "));
+    }
+    Ok(())
+}
+
+fn resolve_rule_filter(args: &RuleFilterArgs) -> Result<RuleFilter> {
+    if !args.only.is_empty() {
+        let ids = expand_rule_id_args(&args.only)?;
+        let known = known_rule_ids();
+        validate_rule_ids(&ids, &known)?;
+        return Ok(RuleFilter::Only(ids));
+    }
+    if !args.exclude.is_empty() {
+        let ids = expand_rule_id_args(&args.exclude)?;
+        let known = known_rule_ids();
+        validate_rule_ids(&ids, &known)?;
+        return Ok(RuleFilter::Exclude(ids));
+    }
+    Ok(RuleFilter::All)
 }
 
 fn output_writer(output: Option<&Path>) -> Result<Box<dyn Write>> {
@@ -586,8 +683,101 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::engine::{Engine, build_context};
+    use crate::engine::{Engine, RuleFilter, build_context};
     use crate::scan::scan_inputs;
+
+    #[test]
+    fn cli_accepts_exclude_flag() {
+        let cli = Cli::try_parse_from([
+            "inspequte",
+            "--input",
+            "target/classes",
+            "--exclude",
+            "ARRAY_EQUALS,EMPTY_CATCH",
+        ])
+        .expect("parse CLI");
+
+        assert_eq!(cli.scan.filter.exclude, vec!["ARRAY_EQUALS", "EMPTY_CATCH"]);
+        assert!(cli.scan.filter.only.is_empty());
+    }
+
+    #[test]
+    fn cli_accepts_only_flag() {
+        let cli = Cli::try_parse_from([
+            "inspequte",
+            "--input",
+            "target/classes",
+            "--only",
+            "ARRAY_EQUALS",
+        ])
+        .expect("parse CLI");
+
+        assert_eq!(cli.scan.filter.only, vec!["ARRAY_EQUALS"]);
+        assert!(cli.scan.filter.exclude.is_empty());
+    }
+
+    #[test]
+    fn cli_rejects_both_exclude_and_only() {
+        let result = Cli::try_parse_from([
+            "inspequte",
+            "--input",
+            "target/classes",
+            "--only",
+            "ARRAY_EQUALS",
+            "--exclude",
+            "EMPTY_CATCH",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn expand_rule_id_args_reads_at_file() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+        let rules_path = temp_dir.join("rules.txt");
+        fs::write(&rules_path, "# comment\nARRAY_EQUALS\n\nEMPTY_CATCH\n").expect("write file");
+
+        let args = vec![format!("@{}", rules_path.display())];
+        let ids = expand_rule_id_args(&args).expect("expand rule IDs");
+
+        assert_eq!(ids, vec!["ARRAY_EQUALS", "EMPTY_CATCH"]);
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn rule_filter_all_allows_any_rule() {
+        let filter = RuleFilter::All;
+        let engine = Engine::new_with_filter(&filter);
+        let all_count = crate::rules::all_rules().len();
+        assert_eq!(
+            engine.rule_count(),
+            all_count,
+            "All filter should include all rules"
+        );
+    }
+
+    #[test]
+    fn rule_filter_only_limits_rules() {
+        let filter = RuleFilter::Only(vec!["ARRAY_EQUALS".to_string()]);
+        let engine = Engine::new_with_filter(&filter);
+        assert_eq!(engine.rule_count(), 1);
+    }
+
+    #[test]
+    fn rule_filter_exclude_reduces_rules() {
+        let filter = RuleFilter::Exclude(vec!["ARRAY_EQUALS".to_string()]);
+        let engine = Engine::new_with_filter(&filter);
+        let all_count = crate::rules::all_rules().len();
+        assert_eq!(engine.rule_count(), all_count - 1);
+    }
 
     #[test]
     fn expand_path_args_reads_files_and_resolves_relative_entries() {

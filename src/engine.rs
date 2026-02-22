@@ -32,16 +32,38 @@ pub(crate) struct ContextTimings {
     pub(crate) call_graph_edges_duration_ms: u128,
 }
 
+/// Filter controlling which rules the engine executes.
+pub(crate) enum RuleFilter {
+    All,
+    Only(Vec<String>),
+    Exclude(Vec<String>),
+}
+
 /// Analysis engine that executes configured rules.
 pub(crate) struct Engine {
     rules: Vec<Box<dyn Rule + Sync>>,
 }
 
 impl Engine {
+    #[cfg(test)]
     pub(crate) fn new() -> Self {
+        Self::new_with_filter(&RuleFilter::All)
+    }
+
+    pub(crate) fn new_with_filter(filter: &RuleFilter) -> Self {
         let mut rules = crate::rules::all_rules();
+        rules.retain(|r| match filter {
+            RuleFilter::All => true,
+            RuleFilter::Only(ids) => ids.iter().any(|id| id == r.metadata().id),
+            RuleFilter::Exclude(ids) => !ids.iter().any(|id| id == r.metadata().id),
+        });
         rules.sort_by(|a, b| a.metadata().id.cmp(b.metadata().id));
         Self { rules }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rule_count(&self) -> usize {
+        self.rules.len()
     }
 
     pub(crate) fn analyze(&self, context: AnalysisContext) -> Result<EngineOutput> {
