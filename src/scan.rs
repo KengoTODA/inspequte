@@ -42,7 +42,7 @@ pub(crate) fn scan_inputs(
 ) -> Result<ScanOutput> {
     // Keep deterministic ordering by sorting classpath entries and directory listings.
     let mut classpath_entries = classpath.to_vec();
-    classpath_entries.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
+    classpath_entries.sort_by_key(|a| path_key(a));
 
     for entry in input {
         if is_jar_path(entry) {
@@ -185,7 +185,7 @@ fn scan_dir(
         entries.push(entry.path());
     }
 
-    entries.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
+    entries.sort_by_key(|a | path_key(a));
 
     for entry in entries {
         if entry.is_dir() {
@@ -712,7 +712,7 @@ fn path_key(path: &Path) -> String {
 fn expand_classpath(initial: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
     let mut queue = VecDeque::new();
     let mut initial_sorted = initial;
-    initial_sorted.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
+    initial_sorted.sort_by_key(|a| path_key(a));
     for entry in initial_sorted {
         queue.push_back(entry);
     }
@@ -730,7 +730,7 @@ fn expand_classpath(initial: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
         result.push(entry.clone());
         if is_jar_path(&entry) {
             let mut referenced = manifest_classpath(&entry)?;
-            referenced.sort_by(|a, b| path_key(a).cmp(&path_key(b)));
+            referenced.sort_by_key(|a| path_key(a));
             for item in referenced {
                 queue.push_back(item);
             }

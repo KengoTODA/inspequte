@@ -40,7 +40,7 @@ pub(crate) struct Engine {
 impl Engine {
     pub(crate) fn new() -> Self {
         let mut rules = crate::rules::all_rules();
-        rules.sort_by(|a, b| a.metadata().id.cmp(b.metadata().id));
+        rules.sort_by_key(|a| a.metadata().id);
         Self { rules }
     }
 
