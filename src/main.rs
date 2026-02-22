@@ -74,6 +74,11 @@ struct ScanArgs {
     otel: Option<String>,
     #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
     baseline: PathBuf,
+    #[arg(
+        long,
+        help = "Warn instead of failing when the same class name appears in multiple inputs. The class from the lexicographically first artifact path is used."
+    )]
+    allow_duplicate_classes: bool,
 }
 
 /// Input configuration shared by all commands.
@@ -123,6 +128,11 @@ struct BaselineArgs {
         help = "OTLP HTTP collector URL (recommended: http://localhost:4318/)."
     )]
     otel: Option<String>,
+    #[arg(
+        long,
+        help = "Warn instead of failing when the same class name appears in multiple inputs. The class from the lexicographically first artifact path is used."
+    )]
+    allow_duplicate_classes: bool,
 }
 
 fn main() -> std::process::ExitCode {
@@ -155,7 +165,12 @@ fn run_scan(args: ScanArgs) -> Result<()> {
         if let Some(trace_id) = current_trace_id() {
             eprintln!("trace-id={trace_id}");
         }
-        let mut analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
+        let mut analysis = analyze(
+            &expanded.input,
+            &expanded.classpath,
+            telemetry.clone(),
+            args.allow_duplicate_classes,
+        )?;
         let analysis_ref = &mut analysis;
         let baseline_result = with_span(
             telemetry.as_deref(),
@@ -229,7 +244,12 @@ fn run_baseline(args: BaselineArgs) -> Result<()> {
         if let Some(trace_id) = current_trace_id() {
             eprintln!("trace-id={trace_id}");
         }
-        let analysis = analyze(&expanded.input, &expanded.classpath, telemetry.clone())?;
+        let analysis = analyze(
+            &expanded.input,
+            &expanded.classpath,
+            telemetry.clone(),
+            args.allow_duplicate_classes,
+        )?;
         write_baseline(&args.output, &analysis.results)?;
         Ok(())
     });
@@ -336,6 +356,7 @@ fn analyze(
     input: &[PathBuf],
     classpath: &[PathBuf],
     telemetry: Option<Arc<Telemetry>>,
+    allow_duplicate_classes: bool,
 ) -> Result<AnalysisOutput> {
     let scan_started_at = Instant::now();
     let scan = with_span(
@@ -351,7 +372,7 @@ fn analyze(
         telemetry.as_deref(),
         "classpath",
         &[KeyValue::new("inspequte.phase", "classpath")],
-        || resolve_classpath(&scan.classes),
+        || resolve_classpath(&scan.classes, &scan.artifacts, allow_duplicate_classes),
     )?;
     let classpath_duration_ms = classpath_started_at.elapsed().as_millis();
     let classpath_class_count = classpath_index.classes.len();
