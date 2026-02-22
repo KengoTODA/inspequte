@@ -435,7 +435,19 @@ fn expand_rule_id_args(ids: &[String]) -> Result<Vec<String>> {
             if path_str.is_empty() {
                 anyhow::bail!("empty @file reference in rule filter");
             }
-            let path = PathBuf::from(path_str);
+            let raw_path = PathBuf::from(path_str);
+            let path = if raw_path.is_absolute() {
+                raw_path
+            } else {
+                std::env::current_dir()
+                    .with_context(|| {
+                        format!(
+                            "failed to resolve current directory for rule filter file {}",
+                            raw_path.display()
+                        )
+                    })?
+                    .join(raw_path)
+            };
             let content = fs::read_to_string(&path)
                 .with_context(|| format!("failed to read rule filter file {}", path.display()))?;
             for line in content.lines() {
