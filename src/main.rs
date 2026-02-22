@@ -12,7 +12,7 @@ mod telemetry;
 #[cfg(test)]
 mod test_harness;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -460,10 +460,11 @@ fn known_rule_ids() -> Vec<&'static str> {
 }
 
 fn validate_rule_ids(ids: &[String], known: &[&str]) -> Result<()> {
+    let known_set: HashSet<&str> = known.iter().copied().collect();
     let unknown: Vec<&str> = ids
         .iter()
         .map(String::as_str)
-        .filter(|id| !known.contains(id))
+        .filter(|id| !known_set.contains(id))
         .collect();
     if !unknown.is_empty() {
         anyhow::bail!("unknown rule IDs: {}", unknown.join(", "));
