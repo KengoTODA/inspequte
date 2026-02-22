@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.22.1...inspequte-v0.23.0) (2026-02-22)
+
+
+### Features
+
+* **rules:** add EXPLICIT_FINALIZE_CALL rule ([9eaa46e](https://github.com/KengoTODA/inspequte/commit/9eaa46e159f725b14c24e5555e905e7466e25ac8))
+
 ## [0.22.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.22.0...inspequte-v0.22.1) (2026-02-21)
 
 
