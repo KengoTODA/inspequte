@@ -52,10 +52,6 @@ impl JvmTestHarness {
         Ok(Self { javac, kotlinc })
     }
 
-    pub(crate) fn has_kotlinc(&self) -> bool {
-        self.kotlinc.is_some()
-    }
-
     pub(crate) fn compile(
         &self,
         language: Language,

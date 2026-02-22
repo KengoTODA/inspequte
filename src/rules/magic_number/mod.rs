@@ -830,10 +830,6 @@ public enum EnumA {
     #[test]
     fn ignores_kotlin_const_val() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        if !harness.has_kotlinc() {
-            eprintln!("skipping: kotlinc not available");
-            return;
-        }
         let sources = vec![SourceFile {
             path: "com/example/ClassA.kt".to_string(),
             contents: r#"
@@ -880,10 +876,6 @@ public @interface AnnotationA {
     #[test]
     fn reports_kotlin_default_argument_value() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        if !harness.has_kotlinc() {
-            eprintln!("skipping: kotlinc not available");
-            return;
-        }
         let sources = vec![SourceFile {
             path: "com/example/ClassA.kt".to_string(),
             contents: r#"
