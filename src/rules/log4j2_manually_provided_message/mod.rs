@@ -177,7 +177,7 @@ fn analyze_method(
                     }
 
                     if is_log4j2_logger_call(call) {
-                        if let Some(format_index) = log4j2_format_index(&param_types) {
+                        if let Some(format_index) = log4j2_format_index(param_types) {
                             let format_arg = args
                                 .get(format_index)
                                 .copied()

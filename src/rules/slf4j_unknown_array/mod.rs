@@ -181,7 +181,7 @@ fn analyze_method(
                     }
 
                     if is_slf4j_logger_call(call) {
-                        if let Some(array_index) = slf4j_varargs_array_index(&param_types) {
+                        if let Some(array_index) = slf4j_varargs_array_index(param_types) {
                             let array_arg =
                                 args.get(array_index).copied().unwrap_or(ValueKind::Unknown);
                             let is_known = matches!(array_arg, ValueKind::Array { len: Some(_) });

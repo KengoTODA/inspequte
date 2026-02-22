@@ -197,7 +197,7 @@ fn analyze_method(
                     }
 
                     if is_slf4j_logger_call(call) {
-                        if let Some(mismatch) = placeholder_mismatch(&param_types, &args) {
+                        if let Some(mismatch) = placeholder_mismatch(param_types, &args) {
                             let message = result_message(format!(
                                 "SLF4J placeholder mismatch: expected {} argument(s) but found {}",
                                 mismatch.expected, mismatch.found
