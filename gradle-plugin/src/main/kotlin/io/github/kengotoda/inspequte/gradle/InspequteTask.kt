@@ -24,6 +24,13 @@ abstract class InspequteTask : Exec() {
     @get:Optional
     abstract val automationDetailsId: Property<String>
 
+    /**
+     * When `true`, passes `--allow-duplicate-classes` to the CLI so that duplicate class names
+     * across input artifacts produce a warning instead of a build failure.
+     */
+    @get:Input
+    abstract val allowDuplicateClasses: Property<Boolean>
+
     @Option(
         option = "inspequte-otel",
         description = "OpenTelemetry collector URL forwarded to inspequte --otel."
@@ -38,5 +45,13 @@ abstract class InspequteTask : Exec() {
     )
     fun setInspequteAutomationDetailsId(value: String) {
         automationDetailsId.set(value)
+    }
+
+    @Option(
+        option = "inspequte-allow-duplicate-classes",
+        description = "Warn instead of failing when the same class name appears in multiple inputs."
+    )
+    fun setInspequteAllowDuplicateClasses(value: Boolean) {
+        allowDuplicateClasses.set(value)
     }
 }
