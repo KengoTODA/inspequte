@@ -138,6 +138,8 @@ mod tests {
             is_public: true,
             is_static: false,
             is_abstract: false,
+            is_synthetic: false,
+            is_bridge: false,
         }
     }
 
@@ -174,6 +176,7 @@ mod tests {
             referenced_classes: Vec::new(),
             fields: Vec::new(),
             methods,
+            annotation_defaults: Vec::new(),
             artifact_index: 0,
             is_record: false,
         }
@@ -193,6 +196,7 @@ mod tests {
             referenced_classes: Vec::new(),
             fields: Vec::new(),
             methods,
+            annotation_defaults: Vec::new(),
             artifact_index,
             is_record: false,
         }

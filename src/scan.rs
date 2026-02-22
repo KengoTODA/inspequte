@@ -21,9 +21,10 @@ use rayon::prelude::*;
 use crate::cfg::build_cfg;
 use crate::descriptor::method_param_count;
 use crate::ir::{
-    CallKind, CallSite, Class, ClassTypeUse, ExceptionHandler, Field, FieldAccess, Instruction,
-    InstructionKind, LineNumber, LocalVariableType, Method, MethodAccess, MethodNullness,
-    MethodTypeUse, Nullness, TypeParameterUse, TypeUse, TypeUseKind,
+    AnnotationDefaultNumeric, AnnotationDefaultValue, CallKind, CallSite, Class, ClassTypeUse,
+    ExceptionHandler, Field, FieldAccess, Instruction, InstructionKind, LineNumber,
+    LocalVariableType, Method, MethodAccess, MethodNullness, MethodTypeUse, Nullness,
+    TypeParameterUse, TypeUse, TypeUseKind,
 };
 use crate::opcodes;
 use crate::telemetry::Telemetry;
@@ -256,6 +257,7 @@ fn scan_class_file(
         referenced_classes: parsed.referenced_classes,
         fields: parsed.fields,
         methods: parsed.methods,
+        annotation_defaults: parsed.annotation_defaults,
         artifact_index,
         is_record: parsed.is_record,
     });
@@ -451,6 +453,7 @@ fn parse_jar_classes(
             referenced_classes: parsed.referenced_classes,
             fields: parsed.fields,
             methods: parsed.methods,
+            annotation_defaults: parsed.annotation_defaults,
             artifact_index: jar_index,
             is_record: parsed.is_record,
         });
@@ -794,6 +797,7 @@ struct ParsedClass {
     referenced_classes: Vec<String>,
     fields: Vec<crate::ir::Field>,
     methods: Vec<Method>,
+    annotation_defaults: Vec<AnnotationDefaultValue>,
     is_record: bool,
 }
 
@@ -849,10 +853,28 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         parse_signature(class_file.attributes(), constant_pool).context("parse class signature")?;
     let type_parameters = parse_class_type_parameters(class_signature.as_deref(), default_nullness)
         .context("parse class type parameters")?;
+    let bootstrap_methods: Vec<&jclassfile::attributes::BootstrapMethodRecord> = class_file
+        .attributes()
+        .iter()
+        .filter_map(|attr| match attr {
+            jclassfile::attributes::Attribute::BootstrapMethods {
+                bootstrap_methods, ..
+            } => Some(bootstrap_methods.iter()),
+            _ => None,
+        })
+        .flatten()
+        .collect();
     let fields = parse_fields(constant_pool, class_file.fields(), default_nullness)
         .context("parse fields")?;
-    let methods = parse_methods(constant_pool, class_file.methods(), default_nullness)
-        .context("parse method bytecode")?;
+    let methods = parse_methods(
+        constant_pool,
+        class_file.methods(),
+        default_nullness,
+        &bootstrap_methods,
+    )
+    .context("parse method bytecode")?;
+    let annotation_defaults = parse_annotation_defaults(constant_pool, class_file.methods())
+        .context("parse annotation defaults")?;
 
     Ok(ParsedClass {
         name: class_name,
@@ -863,6 +885,7 @@ fn parse_class_bytes(data: &[u8]) -> Result<ParsedClass> {
         referenced_classes: referenced.into_iter().collect(),
         fields,
         methods,
+        annotation_defaults,
         is_record,
     })
 }
@@ -951,6 +974,7 @@ fn parse_class_bytes_minimal(data: &[u8]) -> Result<ParsedClass> {
         referenced_classes: referenced.into_iter().collect(),
         fields: Vec::new(),
         methods: Vec::new(),
+        annotation_defaults: Vec::new(),
         is_record: false,
     })
 }
@@ -1149,6 +1173,7 @@ fn parse_methods(
     constant_pool: &[ConstantPool],
     methods: &[jclassfile::methods::MethodInfo],
     default_nullness: DefaultNullness,
+    bootstrap_methods: &[&jclassfile::attributes::BootstrapMethodRecord],
 ) -> Result<Vec<Method>> {
     let mut parsed = Vec::new();
     for method in methods {
@@ -1163,6 +1188,8 @@ fn parse_methods(
             is_public: access_flags.contains(MethodFlags::ACC_PUBLIC),
             is_static: access_flags.contains(MethodFlags::ACC_STATIC),
             is_abstract: access_flags.contains(MethodFlags::ACC_ABSTRACT),
+            is_synthetic: access_flags.contains(MethodFlags::ACC_SYNTHETIC),
+            is_bridge: access_flags.contains(MethodFlags::ACC_BRIDGE),
         };
         let nullness = parse_method_nullness(
             constant_pool,
@@ -1197,7 +1224,7 @@ fn parse_methods(
         let line_numbers =
             parse_line_numbers(code_attributes, constant_pool).context("parse line numbers")?;
         let (instructions, calls, string_literals) =
-            parse_bytecode(code, constant_pool).context("parse bytecode")?;
+            parse_bytecode(code, constant_pool, bootstrap_methods).context("parse bytecode")?;
         let exception_handlers =
             parse_exception_handlers(exception_table, constant_pool).context("parse handlers")?;
         let local_variable_types =
@@ -2119,6 +2146,7 @@ fn is_reference_type(ty: &TypeDescriptor) -> bool {
 fn parse_bytecode(
     code: &[u8],
     constant_pool: &[ConstantPool],
+    bootstrap_methods: &[&jclassfile::attributes::BootstrapMethodRecord],
 ) -> Result<(Vec<Instruction>, Vec<CallSite>, Vec<String>)> {
     let mut instructions = Vec::new();
     let mut calls = Vec::new();
@@ -2156,6 +2184,15 @@ fn parse_bytecode(
                 calls.push(call.clone());
                 InstructionKind::Invoke(call)
             }
+            opcodes::BIPUSH => {
+                let value = code.get(offset + 1).copied().context("bipush operand")? as i8;
+                InstructionKind::ConstInt(value as i64)
+            }
+            opcodes::SIPUSH => {
+                let bytes = code.get(offset + 1..offset + 3).context("sipush operand")?;
+                let value = i16::from_be_bytes([bytes[0], bytes[1]]);
+                InstructionKind::ConstInt(value as i64)
+            }
             opcodes::LDC => {
                 let index = code.get(offset + 1).copied().context("ldc index")? as u16;
                 if let Some(value) = resolve_string_literal(constant_pool, index)? {
@@ -2163,6 +2200,8 @@ fn parse_bytecode(
                     InstructionKind::ConstString(value)
                 } else if let Some(value) = resolve_class_literal(constant_pool, index)? {
                     InstructionKind::ConstClass(value)
+                } else if let Some(kind) = resolve_numeric_literal(constant_pool, index)? {
+                    kind
                 } else {
                     InstructionKind::Other(opcode)
                 }
@@ -2174,6 +2213,8 @@ fn parse_bytecode(
                     InstructionKind::ConstString(value)
                 } else if let Some(value) = resolve_class_literal(constant_pool, index)? {
                     InstructionKind::ConstClass(value)
+                } else if let Some(kind) = resolve_numeric_literal(constant_pool, index)? {
+                    kind
                 } else {
                     InstructionKind::Other(opcode)
                 }
@@ -2182,7 +2223,15 @@ fn parse_bytecode(
                 let call_site_index = read_u16(code, offset + 1)?;
                 let descriptor = resolve_invoke_dynamic_descriptor(constant_pool, call_site_index)
                     .context("resolve invoke dynamic descriptor")?;
-                InstructionKind::InvokeDynamic { descriptor }
+                let impl_method = resolve_invoke_dynamic_impl_method(
+                    constant_pool,
+                    call_site_index,
+                    bootstrap_methods,
+                );
+                InstructionKind::InvokeDynamic {
+                    descriptor,
+                    impl_method,
+                }
             }
             _ => InstructionKind::Other(opcode),
         };
@@ -2244,6 +2293,47 @@ fn resolve_invoke_dynamic_descriptor(constant_pool: &[ConstantPool], index: u16)
     };
     let (_, descriptor_index) = resolve_name_and_type(constant_pool, name_and_type_index)?;
     resolve_utf8(constant_pool, descriptor_index).context("resolve invoke dynamic descriptor")
+}
+
+/// Resolve the implementation method name from an invokedynamic's bootstrap method.
+///
+/// Returns `Some(method_name)` when the bootstrap arguments contain a
+/// `MethodHandle` pointing to a `Methodref` in the same class (i.e. a lambda
+/// implementation method like `lambda$methodOne$0`).
+fn resolve_invoke_dynamic_impl_method(
+    constant_pool: &[ConstantPool],
+    call_site_index: u16,
+    bootstrap_methods: &[&jclassfile::attributes::BootstrapMethodRecord],
+) -> Option<String> {
+    let entry = constant_pool.get(call_site_index as usize)?;
+    let bsm_index = match entry {
+        ConstantPool::InvokeDynamic {
+            bootstrap_method_attr_index,
+            ..
+        } => *bootstrap_method_attr_index,
+        _ => return None,
+    };
+    let bsm = bootstrap_methods.get(bsm_index as usize)?;
+    let args = bsm.bootstrap_arguments();
+    // bootstrap_arguments[1] is the implementation MethodHandle (per LambdaMetafactory spec).
+    let impl_handle_index = args.get(1)?;
+    let handle = constant_pool.get(*impl_handle_index as usize)?;
+    let reference_index = match handle {
+        ConstantPool::MethodHandle {
+            reference_index, ..
+        } => *reference_index,
+        _ => return None,
+    };
+    let method_ref = constant_pool.get(reference_index as usize)?;
+    let name_and_type_index = match method_ref {
+        ConstantPool::Methodref {
+            name_and_type_index,
+            ..
+        } => *name_and_type_index,
+        _ => return None,
+    };
+    let (name_index, _) = resolve_name_and_type(constant_pool, name_and_type_index).ok()?;
+    resolve_utf8(constant_pool, name_index).ok()
 }
 
 fn resolve_name_and_type(constant_pool: &[ConstantPool], index: u16) -> Result<(u16, u16)> {
@@ -2378,6 +2468,74 @@ fn resolve_class_literal(constant_pool: &[ConstantPool], index: u16) -> Result<O
         .context("missing constant pool entry")?;
     match entry {
         ConstantPool::Class { name_index } => Ok(Some(resolve_utf8(constant_pool, *name_index)?)),
+        _ => Ok(None),
+    }
+}
+
+fn parse_annotation_defaults(
+    constant_pool: &[ConstantPool],
+    methods: &[jclassfile::methods::MethodInfo],
+) -> Result<Vec<AnnotationDefaultValue>> {
+    let mut defaults = Vec::new();
+    for method in methods {
+        let name =
+            resolve_utf8(constant_pool, method.name_index()).context("resolve method name")?;
+        let descriptor = resolve_utf8(constant_pool, method.descriptor_index())
+            .context("resolve method descriptor")?;
+        for attr in method.attributes() {
+            if let jclassfile::attributes::Attribute::AnnotationDefault { default_value, .. } = attr
+            {
+                if let jclassfile::attributes::ElementValue::ConstValueIndex {
+                    tag,
+                    const_value_index,
+                } = default_value
+                {
+                    if matches!(tag, b'B' | b'C' | b'D' | b'F' | b'I' | b'J' | b'S') {
+                        let entry = constant_pool
+                            .get(*const_value_index as usize)
+                            .context("missing annotation default constant pool entry")?;
+                        let numeric = match entry {
+                            ConstantPool::Integer { value } => {
+                                Some(AnnotationDefaultNumeric::Int(*value as i64))
+                            }
+                            ConstantPool::Long { value } => {
+                                Some(AnnotationDefaultNumeric::Int(*value))
+                            }
+                            ConstantPool::Float { value } => {
+                                Some(AnnotationDefaultNumeric::Float(*value as f64))
+                            }
+                            ConstantPool::Double { value } => {
+                                Some(AnnotationDefaultNumeric::Float(*value))
+                            }
+                            _ => None,
+                        };
+                        if let Some(value) = numeric {
+                            defaults.push(AnnotationDefaultValue {
+                                method_name: name.clone(),
+                                method_descriptor: descriptor.clone(),
+                                value,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(defaults)
+}
+
+fn resolve_numeric_literal(
+    constant_pool: &[ConstantPool],
+    index: u16,
+) -> Result<Option<InstructionKind>> {
+    let entry = constant_pool
+        .get(index as usize)
+        .context("missing constant pool entry")?;
+    match entry {
+        ConstantPool::Integer { value } => Ok(Some(InstructionKind::ConstInt(*value as i64))),
+        ConstantPool::Long { value } => Ok(Some(InstructionKind::ConstInt(*value))),
+        ConstantPool::Float { value } => Ok(Some(InstructionKind::ConstFloat(*value as f64))),
+        ConstantPool::Double { value } => Ok(Some(InstructionKind::ConstFloat(*value))),
         _ => Ok(None),
     }
 }

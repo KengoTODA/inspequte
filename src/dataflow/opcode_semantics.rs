@@ -465,6 +465,8 @@ mod tests {
                 is_public: false,
                 is_static: true,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::Unknown,

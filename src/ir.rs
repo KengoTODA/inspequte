@@ -11,8 +11,24 @@ pub(crate) struct Class {
     pub(crate) referenced_classes: Vec<String>,
     pub(crate) fields: Vec<Field>,
     pub(crate) methods: Vec<Method>,
+    pub(crate) annotation_defaults: Vec<AnnotationDefaultValue>,
     pub(crate) artifact_index: i64,
     pub(crate) is_record: bool,
+}
+
+/// Numeric default value from an annotation method's AnnotationDefault attribute.
+#[derive(Clone, Debug)]
+pub(crate) struct AnnotationDefaultValue {
+    pub(crate) method_name: String,
+    pub(crate) method_descriptor: String,
+    pub(crate) value: AnnotationDefaultNumeric,
+}
+
+/// Numeric type of an annotation default value.
+#[derive(Clone, Debug)]
+pub(crate) enum AnnotationDefaultNumeric {
+    Int(i64),
+    Float(f64),
 }
 
 /// Field definition for a class.
@@ -68,6 +84,8 @@ pub(crate) struct MethodAccess {
     pub(crate) is_public: bool,
     pub(crate) is_static: bool,
     pub(crate) is_abstract: bool,
+    pub(crate) is_synthetic: bool,
+    pub(crate) is_bridge: bool,
 }
 
 /// Exception handler metadata from the Code attribute.
@@ -129,9 +147,16 @@ pub(crate) struct Instruction {
 #[derive(Clone, Debug)]
 pub(crate) enum InstructionKind {
     Invoke(CallSite),
-    InvokeDynamic { descriptor: String },
+    InvokeDynamic {
+        descriptor: String,
+        impl_method: Option<String>,
+    },
     ConstString(String),
     ConstClass(String),
+    /// Integer or long constant loaded via bipush, sipush, or ldc/ldc2_w.
+    ConstInt(i64),
+    /// Float or double constant loaded via ldc/ldc2_w.
+    ConstFloat(f64),
     Other(u8),
 }
 

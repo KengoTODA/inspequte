@@ -320,7 +320,7 @@ fn apply_stack_effect(
 
     match &instruction.kind {
         InstructionKind::Invoke(call) => handle_invoke(call, state)?,
-        InstructionKind::InvokeDynamic { descriptor } => {
+        InstructionKind::InvokeDynamic { descriptor, .. } => {
             handle_invoke_dynamic_descriptor(descriptor, state)?
         }
         _ => {}

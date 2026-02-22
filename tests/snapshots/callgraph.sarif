@@ -224,6 +224,13 @@
               }
             },
             {
+              "id": "MAGIC_NUMBER",
+              "name": "Magic number",
+              "shortDescription": {
+                "text": "Numeric literals used directly in method bodies reduce readability and maintainability; extract them into named constants"
+              }
+            },
+            {
               "id": "MUTATE_UNMODIFIABLE_COLLECTION",
               "name": "Mutation on unmodifiable collection",
               "shortDescription": {
