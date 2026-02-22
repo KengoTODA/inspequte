@@ -148,7 +148,7 @@ fn analyze_method(
                         stack.pop();
                     }
 
-                    if is_get_logger_call(call, &param_types) {
+                    if is_get_logger_call(call, param_types) {
                         let arg = args.first().cloned().unwrap_or(ValueKind::Unknown);
                         if let ValueKind::ClassLiteral(passed_class) = arg {
                             if !is_acceptable_class(class_name, &passed_class) {

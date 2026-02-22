@@ -147,8 +147,8 @@ fn analyze_method(
                     }
 
                     if is_log4j2_logger_call(call) {
-                        if let Some(format_index) = format_index(&param_types) {
-                            if is_message_only_overload(&param_types, format_index) {
+                        if let Some(format_index) = format_index(param_types) {
+                            if is_message_only_overload(param_types, format_index) {
                                 // Message-only overloads are allowed.
                             } else if let Some(ValueKind::FormatString(text)) =
                                 args.get(format_index).cloned()

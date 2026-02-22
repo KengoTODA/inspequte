@@ -2022,7 +2022,7 @@ impl<'a> TypeUseSignatureParser<'a> {
                     inner: None,
                 }),
             }));
-            let Some(inner) = cursor.inner.as_mut() else {
+            let inner = cursor.inner.as_mut()? else {
                 return None;
             };
             let TypeUseKind::Class(class) = &mut inner.kind else {
