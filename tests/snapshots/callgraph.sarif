@@ -112,6 +112,13 @@
               }
             },
             {
+              "id": "EXPLICIT_FINALIZE_CALL",
+              "name": "Explicit finalize call",
+              "shortDescription": {
+                "text": "Direct virtual calls to finalize() bypass GC lifecycle and indicate broken resource cleanup"
+              }
+            },
+            {
               "id": "EXPLICIT_GC_CALL",
               "name": "Explicit GC call",
               "shortDescription": {

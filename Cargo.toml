@@ -1,6 +1,6 @@
 [package]
 name = "inspequte"
-version = "0.22.0"
+version = "0.22.1"
 edition = "2024"
 description = "Fast, CLI-first static analysis for JVM class and JAR files."
 license = "AGPL-3.0-only"
@@ -21,11 +21,10 @@ serde_json = "1"
 zip = "8.0.0"
 jsonschema = "0.42.0"
 futures-util = "0.3"
-opentelemetry = "0.26"
-opentelemetry-otlp = { version = "0.26", features = ["http-proto", "reqwest-client"] }
-opentelemetry_sdk = { version = "0.26", features = ["rt-tokio", "trace"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-tokio = { version = "1", features = ["full"] }
+opentelemetry = "0.31"
+opentelemetry-otlp = { version = "0.31", features = ["http-proto", "reqwest-blocking-client"] }
+opentelemetry_sdk = { version = "0.31", features = ["trace"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 rayon = "1"
 inventory = "0.3"
 tracing = "0.1"

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.22.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.22.0...inspequte-v0.22.1) (2026-02-21)
+
+
+### Bug Fixes
+
+* **deps:** update opentelemetry-rust monorepo to 0.31 ([5a03196](https://github.com/KengoTODA/inspequte/commit/5a03196f39e7c71698e2b831048dc5b3ca8a6012))
+* **deps:** update opentelemetry-rust monorepo to 0.31 ([ef5671e](https://github.com/KengoTODA/inspequte/commit/ef5671ec53f6bf560e5d78e7995eb7dba9896c83))
+* **deps:** update rust crate reqwest to 0.13 ([65b8ebc](https://github.com/KengoTODA/inspequte/commit/65b8ebc69e385a414fd0524c166ea4eecf63ad3a))
+* **deps:** update rust crate reqwest to 0.13 ([88f5ea2](https://github.com/KengoTODA/inspequte/commit/88f5ea21abbf40a09c6de97ccd1d6ff4541f69a8))
+* **deps:** update rust crate zip to v8 ([b527c46](https://github.com/KengoTODA/inspequte/commit/b527c46d5fa810a16d9ad7729b378bad309ed7d4))
+
 ## [0.22.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.21.0...inspequte-v0.22.0) (2026-02-20)
 
 
