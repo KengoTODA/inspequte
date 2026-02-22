@@ -24,31 +24,36 @@ Replace `<VERSION>` with the latest version shown on the
 
 ## Registered tasks
 
-For each source set the plugin registers two tasks:
+For each Java source set the plugin registers a task pair:
 
-| Task name | Source set | Description |
-|---|---|---|
-| `writeInspequteInputs` | `main` | Writes input/classpath list files for analysis |
-| `inspequte` | `main` | Runs `inspequte` and produces a SARIF report |
-| `writeInspequteInputsTest` | `test` | Same as above for the `test` source set |
-| `inspequteTest` | `test` | Same as above for the `test` source set |
+| Task | Description |
+|---|---|
+| `writeInspequteInputs<SourceSet>` | Writes input/classpath list files for analysis |
+| `inspequte<SourceSet>` | Runs `inspequte` and produces a SARIF report |
 
-Additional source sets (e.g. integration tests) get their own task pair with the
-same naming pattern.
+The `<SourceSet>` part is the capitalized source set name: `Main` for the `main`
+source set, `Test` for `test`, and so on.
 
-Both task groups belong to the `verification` group and `inspequte*` tasks are
+For a standard Java project the registered tasks are:
+
+```
+writeInspequteInputsMain   inspequteMain
+writeInspequteInputsTest   inspequteTest
+```
+
+Both task types belong to the `verification` group. All `inspequte*` tasks are
 added as dependencies of `check`, so `./gradlew check` runs analysis
 automatically.
 
 ### Output location
 
-Each `inspequte*` task writes its SARIF report to:
+Each `inspequte<SourceSet>` task writes its SARIF report to:
 
 ```
 build/inspequte/<sourceSetName>/report.sarif
 ```
 
-For example, the `main` source set produces `build/inspequte/main/report.sarif`.
+For example, `inspequteMain` produces `build/inspequte/main/report.sarif`.
 
 ### Skipping when inspequte is not found
 
@@ -56,7 +61,7 @@ If the `inspequte` command is not available in `PATH` at task execution time the
 task is skipped with a warning rather than failing the build:
 
 ```
-Skipping 'inspequte': the 'inspequte' command is not available in PATH.
+Skipping 'inspequteMain': the 'inspequte' command is not available in PATH.
 Install it with: cargo install inspequte --locked
 ```
 
@@ -102,10 +107,10 @@ options on the command line:
 
 ```bash
 # Override the OTLP collector URL for a single run
-./gradlew inspequte --inspequte-otel http://localhost:8080
+./gradlew inspequteMain --inspequte-otel http://localhost:8080
 
 # Override the automation details ID for a single run
-./gradlew inspequte --inspequte-automation-details-id "inspequte/override/main"
+./gradlew inspequteMain --inspequte-automation-details-id "inspequte/override/main"
 ```
 
 These flags take precedence over values set in the `inspequte` extension block.
