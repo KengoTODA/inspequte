@@ -1,4 +1,4 @@
-## Summary
+# WAIT_NOT_GUARDED_BY_LOOP
 - id: `WAIT_NOT_GUARDED_BY_LOOP`
 - name: `Wait call not guarded by loop`
 - description: `wait/await calls outside retry loops risk spurious-wakeup bugs`
