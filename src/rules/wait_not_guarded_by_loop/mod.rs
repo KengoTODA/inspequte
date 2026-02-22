@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
@@ -33,11 +35,12 @@ impl Rule for WaitNotGuardedByLoopRule {
                     let mut class_results = Vec::new();
                     let artifact_uri = context.class_artifact_uri(class);
                     for method in &class.methods {
+                        let loop_ranges = loop_ranges(method);
                         for call in &method.calls {
                             if !is_wait_like_call(&call.owner, &call.name, &call.descriptor) {
                                 continue;
                             }
-                            if is_guarded_by_loop(method, call.offset) {
+                            if is_guarded_by_loop(&loop_ranges, call.offset) {
                                 continue;
                             }
                             let message = result_message(format!(
@@ -89,33 +92,33 @@ fn is_wait_like_call(owner: &str, name: &str, descriptor: &str) -> bool {
     )
 }
 
-fn is_guarded_by_loop(method: &Method, call_offset: u32) -> bool {
+fn loop_ranges(method: &Method) -> Vec<(u32, u32)> {
+    let block_end_offsets = method
+        .cfg
+        .blocks
+        .iter()
+        .map(|block| (block.start_offset, block.end_offset))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut ranges = Vec::new();
     for edge in &method.cfg.edges {
         if edge.kind != EdgeKind::Branch || edge.from <= edge.to {
             continue;
         }
-        let Some(from_block) = method
-            .cfg
-            .blocks
-            .iter()
-            .find(|block| block.start_offset == edge.from)
-        else {
+        let Some(loop_end_offset) = block_end_offsets.get(&edge.from) else {
             continue;
         };
-        let Some(to_block) = method
-            .cfg
-            .blocks
-            .iter()
-            .find(|block| block.start_offset == edge.to)
-        else {
-            continue;
-        };
-
-        if to_block.start_offset <= call_offset && from_block.end_offset > call_offset {
-            return true;
-        }
+        ranges.push((edge.to, *loop_end_offset));
     }
-    false
+    ranges.sort_unstable();
+    ranges.dedup();
+    ranges
+}
+
+fn is_guarded_by_loop(loop_ranges: &[(u32, u32)], call_offset: u32) -> bool {
+    loop_ranges
+        .iter()
+        .any(|(start_offset, end_offset)| *start_offset <= call_offset && call_offset < *end_offset)
 }
 
 #[cfg(test)]
