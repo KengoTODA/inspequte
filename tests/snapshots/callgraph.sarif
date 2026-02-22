@@ -397,6 +397,13 @@
               "shortDescription": {
                 "text": "URL.openStream can hide timeout and connection configuration"
               }
+            },
+            {
+              "id": "WAIT_NOT_GUARDED_BY_LOOP",
+              "name": "Wait call not guarded by loop",
+              "shortDescription": {
+                "text": "wait/await calls outside retry loops risk spurious wakeups"
+              }
             }
           ],
           "semanticVersion": "0.0.0"
