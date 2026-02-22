@@ -78,7 +78,7 @@ impl Telemetry {
         Ok(())
     }
 
-    fn from_exporter<E: SpanExporter + 'static>(exporter: E) -> Result<Self>
+    fn from_exporter<E>(exporter: E) -> Result<Self>
     where
         E: SpanExporter + 'static,
     {
