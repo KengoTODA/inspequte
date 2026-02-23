@@ -1,0 +1,17 @@
+codecov:
+  notify:
+    after_n_builds: 2
+
+flags:
+  cli:
+    paths:
+      - src/
+  gradle-plugin:
+    paths:
+      - gradle-plugin/
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
