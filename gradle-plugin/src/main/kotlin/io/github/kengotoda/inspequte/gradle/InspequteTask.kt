@@ -1,10 +1,10 @@
 package io.github.kengotoda.inspequte.gradle
 
 import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.options.Option
-import org.gradle.api.tasks.Exec
 
 /**
  * Task that runs inspequte with optional OpenTelemetry export configuration.
@@ -30,6 +30,13 @@ abstract class InspequteTask : Exec() {
      */
     @get:Input
     abstract val allowDuplicateClasses: Property<Boolean>
+
+    /**
+     * Version string of the inspequte binary, used to invalidate the task when the binary is upgraded.
+     */
+    @get:Input
+    @get:Optional
+    abstract val inspequteVersion: Property<String>
 
     @Option(
         option = "inspequte-otel",
