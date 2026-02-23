@@ -12,6 +12,8 @@ results to GitHub Code Scanning.
 
 ## Option A: Gradle Plugin (recommended for Gradle projects)
 
+Make sure you install `inspequte` before you launch Gradle daemon, or Gradle cannot use the latest `PATH` updated by `setup-inspequte`.
+
 ```yaml
 name: inspequte
 

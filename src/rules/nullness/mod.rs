@@ -1192,6 +1192,7 @@ mod tests {
             referenced_classes: Vec::new(),
             fields: Vec::new(),
             methods,
+            annotation_defaults: Vec::new(),
             artifact_index: 0,
             is_record: false,
         }
@@ -1337,6 +1338,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::NonNull,
@@ -1362,6 +1365,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::Nullable,
@@ -1404,6 +1409,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::Unknown,
@@ -1429,6 +1436,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             nullness: MethodNullness {
                 return_nullness: Nullness::Unknown,
@@ -1470,6 +1479,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::NonNull,
@@ -1509,6 +1520,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: true,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::Unknown,
@@ -1565,6 +1578,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::NonNull,
@@ -1641,6 +1656,8 @@ public @interface NullnessUnspecified {}
                 is_public: true,
                 is_static: false,
                 is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
             },
             MethodNullness {
                 return_nullness: Nullness::NonNull,
