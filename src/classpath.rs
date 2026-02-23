@@ -46,7 +46,12 @@ pub(crate) fn resolve_classpath(
                 artifact_uri(artifacts, indices[0])
             );
         } else {
-            error_duplicates.push(format!("{name}: {indices:?}"));
+            let duplicate_artifacts = indices
+                .iter()
+                .map(|index| format!("{index} ({})", artifact_uri(artifacts, *index)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            error_duplicates.push(format!("{name}: [{duplicate_artifacts}]"));
         }
     }
     if !error_duplicates.is_empty() {
@@ -163,6 +168,10 @@ mod tests {
 
     #[test]
     fn resolve_classpath_rejects_duplicates() {
+        let artifacts = vec![
+            make_artifact("file:///first.jar"),
+            make_artifact("file:///second.jar"),
+        ];
         let classes = vec![
             Class {
                 name: "com/example/Foo".to_string(),
@@ -190,11 +199,14 @@ mod tests {
             },
         ];
 
-        let result = resolve_classpath(&classes, &[], false);
+        let result = resolve_classpath(&classes, &artifacts, false);
 
         assert!(result.is_err());
         let error = result.err().expect("duplicate class error");
-        assert!(format!("{error:#}").contains("duplicate classes"));
+        let error_text = format!("{error:#}");
+        assert!(error_text.contains("duplicate classes"));
+        assert!(error_text.contains("file:///first.jar"));
+        assert!(error_text.contains("file:///second.jar"));
     }
 
     #[test]
@@ -232,8 +244,7 @@ mod tests {
         let index = result.unwrap();
         assert!(index.classes.contains_key("com/example/Foo"));
         assert_eq!(
-            index.classes["com/example/Foo"],
-            0,
+            index.classes["com/example/Foo"], 0,
             "when artifacts are empty, the first duplicate encountered should win"
         );
     }
