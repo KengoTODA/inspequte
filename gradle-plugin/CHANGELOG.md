@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.4.0...gradle-plugin-v0.5.0) (2026-02-23)
+
+
+### Features
+
+* **gradle-plugin:** add allowDuplicateClasses extension and task property ([4d8eef0](https://github.com/KengoTODA/inspequte/commit/4d8eef08052d00eef67a0dcdf4eb12b5d4472a60))
+
+
+### Bug Fixes
+
+* **gradle-plugin:** invalidate task cache when inspequte binary version changes ([ee98e6c](https://github.com/KengoTODA/inspequte/commit/ee98e6c91975d5095ba64ad9bc5c52af694aa3f6))
+
 ## [0.4.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.3.0...gradle-plugin-v0.4.0) (2026-02-20)
 
 
