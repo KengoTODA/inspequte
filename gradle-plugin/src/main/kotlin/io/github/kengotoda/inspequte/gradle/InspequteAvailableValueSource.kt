@@ -24,11 +24,11 @@ abstract class InspequteAvailableValueSource : ValueSource<Boolean, ValueSourceP
                 listOf("which", "inspequte")
             }
 
-            val result = execOperations.exec {
-                commandLine(command)
-                standardOutput = stdout
-                errorOutput = stderr
-                isIgnoreExitValue = true
+            val result = execOperations.exec { spec ->
+                spec.commandLine(command)
+                spec.standardOutput = stdout
+                spec.errorOutput = stderr
+                spec.isIgnoreExitValue = true
             }
 
             result.exitValue == 0

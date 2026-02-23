@@ -199,8 +199,8 @@ class InspequtePluginTest {
 
         val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
 
-        // Property must exist; its value depends on whether inspequte is installed
-        assertNotNull(task.inspequteVersion)
+        val version = task.inspequteVersion.get()
+        assertFalse(version.isBlank())
     }
 
     @Test

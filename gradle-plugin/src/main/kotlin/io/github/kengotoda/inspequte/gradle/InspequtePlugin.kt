@@ -21,8 +21,8 @@ class InspequtePlugin : Plugin<Project> {
 
         project.pluginManager.withPlugin("java-base") {
             val javaExtension = project.extensions.getByType<JavaPluginExtension>()
-            javaExtension.sourceSets.configureEach {
-                configureInspequteForSourceSet(project, this, inspequteAvailable, inspequteVersionProvider, extension)
+            javaExtension.sourceSets.configureEach { sourceSet ->
+                configureInspequteForSourceSet(project, sourceSet, inspequteAvailable, inspequteVersionProvider, extension)
             }
         }
     }
@@ -84,8 +84,8 @@ class InspequtePlugin : Plugin<Project> {
             )
         }
 
-        project.tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
-            dependsOn(inspequteTask)
+        project.tasks.named(JavaBasePlugin.CHECK_TASK_NAME).configure { task ->
+            task.dependsOn(inspequteTask)
         }
     }
 

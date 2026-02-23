@@ -18,10 +18,10 @@ abstract class InspequteVersionValueSource : ValueSource<String, ValueSourcePara
     override fun obtain(): String? {
         return try {
             val stdout = ByteArrayOutputStream()
-            val result = execOperations.exec {
-                commandLine("inspequte", "--version")
-                standardOutput = stdout
-                isIgnoreExitValue = true
+            val result = execOperations.exec { spec ->
+                spec.commandLine("inspequte", "--version")
+                spec.standardOutput = stdout
+                spec.isIgnoreExitValue = true
             }
             if (result.exitValue == 0) stdout.toString().trim().ifEmpty { null } else null
         } catch (e: Exception) {

@@ -1,8 +1,7 @@
 plugins {
     `java-gradle-plugin`
-    `kotlin-dsl`
+    kotlin("jvm") version "2.0.21"
     jacoco
-    id("com.gradle.plugin-publish") version "2.0.0"
 }
 
 group = "io.github.kengotoda.inspequte"
@@ -12,7 +11,6 @@ version = pluginVersion.get()
 
 repositories {
     mavenCentral()
-    gradlePluginPortal()
 }
 
 java {
@@ -37,6 +35,7 @@ gradlePlugin {
 }
 
 dependencies {
+    compileOnly(gradleKotlinDsl())
     testImplementation(platform("org.junit:junit-bom:6.0.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
