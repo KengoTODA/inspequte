@@ -1,6 +1,7 @@
 plugins {
     `java-gradle-plugin`
     kotlin("jvm") version "2.3.10"
+    id("com.gradle.plugin-publish") version "2.0.0"
     jacoco
 }
 
