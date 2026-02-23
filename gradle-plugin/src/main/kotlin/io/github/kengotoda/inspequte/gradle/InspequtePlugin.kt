@@ -16,12 +16,13 @@ import org.gradle.kotlin.dsl.register
 class InspequtePlugin : Plugin<Project> {
     override fun apply(project: Project) {
         val inspequteAvailable = project.providers.of(InspequteAvailableValueSource::class.java) {}
+        val inspequteVersionProvider = project.providers.of(InspequteVersionValueSource::class.java) {}
         val extension = project.extensions.create("inspequte", InspequteExtension::class.java)
 
         project.pluginManager.withPlugin("java-base") {
             val javaExtension = project.extensions.getByType<JavaPluginExtension>()
-            javaExtension.sourceSets.configureEach {
-                configureInspequteForSourceSet(project, this, inspequteAvailable, extension)
+            javaExtension.sourceSets.configureEach { sourceSet ->
+                configureInspequteForSourceSet(project, sourceSet, inspequteAvailable, inspequteVersionProvider, extension)
             }
         }
     }
@@ -30,6 +31,7 @@ class InspequtePlugin : Plugin<Project> {
         project: Project,
         sourceSet: SourceSet,
         inspequteAvailable: Provider<Boolean>,
+        inspequteVersionProvider: Provider<String>,
         extension: InspequteExtension
     ) {
         val defaultAutomationDetailsIdPrefix = defaultAutomationDetailsIdPrefix(project)
@@ -56,6 +58,7 @@ class InspequtePlugin : Plugin<Project> {
             inputs.files(writeInputsTask.flatMap { it.inputsFile }, writeInputsTask.flatMap { it.classpathFile })
             outputs.file(reportFile)
             otel.convention(extension.otel)
+            inspequteVersion.convention(inspequteVersionProvider)
             val automationDetailsIdPrefix = extension.automationDetailsIdPrefix
                 .map { prefix -> prefix.trim().trimEnd('/').ifEmpty { defaultAutomationDetailsIdPrefix } }
                 .orElse(defaultAutomationDetailsIdPrefix)
@@ -81,8 +84,8 @@ class InspequtePlugin : Plugin<Project> {
             )
         }
 
-        project.tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
-            dependsOn(inspequteTask)
+        project.tasks.named(JavaBasePlugin.CHECK_TASK_NAME).configure { task ->
+            task.dependsOn(inspequteTask)
         }
     }
 

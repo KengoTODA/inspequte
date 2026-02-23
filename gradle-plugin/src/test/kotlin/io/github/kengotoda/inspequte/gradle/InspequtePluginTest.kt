@@ -4,6 +4,7 @@ import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.testfixtures.ProjectBuilder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -188,6 +189,18 @@ class InspequtePluginTest {
 
         assertTrue(task.allowDuplicateClasses.get())
         assertTrue(args.contains("--allow-duplicate-classes"))
+    }
+
+    @Test
+    fun `inspequteVersion property is declared on task`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+
+        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
+
+        val version = task.inspequteVersion.get()
+        assertFalse(version.isBlank())
     }
 
     @Test
