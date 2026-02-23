@@ -4,6 +4,7 @@
     ".": {
       "draft": true,
       "force-tag-creation": true,
+      "exclude-paths": ["gradle-plugin"],
       "release-type": "rust"
     },
     "gradle-plugin": {
