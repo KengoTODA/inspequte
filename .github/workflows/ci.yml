@@ -21,7 +21,9 @@ jobs:
         with:
           save-if: false
       - name: Install the release binary
-        run: cargo build --release
+        run: |
+          cargo build --release
+          echo "$GITHUB_WORKSPACE/target/release" >> "$GITHUB_PATH"
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           distribution: 'temurin'
