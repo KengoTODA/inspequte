@@ -12,6 +12,7 @@ version = pluginVersion.get()
 
 repositories {
     mavenCentral()
+    gradlePluginPortal()
 }
 
 java {
