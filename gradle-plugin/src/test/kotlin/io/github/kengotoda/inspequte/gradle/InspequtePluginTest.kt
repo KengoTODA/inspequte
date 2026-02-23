@@ -153,6 +153,44 @@ class InspequtePluginTest {
     }
 
     @Test
+    fun `does not forward allow duplicate classes by default`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+
+        val args = taskArgs(project)
+
+        assertFalse(args.contains("--allow-duplicate-classes"))
+    }
+
+    @Test
+    fun `forwards extension allow duplicate classes to inspequte arguments`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val extension = project.extensions.getByType(InspequteExtension::class.java)
+        extension.allowDuplicateClasses.set(true)
+
+        val args = taskArgs(project)
+
+        assertTrue(args.contains("--allow-duplicate-classes"))
+    }
+
+    @Test
+    fun `task option enables allow duplicate classes`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
+
+        task.setInspequteAllowDuplicateClasses(true)
+        val args = taskArgs(project)
+
+        assertTrue(task.allowDuplicateClasses.get())
+        assertTrue(args.contains("--allow-duplicate-classes"))
+    }
+
+    @Test
     fun `fails for invalid otel url`() {
         val project = ProjectBuilder.builder().build()
         project.plugins.apply("java")

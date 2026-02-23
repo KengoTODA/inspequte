@@ -76,6 +76,9 @@ inspequte {
 
     // Override the --automation-details-id prefix (task appends /<sourceSetName>)
     automationDetailsIdPrefix.set("inspequte/custom-path")
+
+    // Warn instead of failing when the same class name appears in multiple inputs
+    allowDuplicateClasses.set(true)
 }
 ```
 
@@ -100,6 +103,17 @@ inspequte/<relative-project-path>/<sourceSetName>
 For a single-project build the path is `.`, producing IDs like
 `inspequte/./<sourceSetName>`.
 
+### `allowDuplicateClasses`
+
+Optional. Defaults to `false`.
+
+When `true`, passes `--allow-duplicate-classes` to the CLI. If the same class
+name is found in more than one input artifact the tool emits a warning instead
+of failing, and always picks the class from the artifact whose path is
+lexicographically smallest, ensuring deterministic results. Set this to `true`
+when your build produces shadow JARs, shaded dependencies, or other scenarios
+that intentionally place the same class in multiple inputs.
+
 ## Per-run CLI overrides
 
 You can override task properties for a single Gradle invocation using task
@@ -111,6 +125,9 @@ options on the command line:
 
 # Override the automation details ID for a single run
 ./gradlew inspequteMain --inspequte-automation-details-id "inspequte/override/main"
+
+# Warn instead of failing on duplicate class names for a single run
+./gradlew inspequteMain --inspequte-allow-duplicate-classes
 ```
 
 These flags take precedence over values set in the `inspequte` extension block.
