@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.23.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.22.1...inspequte-v0.23.0) (2026-02-23)
+
+
+### Features
+
+* add --allow-duplicate-classes flag to warn on duplicate class names ([b9669cc](https://github.com/KengoTODA/inspequte/commit/b9669ccae51ef9d8374cd84f9898600756644c82))
+* **gradle-plugin:** add allowDuplicateClasses extension and task property ([4d8eef0](https://github.com/KengoTODA/inspequte/commit/4d8eef08052d00eef67a0dcdf4eb12b5d4472a60))
+* **rule:** add volatile non-atomic update detection ([250e303](https://github.com/KengoTODA/inspequte/commit/250e30336511e5b5a9e9fec02b988269d7ac5e1c))
+* **rule:** add volatile non-atomic update detection ([#114](https://github.com/KengoTODA/inspequte/issues/114)) ([b96598d](https://github.com/KengoTODA/inspequte/commit/b96598dcd021fea24222d39e448ad2684ccace79))
+* **rule:** Magic number ([#93](https://github.com/KengoTODA/inspequte/issues/93)) ([8cab179](https://github.com/KengoTODA/inspequte/commit/8cab179104e077c83ae98f7dd619158d2f8bce96))
+* **rules:** add EXPLICIT_FINALIZE_CALL rule ([9eaa46e](https://github.com/KengoTODA/inspequte/commit/9eaa46e159f725b14c24e5555e905e7466e25ac8))
+
+
+### Bug Fixes
+
+* **classpath:** include artifact URIs in duplicate errors ([bd4bb64](https://github.com/KengoTODA/inspequte/commit/bd4bb6456e62c2084e7e18826b57f3dad9019536))
+* **gradle-plugin:** invalidate task cache when inspequte binary version changes ([ee98e6c](https://github.com/KengoTODA/inspequte/commit/ee98e6c91975d5095ba64ad9bc5c52af694aa3f6))
+* **test:** add annotation_defaults in classpath fixtures ([bcc52fb](https://github.com/KengoTODA/inspequte/commit/bcc52fb6c033b9a1b99f04e89305979a2b13f2de))
+
 ## [0.22.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.22.0...inspequte-v0.22.1) (2026-02-21)
 
 
