@@ -411,6 +411,13 @@
               "shortDescription": {
                 "text": "URL.openStream can hide timeout and connection configuration"
               }
+            },
+            {
+              "id": "VOLATILE_INCREMENT_NON_ATOMIC",
+              "name": "Non-atomic update on volatile field",
+              "shortDescription": {
+                "text": "Read-modify-write updates on volatile fields can lose concurrent updates"
+              }
             }
           ],
           "semanticVersion": "0.0.0"

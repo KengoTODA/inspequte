@@ -22,7 +22,7 @@ use crate::cfg::build_cfg;
 use crate::descriptor::method_param_count;
 use crate::ir::{
     AnnotationDefaultNumeric, AnnotationDefaultValue, CallKind, CallSite, Class, ClassTypeUse,
-    ExceptionHandler, Field, FieldAccess, Instruction, InstructionKind, LineNumber,
+    ExceptionHandler, Field, FieldAccess, FieldRef, Instruction, InstructionKind, LineNumber,
     LocalVariableType, Method, MethodAccess, MethodNullness, MethodTypeUse, Nullness,
     TypeParameterUse, TypeUse, TypeUseKind,
 };
@@ -186,7 +186,7 @@ fn scan_dir(
         entries.push(entry.path());
     }
 
-    entries.sort_by_key(|a | path_key(a));
+    entries.sort_by_key(|a| path_key(a));
 
     for entry in entries {
         if entry.is_dir() {
@@ -1157,6 +1157,7 @@ fn parse_fields(
             is_static: access_flags.contains(FieldFlags::ACC_STATIC),
             is_private: access_flags.contains(FieldFlags::ACC_PRIVATE),
             is_final: access_flags.contains(FieldFlags::ACC_FINAL),
+            is_volatile: access_flags.contains(FieldFlags::ACC_VOLATILE),
         };
         parsed.push(Field {
             name,
@@ -2184,6 +2185,16 @@ fn parse_bytecode(
                 calls.push(call.clone());
                 InstructionKind::Invoke(call)
             }
+            opcodes::GETFIELD | opcodes::PUTFIELD | opcodes::GETSTATIC | opcodes::PUTSTATIC => {
+                let field_index = read_u16(code, offset + 1)?;
+                let field_ref =
+                    resolve_field_ref(constant_pool, field_index).context("resolve field ref")?;
+                InstructionKind::FieldAccess(FieldRef {
+                    owner: field_ref.owner,
+                    name: field_ref.name,
+                    descriptor: field_ref.descriptor,
+                })
+            }
             opcodes::BIPUSH => {
                 let value = code.get(offset + 1).copied().context("bipush operand")? as i8;
                 InstructionKind::ConstInt(value as i64)
@@ -2251,6 +2262,36 @@ struct MethodRef {
     owner: String,
     name: String,
     descriptor: String,
+}
+
+/// Resolved constant pool field reference.
+struct ResolvedFieldRef {
+    owner: String,
+    name: String,
+    descriptor: String,
+}
+
+fn resolve_field_ref(constant_pool: &[ConstantPool], index: u16) -> Result<ResolvedFieldRef> {
+    let entry = constant_pool
+        .get(index as usize)
+        .context("missing field ref entry")?;
+    let (class_index, name_and_type_index) = match entry {
+        ConstantPool::Fieldref {
+            class_index,
+            name_and_type_index,
+        } => (*class_index, *name_and_type_index),
+        _ => anyhow::bail!("unexpected field ref entry"),
+    };
+    let owner = resolve_class_name(constant_pool, class_index).context("resolve owner")?;
+    let (name_index, descriptor_index) = resolve_name_and_type(constant_pool, name_and_type_index)?;
+    let name = resolve_utf8(constant_pool, name_index).context("resolve field name")?;
+    let descriptor =
+        resolve_utf8(constant_pool, descriptor_index).context("resolve field descriptor")?;
+    Ok(ResolvedFieldRef {
+        owner,
+        name,
+        descriptor,
+    })
 }
 
 fn resolve_method_ref(constant_pool: &[ConstantPool], index: u16) -> Result<MethodRef> {

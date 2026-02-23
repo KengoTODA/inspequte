@@ -47,6 +47,7 @@ pub(crate) struct FieldAccess {
     pub(crate) is_static: bool,
     pub(crate) is_private: bool,
     pub(crate) is_final: bool,
+    pub(crate) is_volatile: bool,
 }
 
 /// Intermediate representation for a method and its bytecode.
@@ -147,6 +148,7 @@ pub(crate) struct Instruction {
 #[derive(Clone, Debug)]
 pub(crate) enum InstructionKind {
     Invoke(CallSite),
+    FieldAccess(FieldRef),
     InvokeDynamic {
         descriptor: String,
         impl_method: Option<String>,
@@ -158,6 +160,14 @@ pub(crate) enum InstructionKind {
     /// Float or double constant loaded via ldc/ldc2_w.
     ConstFloat(f64),
     Other(u8),
+}
+
+/// Field access site resolved from bytecode constant pool.
+#[derive(Clone, Debug)]
+pub(crate) struct FieldRef {
+    pub(crate) owner: String,
+    pub(crate) name: String,
+    pub(crate) descriptor: String,
 }
 
 /// Call site extracted from bytecode.
