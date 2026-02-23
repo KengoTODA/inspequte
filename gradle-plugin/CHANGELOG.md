@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.5.0...gradle-plugin-v0.5.1) (2026-02-23)
+
+
+### Bug Fixes
+
+* **gradle-plugin:** add plugin-publish plugin to build.gradle.kts ([c8a56a2](https://github.com/KengoTODA/inspequte/commit/c8a56a2fbf87defc451e7a505b88f850913a4e7b))
+
 ## [0.5.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.4.0...gradle-plugin-v0.5.0) (2026-02-23)
 
 
