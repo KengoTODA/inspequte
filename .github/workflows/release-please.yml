@@ -29,57 +29,12 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.PRIVATE_KEY }}
       - name: Release Please
-        uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0
+        uses: googleapis/release-please-action@8bb7a2ed0f90c9802c83129a9488d235a1f31a7c # v4.5.0-pre (to use release-please v17.3.0)
         id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ steps.app-token.outputs.token }}
-      # Fallback for draft releases: in our pinned release-please-action (v4.4.0),
-      # the bundled release-please does not honor force-tag-creation.
-      # Without an explicit tag, jobs that checkout tag refs fail.
-      - name: Ensure Rust release tag exists
-        if: steps.release.outputs.release_created == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          TAG_NAME: ${{ steps.release.outputs.tag_name }}
-          TAG_SHA: ${{ steps.release.outputs.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${TAG_NAME}" || -z "${TAG_SHA}" ]]; then
-            echo "release-please did not output tag_name/sha for Rust component."
-            exit 1
-          fi
-
-          if gh api "repos/${{ github.repository }}/git/ref/tags/${TAG_NAME}" >/dev/null 2>&1; then
-            echo "Tag ${TAG_NAME} already exists."
-          else
-            gh api --method POST "repos/${{ github.repository }}/git/refs" \
-              -f ref="refs/tags/${TAG_NAME}" \
-              -f sha="${TAG_SHA}"
-          fi
-      - name: Ensure Gradle plugin release tag exists
-        if: steps.release.outputs['gradle-plugin--release_created'] == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          TAG_NAME: ${{ steps.release.outputs['gradle-plugin--tag_name'] }}
-          TAG_SHA: ${{ steps.release.outputs['gradle-plugin--sha'] }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${TAG_NAME}" || -z "${TAG_SHA}" ]]; then
-            echo "release-please did not output tag_name/sha for gradle-plugin component."
-            exit 1
-          fi
-
-          if gh api "repos/${{ github.repository }}/git/ref/tags/${TAG_NAME}" >/dev/null 2>&1; then
-            echo "Tag ${TAG_NAME} already exists."
-          else
-            gh api --method POST "repos/${{ github.repository }}/git/refs" \
-              -f ref="refs/tags/${TAG_NAME}" \
-              -f sha="${TAG_SHA}"
-          fi
 
   build-release-binaries:
     runs-on: ${{ matrix.os }}
