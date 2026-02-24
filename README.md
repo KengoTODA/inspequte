@@ -171,8 +171,8 @@ inspequte {
 }
 
 // Registered automatically:
-// - writeInspequteInputs / writeInspequteInputsTest
-// - inspequte / inspequteTest
+// - writeInspequteInputsMain / writeInspequteInputsTest
+// - inspequteMain / inspequteTest
 // Each inspequte task emits:
 // build/inspequte/<sourceSet>/report.sarif
 ```
@@ -182,9 +182,9 @@ The `inspequte` command must be available in `PATH`.
 By default, each task sets `--automation-details-id` to
 `inspequte/<project relative path>/<sourceSet>`.
 You can also pass the collector URL from CLI for a task run:
-`./gradlew inspequte --inspequte-otel http://localhost:8080`
+`./gradlew inspequteMain --inspequte-otel http://localhost:8080`
 You can override a task's automation details id from CLI:
-`./gradlew inspequte --inspequte-automation-details-id "inspequte/override/main"`
+`./gradlew inspequteMain --inspequte-automation-details-id "inspequte/override/main"`
 
 ## SARIF output (example)
 ```json
