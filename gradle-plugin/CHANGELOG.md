@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.5.1...gradle-plugin-v0.5.2) (2026-02-24)
+
+
+### Bug Fixes
+
+* downgrade Kotlin JVM version from 2.3.10 to 2.0.21 ([f572bcc](https://github.com/KengoTODA/inspequte/commit/f572bcce1cf8d42b951ec713f77e99e350ea126b))
+
 ## [0.5.1](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.5.0...gradle-plugin-v0.5.1) (2026-02-23)
 
 
