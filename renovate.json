@@ -5,6 +5,21 @@
         "matchUpdateTypes": ["minor", "patch"],
         "matchCurrentVersion": "!/^0/",
         "automerge": true
+      },
+      {
+        "matchFileNames": ["gradle-plugin/gradle/wrapper/gradle-wrapper.properties"],
+        "enabled": false
+      },
+      {
+        "matchFileNames": ["gradle-plugin/**"],
+        "groupName": "gradle-plugin dependencies",
+        "schedule": ["on the 1st day of the month"],
+        "automerge": false
+      },
+      {
+        "matchFileNames": ["gradle-plugin/**"],
+        "matchPackageNames": ["org.jetbrains.kotlin.jvm"],
+        "allowedVersions": "2.0.21"
       }
     ],
     "minimumReleaseAge": "3 days",

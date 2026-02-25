@@ -1,7 +1,7 @@
 plugins {
     `java-gradle-plugin`
-    kotlin("jvm") version "2.3.10"
-    id("com.gradle.plugin-publish") version "2.0.0"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.plugin.publish)
     jacoco
 }
 
@@ -38,7 +38,7 @@ gradlePlugin {
 
 dependencies {
     compileOnly(gradleKotlinDsl())
-    testImplementation(platform("org.junit:junit-bom:6.0.3"))
+    testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

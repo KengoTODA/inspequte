@@ -1,0 +1,11 @@
+[versions]
+kotlin = "2.0.21"
+plugin-publish = "2.0.0"
+junit-bom = "6.0.3"
+
+[libraries]
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit-bom" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "plugin-publish" }
