@@ -418,6 +418,13 @@
               "shortDescription": {
                 "text": "Read-modify-write updates on volatile fields can lose concurrent updates"
               }
+            },
+            {
+              "id": "codex_local_complexity_guard",
+              "name": "Local cyclomatic complexity guard",
+              "shortDescription": {
+                "text": "Reports concrete methods whose local cyclomatic complexity exceeds a strict fixed threshold"
+              }
             }
           ],
           "semanticVersion": "0.0.0"
