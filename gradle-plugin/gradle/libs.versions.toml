@@ -1,3 +1,7 @@
+# Versions are pinned according to the Gradle/Kotlin/JVM Compatibility Matrix:
+# https://docs.gradle.org/current/userguide/compatibility.html
+# Update all versions together (Gradle Wrapper, Kotlin, JDK) by consulting that matrix.
+# Renovate is configured to propose updates only on the 1st of each month as a single grouped PR.
 [versions]
 kotlin = "2.0.21"
 plugin-publish = "2.0.0"
