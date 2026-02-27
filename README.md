@@ -237,14 +237,15 @@ Use the Gradle plugin in CI and install the CLI from GitHub Releases:
     sarif_file: results.sarif
 ```
 
-## Codex integration
-Use Codex to run `inspequte`, inspect generated SARIF, and propose fixes.
+## Coding agent integration
+Use coding agents (Codex, Claude Code, GitHub Copilot) to run `inspequte`, inspect
+generated SARIF, and propose fixes.
 
 See:
-- `docs/codex.md` for Codex prompt examples to run `inspequte`.
+- `docs/coding-agent.md` for prompt examples to run `inspequte`.
 - `docs/github-actions.md` for GitHub Actions automation examples.
 
-Example prompt for Codex:
+Example prompt for a coding agent:
 ```text
 Run:
 inspequte --input app.jar --classpath lib/ --output results.sarif

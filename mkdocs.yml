@@ -19,7 +19,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Gradle Plugin: gradle-plugin.md
-  - Codex: codex.md
+  - Coding Agents: coding-agent.md
   - GitHub Actions: github-actions.md
   - Rules: rules/index.md
   - AI-Centered Development: ai-centered-development.md
