@@ -13,6 +13,7 @@ mod telemetry;
 mod test_harness;
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -72,6 +73,13 @@ struct ScanArgs {
         help = "OTLP HTTP collector URL (recommended: http://localhost:4318/)."
     )]
     otel: Option<String>,
+    #[arg(
+        long,
+        value_name = "RULE_ID[,RULE_ID...]|@PATH",
+        action = clap::ArgAction::Append,
+        help = "Rule IDs to run. Accepts comma-separated IDs and @file references (one rule ID per line). Repeatable."
+    )]
+    rules: Vec<String>,
     #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
     baseline: PathBuf,
     #[arg(
@@ -155,6 +163,7 @@ fn run(cli: Cli) -> Result<()> {
 
 fn run_scan(args: ScanArgs) -> Result<()> {
     let expanded = expand_input_args(&args.input)?;
+    let selected_rule_ids = expand_rule_args(&args.rules)?;
 
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
@@ -168,6 +177,7 @@ fn run_scan(args: ScanArgs) -> Result<()> {
         let mut analysis = analyze(
             &expanded.input,
             &expanded.classpath,
+            selected_rule_ids.as_ref(),
             telemetry.clone(),
             args.allow_duplicate_classes,
         )?;
@@ -247,6 +257,7 @@ fn run_baseline(args: BaselineArgs) -> Result<()> {
         let analysis = analyze(
             &expanded.input,
             &expanded.classpath,
+            None,
             telemetry.clone(),
             args.allow_duplicate_classes,
         )?;
@@ -355,6 +366,7 @@ struct AnalysisOutput {
 fn analyze(
     input: &[PathBuf],
     classpath: &[PathBuf],
+    selected_rule_ids: Option<&BTreeSet<String>>,
     telemetry: Option<Arc<Telemetry>>,
     allow_duplicate_classes: bool,
 ) -> Result<AnalysisOutput> {
@@ -381,7 +393,7 @@ fn analyze(
     let (context, context_timings) =
         build_context_with_timings(classes, &artifacts, telemetry.clone());
     let analysis_rules_started_at = Instant::now();
-    let engine = Engine::new();
+    let engine = Engine::new_with_allowed_rule_ids(selected_rule_ids)?;
     let analysis = with_span(
         telemetry.as_deref(),
         "analysis_rules",
@@ -409,6 +421,93 @@ fn analyze(
         rules: analysis.rules,
         results: analysis.results,
     })
+}
+
+fn expand_rule_args(args: &[String]) -> Result<Option<BTreeSet<String>>> {
+    if args.is_empty() {
+        return Ok(None);
+    }
+    let mut rules = BTreeSet::new();
+    let mut stack = Vec::new();
+    let base_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    for arg in args {
+        collect_rules_from_cli_arg(arg, &base_dir, &mut stack, &mut rules)?;
+    }
+    if rules.is_empty() {
+        anyhow::bail!("--rules was provided but no rule IDs were found");
+    }
+    Ok(Some(rules))
+}
+
+fn collect_rules_from_cli_arg(
+    arg: &str,
+    base_dir: &Path,
+    stack: &mut Vec<PathBuf>,
+    rules: &mut BTreeSet<String>,
+) -> Result<()> {
+    for token in arg.split(',') {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        if let Some(path_str) = token.strip_prefix('@') {
+            collect_rules_from_file(path_str, base_dir, stack, rules)?;
+            continue;
+        }
+        rules.insert(token.to_string());
+    }
+    Ok(())
+}
+
+fn collect_rules_from_file(
+    path_str: &str,
+    base_dir: &Path,
+    stack: &mut Vec<PathBuf>,
+    rules: &mut BTreeSet<String>,
+) -> Result<()> {
+    if path_str.is_empty() {
+        anyhow::bail!("empty @file reference in --rules");
+    }
+
+    let file_path = PathBuf::from(path_str);
+    let resolved = if file_path.is_absolute() {
+        file_path
+    } else {
+        base_dir.join(file_path)
+    };
+    let canonical = resolved
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", resolved.display()))?;
+    if stack.contains(&canonical) {
+        anyhow::bail!(
+            "circular @file reference in --rules: {}",
+            canonical.display()
+        );
+    }
+    let content = fs::read_to_string(&canonical)
+        .with_context(|| format!("failed to read {}", canonical.display()))?;
+    stack.push(canonical.clone());
+    let file_dir = canonical.parent().unwrap_or_else(|| Path::new(""));
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(nested_path) = line.strip_prefix('@') {
+            collect_rules_from_file(nested_path, file_dir, stack, rules)?;
+            continue;
+        }
+        if line.contains(',') {
+            anyhow::bail!(
+                "invalid --rules file entry '{}' in {}: use one rule ID per line",
+                line,
+                canonical.display()
+            );
+        }
+        rules.insert(line.to_string());
+    }
+    stack.pop();
+    Ok(())
 }
 
 fn output_writer(output: Option<&Path>) -> Result<Box<dyn Write>> {
@@ -722,6 +821,99 @@ mod tests {
     }
 
     #[test]
+    fn cli_accepts_repeatable_rules_option() {
+        let cli = Cli::try_parse_from([
+            "inspequte",
+            "--input",
+            "target/classes",
+            "--rules",
+            "SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL",
+            "--rules",
+            "RETURN_IN_FINALLY",
+        ])
+        .expect("parse CLI");
+
+        assert_eq!(
+            cli.scan.rules,
+            vec![
+                "SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL".to_string(),
+                "RETURN_IN_FINALLY".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn expand_rule_args_supports_comma_separated_and_repeatable_values() {
+        let args = vec![
+            "SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL".to_string(),
+            "RETURN_IN_FINALLY".to_string(),
+        ];
+
+        let expanded = expand_rule_args(&args).expect("expand rule args");
+
+        assert_eq!(
+            expanded,
+            Some(BTreeSet::from([
+                "RETURN_IN_FINALLY".to_string(),
+                "SYSTEM_EXIT".to_string(),
+                "THREAD_RUN_DIRECT_CALL".to_string(),
+            ]))
+        );
+    }
+
+    #[test]
+    fn expand_rule_args_supports_at_file() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let rules_file = temp_dir.join("rules.txt");
+        fs::write(
+            &rules_file,
+            "# selected rules\nSYSTEM_EXIT\nTHREAD_RUN_DIRECT_CALL\nRETURN_IN_FINALLY\n",
+        )
+        .expect("write rules file");
+
+        let args = vec![format!("@{}", rules_file.display())];
+        let expanded = expand_rule_args(&args).expect("expand rule args");
+
+        assert_eq!(
+            expanded,
+            Some(BTreeSet::from([
+                "RETURN_IN_FINALLY".to_string(),
+                "SYSTEM_EXIT".to_string(),
+                "THREAD_RUN_DIRECT_CALL".to_string(),
+            ]))
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn expand_rule_args_rejects_comma_separated_line_in_rules_file() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "inspequte-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let rules_file = temp_dir.join("rules.txt");
+        fs::write(&rules_file, "SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL\n").expect("write rules");
+
+        let args = vec![format!("@{}", rules_file.display())];
+        let result = expand_rule_args(&args);
+
+        assert!(result.is_err());
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
     fn sarif_is_minimal_and_valid_shape() {
         let invocation = build_invocation(&InvocationStats {
             scan_duration_ms: 0,
@@ -813,7 +1005,7 @@ mod tests {
         let scan = scan_inputs(&[temp_dir.clone()], &[], None).expect("scan classes");
         let artifacts = scan.artifacts.clone();
         let context = build_context(scan.classes.clone(), &artifacts);
-        let engine = Engine::new();
+        let engine = Engine::new_with_allowed_rule_ids(None).expect("build engine");
         let analysis = engine.analyze(context).expect("analysis");
         let invocation = Invocation::builder()
             .execution_successful(true)
