@@ -42,6 +42,24 @@ inspequte --input @inputs.txt --classpath @classpath.txt --output results.sarif
 Then group findings by module/package and propose a fix plan in priority order.
 ```
 
+## Prompt for selected-rule analysis
+
+```text
+Run:
+inspequte --input app.jar --output results.sarif \
+  --rules SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL
+
+Or with a file:
+inspequte --input app.jar --output results.sarif --rules @rules.txt
+
+Then summarize findings only for the selected rule IDs and propose fixes.
+```
+
+`rules.txt` format for `--rules @rules.txt`:
+- one rule ID per line
+- empty lines ignored
+- lines starting with `#` ignored
+
 ## Tips
 
 - Always tell Codex where to write SARIF (`--output`).

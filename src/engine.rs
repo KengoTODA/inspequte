@@ -38,10 +38,27 @@ pub(crate) struct Engine {
 }
 
 impl Engine {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new_with_allowed_rule_ids(
+        allowed_rule_ids: Option<&BTreeSet<String>>,
+    ) -> Result<Self> {
         let mut rules = crate::rules::all_rules();
+        if let Some(allowed) = allowed_rule_ids {
+            let available_ids: BTreeSet<String> = rules
+                .iter()
+                .map(|rule| rule.metadata().id.to_string())
+                .collect();
+            let unknown_ids: Vec<String> = allowed
+                .iter()
+                .filter(|id| !available_ids.contains(*id))
+                .cloned()
+                .collect();
+            if !unknown_ids.is_empty() {
+                anyhow::bail!("unknown rule ID(s) in --rules: {}", unknown_ids.join(", "));
+            }
+            rules.retain(|rule| allowed.contains(rule.metadata().id));
+        }
         rules.sort_by_key(|a| a.metadata().id);
-        Self { rules }
+        Ok(Self { rules })
     }
 
     pub(crate) fn analyze(&self, context: AnalysisContext) -> Result<EngineOutput> {
@@ -602,5 +619,25 @@ mod tests {
             context.class_artifact_uri(class),
             Some("file:///tmp/build/classes/com/example/ClassA.java".to_string())
         );
+    }
+
+    #[test]
+    fn new_with_allowed_rule_ids_restricts_rule_execution_set() {
+        let allowed = BTreeSet::from(["SYSTEM_EXIT".to_string()]);
+
+        let engine =
+            Engine::new_with_allowed_rule_ids(Some(&allowed)).expect("build filtered engine");
+
+        assert_eq!(engine.rules.len(), 1);
+        assert_eq!(engine.rules[0].metadata().id, "SYSTEM_EXIT");
+    }
+
+    #[test]
+    fn new_with_allowed_rule_ids_rejects_unknown_rule_id() {
+        let allowed = BTreeSet::from(["RULE_DOES_NOT_EXIST".to_string()]);
+
+        let result = Engine::new_with_allowed_rule_ids(Some(&allowed));
+
+        assert!(result.is_err());
     }
 }

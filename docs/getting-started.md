@@ -63,3 +63,21 @@ inspequte --input app.jar --classpath lib/ --output results.sarif --baseline ins
 ## 5. Next step
 
 Browse available checks in [Rules](rules/index.md).
+
+## 6. Optional: run only selected rules
+
+Use `--rules` to run a subset of rule IDs.
+
+```bash
+inspequte --input app.jar --output results.sarif \
+  --rules SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL \
+  --rules RETURN_IN_FINALLY
+```
+
+You can also load rule IDs from a file by prefixing with `@`:
+
+```bash
+inspequte --input app.jar --output results.sarif --rules @rules.txt
+```
+
+For `rules.txt`, use one rule ID per line. Empty lines and lines starting with `#` are ignored.
