@@ -155,6 +155,17 @@ The file format is one path per line; empty lines and lines starting with `#` ar
 inspequte --input @inputs.txt --classpath @classpath.txt --output results.sarif
 ```
 
+Run only specific rules with `--rules`.
+You can provide comma-separated IDs, repeat the option, or load IDs from an `@file`.
+```
+inspequte --input app.jar --output results.sarif \
+  --rules SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL \
+  --rules RETURN_IN_FINALLY
+
+inspequte --input app.jar --output results.sarif --rules @rules.txt
+```
+For `@rules.txt`, use one rule ID per line (comma-separated values and nested `@file` references are also supported); empty lines and lines starting with `#` are ignored.
+
 ## Gradle usage
 Use the Gradle plugin:
 ```kotlin
