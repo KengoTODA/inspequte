@@ -79,6 +79,9 @@ inspequte {
 
     // Warn instead of failing when the same class name appears in multiple inputs
     allowDuplicateClasses.set(true)
+
+    // Run only selected rules (repeatable, supports comma-separated IDs and @file references)
+    rules.set(listOf("SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL", "@rules.txt"))
 }
 ```
 
@@ -114,6 +117,12 @@ lexicographically smallest, ensuring deterministic results. Set this to `true`
 when your build produces shadow JARs, shaded dependencies, or other scenarios
 that intentionally place the same class in multiple inputs.
 
+### `rules`
+
+Optional. When set, forwards each entry to the CLI as `--rules <value>`.
+Each value may be a comma-separated list of rule IDs or an `@file` reference
+(one rule ID per line).
+
 ## Per-run CLI overrides
 
 You can override task properties for a single Gradle invocation using task
@@ -128,6 +137,9 @@ options on the command line:
 
 # Warn instead of failing on duplicate class names for a single run
 ./gradlew inspequteMain --inspequte-allow-duplicate-classes
+
+# Run only selected rules for a single run (repeatable)
+./gradlew inspequteMain --inspequte-rules SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL --inspequte-rules @rules.txt
 ```
 
 These flags take precedence over values set in the `inspequte` extension block.

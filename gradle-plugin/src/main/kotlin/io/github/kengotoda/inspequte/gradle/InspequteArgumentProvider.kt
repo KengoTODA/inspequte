@@ -13,7 +13,8 @@ class InspequteArgumentProvider(
     private val reportFile: Provider<RegularFile>,
     private val otelUrl: Provider<String>,
     private val automationDetailsId: Provider<String>,
-    private val allowDuplicateClasses: Provider<Boolean>
+    private val allowDuplicateClasses: Provider<Boolean>,
+    private val rules: Provider<List<String>>
 ) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> {
         val inputsPath = writeInputsTask.get().inputsFile.get().asFile.absolutePath
@@ -41,6 +42,15 @@ class InspequteArgumentProvider(
         }
         if (allowDuplicateClasses.get()) {
             args.add("--allow-duplicate-classes")
+        }
+        if (rules.isPresent) {
+            rules.get()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .forEach { ruleArg ->
+                    args.add("--rules")
+                    args.add(ruleArg)
+                }
         }
 
         return args

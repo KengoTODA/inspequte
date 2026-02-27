@@ -192,6 +192,74 @@ class InspequtePluginTest {
     }
 
     @Test
+    fun `does not forward rules by default`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+
+        val args = taskArgs(project)
+
+        assertFalse(args.contains("--rules"))
+    }
+
+    @Test
+    fun `forwards extension rules to inspequte arguments`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val extension = project.extensions.getByType(InspequteExtension::class.java)
+        extension.rules.set(listOf("SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL", "RETURN_IN_FINALLY"))
+
+        val args = taskArgs(project)
+
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--rules" && it[1] == "SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL"
+        })
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--rules" && it[1] == "RETURN_IN_FINALLY"
+        })
+    }
+
+    @Test
+    fun `task option overrides extension rules`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val extension = project.extensions.getByType(InspequteExtension::class.java)
+        extension.rules.set(listOf("RETURN_IN_FINALLY"))
+        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
+
+        task.setInspequteRules("SYSTEM_EXIT")
+        val args = taskArgs(project)
+
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--rules" && it[1] == "SYSTEM_EXIT"
+        })
+        assertFalse(args.windowed(size = 2, step = 1).any {
+            it[0] == "--rules" && it[1] == "RETURN_IN_FINALLY"
+        })
+    }
+
+    @Test
+    fun `task option accepts repeated rules`() {
+        val project = ProjectBuilder.builder().build()
+        project.plugins.apply("java")
+        project.plugins.apply(InspequtePlugin::class.java)
+        val task = project.tasks.getByName(mainInspequteTaskName(project)) as InspequteTask
+
+        task.setInspequteRules("SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL")
+        task.setInspequteRules("@rules.txt")
+        val args = taskArgs(project)
+
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--rules" && it[1] == "SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL"
+        })
+        assertTrue(args.windowed(size = 2, step = 1).any {
+            it[0] == "--rules" && it[1] == "@rules.txt"
+        })
+    }
+
+    @Test
     fun `inspequteVersion property is declared on task`() {
         val project = ProjectBuilder.builder().build()
         project.plugins.apply("java")

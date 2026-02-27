@@ -1,5 +1,6 @@
 package io.github.kengotoda.inspequte.gradle
 
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Input
@@ -32,6 +33,13 @@ abstract class InspequteTask : Exec() {
     abstract val allowDuplicateClasses: Property<Boolean>
 
     /**
+     * Optional rule IDs forwarded as repeatable `--rules` entries.
+     */
+    @get:Input
+    @get:Optional
+    abstract val rules: ListProperty<String>
+
+    /**
      * Version string of the inspequte binary, used to invalidate the task when the binary is upgraded.
      */
     @get:Input
@@ -61,4 +69,19 @@ abstract class InspequteTask : Exec() {
     fun setInspequteAllowDuplicateClasses(value: Boolean) {
         allowDuplicateClasses.set(value)
     }
+
+    @Option(
+        option = "inspequte-rules",
+        description = "Rule IDs forwarded to inspequte --rules. Repeatable; accepts comma-separated IDs and @file references."
+    )
+    fun setInspequteRules(value: String) {
+        if (!rulesOptionSet) {
+            rules.set(listOf(value))
+            rulesOptionSet = true
+        } else {
+            rules.set(rules.getOrElse(emptyList()) + value)
+        }
+    }
+
+    private var rulesOptionSet = false
 }

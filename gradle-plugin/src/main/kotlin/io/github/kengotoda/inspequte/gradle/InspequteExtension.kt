@@ -1,6 +1,7 @@
 package io.github.kengotoda.inspequte.gradle
 
 import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import javax.inject.Inject
 
@@ -24,4 +25,10 @@ abstract class InspequteExtension @Inject constructor(objects: ObjectFactory) {
      * to the CLI flag `--allow-duplicate-classes`. Defaults to `false`.
      */
     val allowDuplicateClasses: Property<Boolean> = objects.property(Boolean::class.java)
+
+    /**
+     * Optional rule IDs forwarded to the CLI via `--rules`. Accepts comma-separated IDs and
+     * `@file` references (one rule ID per line). Repeatable.
+     */
+    val rules: ListProperty<String> = objects.listProperty(String::class.java)
 }

@@ -66,6 +66,7 @@ class InspequtePlugin : Plugin<Project> {
                 "$prefix/${sourceSet.name}"
             })
             allowDuplicateClasses.convention(extension.allowDuplicateClasses.orElse(false))
+            rules.convention(extension.rules)
 
             onlyIf {
                 val available = inspequteAvailable.get()
@@ -80,7 +81,14 @@ class InspequtePlugin : Plugin<Project> {
 
             executable("inspequte")
             argumentProviders.add(
-                InspequteArgumentProvider(writeInputsTask, reportFile, otel, automationDetailsId, allowDuplicateClasses)
+                InspequteArgumentProvider(
+                    writeInputsTask,
+                    reportFile,
+                    otel,
+                    automationDetailsId,
+                    allowDuplicateClasses,
+                    rules
+                )
             )
         }
 
