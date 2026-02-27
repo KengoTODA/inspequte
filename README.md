@@ -223,28 +223,29 @@ Use the Gradle plugin in CI and install the CLI from GitHub Releases:
 - name: Install inspequte
   uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
 - name: Setup Java
-  uses: actions/setup-java@v5
+  uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
   with:
     distribution: temurin
     java-version: "21"
 - name: Setup Gradle
-  uses: gradle/actions/setup-gradle@v4
+  uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
 - name: Run inspequte tasks
   run: ./gradlew check --no-daemon
 - name: Upload SARIF to GitHub Code Scanning (optional)
-  uses: github/codeql-action/upload-sarif@v4
+  uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
   with:
     sarif_file: results.sarif
 ```
 
-## Codex integration
-Use Codex to run `inspequte`, inspect generated SARIF, and propose fixes.
+## Coding agent integration
+Use coding agents (Codex, Claude Code, GitHub Copilot) to run `inspequte`, inspect
+generated SARIF, and propose fixes.
 
 See:
-- `docs/codex.md` for Codex prompt examples to run `inspequte`.
+- `docs/coding-agent.md` for prompt examples to run `inspequte`.
 - `docs/github-actions.md` for GitHub Actions automation examples.
 
-Example prompt for Codex:
+Example prompt for a coding agent:
 ```text
 Run:
 inspequte --input app.jar --classpath lib/ --output results.sarif
