@@ -1,29 +1,65 @@
 {
-    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "packageRules": [
-      {
-        "matchUpdateTypes": ["minor", "patch"],
-        "matchCurrentVersion": "!/^0/",
-        "automerge": true
-      },
-      {
-        "matchFileNames": ["gradle-plugin/gradle/wrapper/gradle-wrapper.properties"],
-        "enabled": false
-      },
-      {
-        "matchFileNames": ["gradle-plugin/**"],
-        "groupName": "gradle-plugin dependencies",
-        "schedule": ["on the 1st day of the month"],
-        "automerge": false
-      },
-      {
-        "matchFileNames": ["gradle-plugin/**"],
-        "matchPackageNames": ["org.jetbrains.kotlin.jvm"],
-        "allowedVersions": "2.0.21"
-      }
-    ],
-    "minimumReleaseAge": "3 days",
-    "extends": [
-      "config:best-practices"
-    ]
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/.*\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s+[A-Za-z0-9_]+=\"(?<currentValue>[^\"]+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^README\\.md$/",
+        "/^docs\\/.*\\.md$/"
+      ],
+      "matchStrings": [
+        "uses:\\s*(?<depName>[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+(?:\\/[A-Za-z0-9_.-]+)*)@(?<currentValue>v\\d+(?:\\.\\d+){0,2})"
+      ],
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "semver-coerced"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true
+    },
+    {
+      "matchFileNames": [
+        "gradle-plugin/gradle/wrapper/gradle-wrapper.properties"
+      ],
+      "enabled": false
+    },
+    {
+      "matchFileNames": [
+        "gradle-plugin/**"
+      ],
+      "groupName": "gradle-plugin dependencies",
+      "schedule": [
+        "on the 1st day of the month"
+      ],
+      "automerge": false
+    },
+    {
+      "matchFileNames": [
+        "gradle-plugin/**"
+      ],
+      "matchPackageNames": [
+        "org.jetbrains.kotlin.jvm"
+      ],
+      "allowedVersions": "2.0.21"
+    }
+  ],
+  "minimumReleaseAge": "3 days",
+  "extends": [
+    "config:best-practices"
+  ]
 }

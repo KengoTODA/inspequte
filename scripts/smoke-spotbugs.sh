@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# renovate: datasource=github-releases depName=spotbugs/spotbugs
 spotbugs_version="4.9.8"
 smoke_root="target/smoketest"
 spotbugs_dir="${smoke_root}/spotbugs-${spotbugs_version}"
