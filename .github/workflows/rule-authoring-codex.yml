@@ -133,7 +133,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase1-cumulative.patch
 
       - name: Upload phase-1 artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: codex-phase1
@@ -231,7 +231,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase2-cumulative.patch
 
       - name: Upload phase-2 artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: codex-phase2
@@ -382,7 +382,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase3-cumulative.patch
 
       - name: Upload phase-3 artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: codex-phase3
@@ -594,7 +594,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase4-cumulative.patch
 
       - name: Upload phase-4 artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: codex-phase4
