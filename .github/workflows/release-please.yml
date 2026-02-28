@@ -428,8 +428,17 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/render-performance-docs.sh
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        if: steps.target-pr.outputs.skip != 'true'
+        id: app-token-push
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
       - name: Commit and push benchmark docs
         if: steps.target-pr.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token-push.outputs.token }}
+          HEAD_REF: ${{ steps.target-pr.outputs.head_ref }}
         shell: bash
         run: |
           set -euo pipefail
@@ -441,7 +450,8 @@ jobs:
             exit 0
           fi
           git commit -m "chore(bench): refresh nullness performance docs"
-          git push
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:${HEAD_REF}"
 
   publish-rust-github-release:
     runs-on: ubuntu-latest
