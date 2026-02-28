@@ -18,6 +18,7 @@ jobs:
       rust_tag_name: ${{ steps.release.outputs.tag_name }}
       rust_sha: ${{ steps.release.outputs.sha }}
       prs_created: ${{ steps.release.outputs.prs_created }}
+      pr: ${{ steps.release.outputs.pr }}
       prs: ${{ steps.release.outputs.prs }}
       gradle_plugin_release_created: ${{ steps.release.outputs['gradle-plugin--release_created'] }}
       gradle_plugin_tag_name: ${{ steps.release.outputs['gradle-plugin--tag_name'] }}
@@ -227,19 +228,13 @@ jobs:
             target/bench/jaeger-trace-*.summary.json
             target/bench/jaeger-trace-*.png
           if-no-files-found: error
-      - name: Resolve Rust release PR number
+      - name: Read release PR number
         id: resolve-pr
         if: needs.release-please.outputs.prs_created == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          PRS_JSON: ${{ needs.release-please.outputs.prs }}
         shell: bash
         run: |
           set -euo pipefail
-          pr_number="$(
-            printf '%s' "${PRS_JSON}" \
-              | jq -r 'if type == "array" then (.[0].number // empty) elif type == "object" then (.number // empty) else empty end'
-          )"
+          pr_number='${{ fromJSON(needs.release-please.outputs.pr).number }}'
           echo "pr_number=${pr_number}" >> "${GITHUB_OUTPUT}"
       - name: Publish screenshot for PR comment
         id: screenshot-image
@@ -350,6 +345,103 @@ jobs:
         run: |
           set -euo pipefail
           gh release upload "${TAG_NAME}" "${TRACE_JSON}" "${SUMMARY_JSON}" "${SCREENSHOT_PNG}" --clobber
+
+  benchmark-nullness-docs:
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.result == 'success'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+      - name: Resolve target release PR
+        id: target-pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_PLEASE_PR: ${{ needs.release-please.outputs.pr }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${RELEASE_PLEASE_PR}" && "${RELEASE_PLEASE_PR}" != "null" ]]; then
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            echo "pr_number=${{ fromJSON(needs.release-please.outputs.pr).number }}" >> "${GITHUB_OUTPUT}"
+            echo "head_ref=${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          head_ref="release-please--branches--main"
+          pr_number="$(
+            gh pr list \
+              --base main \
+              --head "${head_ref}" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -z "${pr_number}" ]]; then
+            echo "No open Rust release-please PR found; skipping benchmark docs refresh."
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "skip=false" >> "${GITHUB_OUTPUT}"
+          echo "pr_number=${pr_number}" >> "${GITHUB_OUTPUT}"
+          echo "head_ref=${head_ref}" >> "${GITHUB_OUTPUT}"
+      - name: Checkout release PR branch
+        if: steps.target-pr.outputs.skip != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.target-pr.outputs.head_ref }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        if: steps.target-pr.outputs.skip != 'true'
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Install Rust
+        if: steps.target-pr.outputs.skip != 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        if: steps.target-pr.outputs.skip != 'true'
+      - name: Install benchmark dependencies
+        if: steps.target-pr.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y hyperfine maven
+      - name: Run nullness benchmark
+        if: steps.target-pr.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/bench-nullness-compare.sh --dataset all --min-runs 5 --warmup 1
+      - name: Render performance docs
+        if: steps.target-pr.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/render-performance-docs.sh
+      - name: Commit and push benchmark docs
+        if: steps.target-pr.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/performance.md docs/benchmarks/*.json
+          if git diff --cached --quiet; then
+            echo "No benchmark doc changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(bench): refresh nullness performance docs"
+          git push
 
   publish-rust-github-release:
     runs-on: ubuntu-latest

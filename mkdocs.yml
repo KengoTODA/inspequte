@@ -22,4 +22,5 @@ nav:
   - Coding Agents: coding-agent.md
   - GitHub Actions: github-actions.md
   - Rules: rules/index.md
+  - Performance: performance.md
   - AI-Centered Development: ai-centered-development.md
