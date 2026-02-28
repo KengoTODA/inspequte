@@ -76,7 +76,7 @@ jobs:
             --classpath lib/ \
             --output results.sarif
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v4.32.4
         with:
           sarif_file: results.sarif
 ```
