@@ -86,10 +86,6 @@ fn is_formatter_without_locale(call: &crate::ir::CallSite) -> bool {
         return false;
     }
 
-    if call.name == "format" {
-        return call.descriptor == "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/util/Formatter;";
-    }
-
     if call.name != "<init>" {
         return false;
     }
@@ -171,20 +167,13 @@ class ClassA {
         }];
 
         let messages = analyze_sources(sources);
-        assert_eq!(messages.len(), 2, "expected two findings, got: {messages:?}");
+        assert_eq!(messages.len(), 1, "expected one finding, got: {messages:?}");
         assert!(
             messages.iter().any(|message| {
                 message.contains("created without an explicit Locale")
                     && message.contains("ClassA.methodX(I)Ljava/lang/String;")
             }),
             "expected constructor-specific message, got: {messages:?}"
-        );
-        assert!(
-            messages.iter().any(|message| {
-                message.contains("Formatting in")
-                    && message.contains("ClassA.methodX(I)Ljava/lang/String;")
-            }),
-            "expected formatting-specific message, got: {messages:?}"
         );
     }
 
@@ -276,6 +265,34 @@ class ClassA {
         assert!(
             messages.is_empty(),
             "expected no findings for Formatter(OutputStream, String, Locale), got: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn does_not_report_formatter_format_without_locale_arg_when_constructor_has_locale() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+
+import java.util.Formatter;
+import java.util.Locale;
+
+class ClassA {
+    String methodX(int varOne) {
+        Formatter varTwo = new Formatter(Locale.ROOT);
+        varTwo.format("value=%d", varOne);
+        return varTwo.toString();
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert!(
+            messages.is_empty(),
+            "expected no findings for Formatter with explicit Locale, got: {messages:?}"
         );
     }
 
