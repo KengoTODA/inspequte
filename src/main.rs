@@ -164,75 +164,82 @@ fn run(cli: Cli) -> Result<()> {
 fn run_scan(args: ScanArgs) -> Result<()> {
     let expanded = expand_input_args(&args.input)?;
     let selected_rule_ids = expand_rule_args(&args.rules)?;
+    let root_span_name = build_root_span_name(&expanded.input);
+    let root_span_attributes = build_root_span_attributes("scan", &expanded.input);
 
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
         None => None,
     };
     init_logging();
-    let result = with_span(telemetry.as_deref(), "execution", &[], || {
-        if let Some(trace_id) = current_trace_id() {
-            eprintln!("trace-id={trace_id}");
-        }
-        let mut analysis = analyze(
-            &expanded.input,
-            &expanded.classpath,
-            selected_rule_ids.as_ref(),
-            telemetry.clone(),
-            args.allow_duplicate_classes,
-        )?;
-        let analysis_ref = &mut analysis;
-        let baseline_result = with_span(
-            telemetry.as_deref(),
-            "baseline",
-            &[KeyValue::new("inspequte.phase", "baseline")],
-            || -> Result<()> {
-                if let Some(baseline) = load_baseline(&args.baseline)? {
-                    let filtered = baseline.filter(std::mem::take(&mut analysis_ref.results));
-                    analysis_ref.results = filtered;
-                }
-                Ok(())
-            },
-        );
-        baseline_result?;
-        with_span(
-            telemetry.as_deref(),
-            "sarif",
-            &[KeyValue::new("inspequte.phase", "sarif")],
-            || -> Result<()> {
-                let invocation = build_invocation(&analysis.invocation_stats);
-                let sarif = build_sarif(
-                    telemetry.as_deref(),
-                    analysis.artifacts,
-                    invocation,
-                    analysis.rules,
-                    analysis.results,
-                    args.automation_details_id.clone(),
-                );
-                if should_validate_sarif() {
-                    validate_sarif(&sarif)?;
-                }
-                let write_result = with_span(
-                    telemetry.as_deref(),
-                    "sarif.write",
-                    &[KeyValue::new("inspequte.phase", "write")],
-                    || -> Result<()> {
-                        let mut writer = output_writer(args.output.as_deref())?;
-                        serde_json::to_writer(&mut writer, &sarif)
-                            .context("failed to serialize SARIF output")?;
-                        writer
-                            .write_all(b"\n")
-                            .context("failed to write SARIF output")?;
-                        Ok(())
-                    },
-                );
-                write_result?;
-                Ok(())
-            },
-        )?;
+    let result = with_span(
+        telemetry.as_deref(),
+        &root_span_name,
+        &root_span_attributes,
+        || {
+            if let Some(trace_id) = current_trace_id() {
+                eprintln!("trace-id={trace_id}");
+            }
+            let mut analysis = analyze(
+                &expanded.input,
+                &expanded.classpath,
+                selected_rule_ids.as_ref(),
+                telemetry.clone(),
+                args.allow_duplicate_classes,
+            )?;
+            let analysis_ref = &mut analysis;
+            let baseline_result = with_span(
+                telemetry.as_deref(),
+                "baseline",
+                &[KeyValue::new("inspequte.phase", "baseline")],
+                || -> Result<()> {
+                    if let Some(baseline) = load_baseline(&args.baseline)? {
+                        let filtered = baseline.filter(std::mem::take(&mut analysis_ref.results));
+                        analysis_ref.results = filtered;
+                    }
+                    Ok(())
+                },
+            );
+            baseline_result?;
+            with_span(
+                telemetry.as_deref(),
+                "sarif",
+                &[KeyValue::new("inspequte.phase", "sarif")],
+                || -> Result<()> {
+                    let invocation = build_invocation(&analysis.invocation_stats);
+                    let sarif = build_sarif(
+                        telemetry.as_deref(),
+                        analysis.artifacts,
+                        invocation,
+                        analysis.rules,
+                        analysis.results,
+                        args.automation_details_id.clone(),
+                    );
+                    if should_validate_sarif() {
+                        validate_sarif(&sarif)?;
+                    }
+                    let write_result = with_span(
+                        telemetry.as_deref(),
+                        "sarif.write",
+                        &[KeyValue::new("inspequte.phase", "write")],
+                        || -> Result<()> {
+                            let mut writer = output_writer(args.output.as_deref())?;
+                            serde_json::to_writer(&mut writer, &sarif)
+                                .context("failed to serialize SARIF output")?;
+                            writer
+                                .write_all(b"\n")
+                                .context("failed to write SARIF output")?;
+                            Ok(())
+                        },
+                    );
+                    write_result?;
+                    Ok(())
+                },
+            )?;
 
-        Ok(())
-    });
+            Ok(())
+        },
+    );
 
     if let Some(telemetry) = telemetry {
         if let Err(err) = telemetry.shutdown() {
@@ -245,25 +252,32 @@ fn run_scan(args: ScanArgs) -> Result<()> {
 
 fn run_baseline(args: BaselineArgs) -> Result<()> {
     let expanded = expand_input_args(&args.input)?;
+    let root_span_name = build_root_span_name(&expanded.input);
+    let root_span_attributes = build_root_span_attributes("baseline", &expanded.input);
     let telemetry = match &args.otel {
         Some(url) => Some(Arc::new(Telemetry::new(url.clone())?)),
         None => None,
     };
     init_logging();
-    let result = with_span(telemetry.as_deref(), "execution", &[], || -> Result<()> {
-        if let Some(trace_id) = current_trace_id() {
-            eprintln!("trace-id={trace_id}");
-        }
-        let analysis = analyze(
-            &expanded.input,
-            &expanded.classpath,
-            None,
-            telemetry.clone(),
-            args.allow_duplicate_classes,
-        )?;
-        write_baseline(&args.output, &analysis.results)?;
-        Ok(())
-    });
+    let result = with_span(
+        telemetry.as_deref(),
+        &root_span_name,
+        &root_span_attributes,
+        || -> Result<()> {
+            if let Some(trace_id) = current_trace_id() {
+                eprintln!("trace-id={trace_id}");
+            }
+            let analysis = analyze(
+                &expanded.input,
+                &expanded.classpath,
+                None,
+                telemetry.clone(),
+                args.allow_duplicate_classes,
+            )?;
+            write_baseline(&args.output, &analysis.results)?;
+            Ok(())
+        },
+    );
     if let Some(telemetry) = telemetry {
         if let Err(err) = telemetry.shutdown() {
             error!("telemetry shutdown failed: {err}");
@@ -522,6 +536,98 @@ fn output_writer(output: Option<&Path>) -> Result<Box<dyn Write>> {
     }
 }
 
+fn build_root_span_attributes(command: &str, inputs: &[PathBuf]) -> Vec<KeyValue> {
+    let target_count = inputs.len();
+    let target_kind = classify_target_kind(inputs);
+    let primary_name = primary_target_name(inputs);
+    let primary_hash = primary_target_hash(inputs);
+    let target_label = target_label(&primary_name, &primary_hash, target_count);
+
+    vec![
+        KeyValue::new("inspequte.command", command.to_string()),
+        KeyValue::new("inspequte.target.kind", target_kind.to_string()),
+        KeyValue::new("inspequte.target.count", target_count as i64),
+        KeyValue::new("inspequte.target.primary_name", primary_name),
+        KeyValue::new("inspequte.target.primary_hash", primary_hash),
+        KeyValue::new("inspequte.target.label", target_label),
+    ]
+}
+
+fn build_root_span_name(inputs: &[PathBuf]) -> String {
+    let primary_name = primary_target_name(inputs);
+    if primary_name.is_empty() {
+        return "execution".to_string();
+    }
+    let target_count = inputs.len();
+    if target_count <= 1 {
+        return format!("execution {primary_name}");
+    }
+    format!("execution {primary_name}(+{})", target_count - 1)
+}
+
+fn classify_target_kind(inputs: &[PathBuf]) -> &'static str {
+    let mut kinds = BTreeSet::new();
+    for path in inputs {
+        let kind = if path.is_dir() {
+            "dir"
+        } else {
+            match path.extension().and_then(|ext| ext.to_str()) {
+                Some(ext) if ext.eq_ignore_ascii_case("jar") => "jar",
+                Some(ext) if ext.eq_ignore_ascii_case("class") => "class",
+                _ => "mixed",
+            }
+        };
+        kinds.insert(kind);
+    }
+
+    if kinds.len() != 1 {
+        return "mixed";
+    }
+    kinds.into_iter().next().unwrap_or("mixed")
+}
+
+fn primary_target_name(inputs: &[PathBuf]) -> String {
+    inputs.first().map_or_else(String::new, |path| {
+        path.file_name().map_or_else(
+            || path.display().to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        )
+    })
+}
+
+fn primary_target_hash(inputs: &[PathBuf]) -> String {
+    inputs
+        .first()
+        .map(|path| canonical_path_hash_short(path.as_path()))
+        .unwrap_or_else(String::new)
+}
+
+fn target_label(primary_name: &str, primary_hash: &str, target_count: usize) -> String {
+    if target_count <= 1 {
+        return format!("{primary_name}#{primary_hash}");
+    }
+    format!("{primary_name}#{primary_hash}(+{})", target_count - 1)
+}
+
+fn canonical_path_hash_short(path: &Path) -> String {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+
+    let hash_input = path
+        .canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .into_owned();
+    let mut hash = FNV_OFFSET_BASIS;
+    for byte in hash_input.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+
+    let full = format!("{hash:016x}");
+    full[..8].to_string()
+}
+
 /// Metadata captured for SARIF invocation properties.
 struct InvocationStats {
     scan_duration_ms: u128,
@@ -701,6 +807,7 @@ fn build_sarif(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opentelemetry::Value;
     use std::fs;
     use std::io::Write;
     use std::path::PathBuf;
@@ -709,15 +816,202 @@ mod tests {
     use crate::engine::{Engine, build_context};
     use crate::scan::scan_inputs;
 
-    #[test]
-    fn expand_path_args_reads_files_and_resolves_relative_entries() {
-        let temp_dir = std::env::temp_dir().join(format!(
+    fn attr_value<'a>(attributes: &'a [KeyValue], key: &str) -> &'a Value {
+        attributes
+            .iter()
+            .find(|attribute| attribute.key.as_str() == key)
+            .map(|attribute| &attribute.value)
+            .unwrap_or_else(|| panic!("missing key: {key}"))
+    }
+
+    fn make_temp_test_dir() -> PathBuf {
+        std::env::temp_dir().join(format!(
             "inspequte-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("time")
                 .as_nanos()
-        ));
+        ))
+    }
+
+    #[test]
+    fn root_span_attributes_for_single_jar_input() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let jar_path = temp_dir.join("ClassA.jar");
+        fs::write(&jar_path, b"test").expect("write jar");
+
+        let attributes = build_root_span_attributes("scan", std::slice::from_ref(&jar_path));
+
+        assert_eq!(
+            attr_value(&attributes, "inspequte.command"),
+            &Value::from("scan")
+        );
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.kind"),
+            &Value::from("jar")
+        );
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.count"),
+            &Value::from(1_i64)
+        );
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.primary_name"),
+            &Value::from("ClassA.jar")
+        );
+
+        let primary_hash = attr_value(&attributes, "inspequte.target.primary_hash")
+            .as_str()
+            .into_owned();
+        assert_eq!(primary_hash.len(), 8);
+        assert!(primary_hash.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.label"),
+            &Value::from(format!("ClassA.jar#{primary_hash}"))
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn root_span_attributes_for_single_class_input() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let class_path = temp_dir.join("ClassA.class");
+        fs::write(&class_path, b"test").expect("write class");
+
+        let attributes = build_root_span_attributes("scan", std::slice::from_ref(&class_path));
+
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.kind"),
+            &Value::from("class")
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn root_span_attributes_for_multiple_inputs_use_mixed_kind_and_count_suffix() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let jar_path = temp_dir.join("ClassA.jar");
+        fs::write(&jar_path, b"test").expect("write jar");
+        let class_dir = temp_dir.join("classes");
+        fs::create_dir_all(&class_dir).expect("create class dir");
+        let class_path = temp_dir.join("ClassB.class");
+        fs::write(&class_path, b"test").expect("write class");
+
+        let attributes = build_root_span_attributes(
+            "scan",
+            &[jar_path.clone(), class_dir.clone(), class_path.clone()],
+        );
+        let primary_hash = attr_value(&attributes, "inspequte.target.primary_hash")
+            .as_str()
+            .into_owned();
+
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.kind"),
+            &Value::from("mixed")
+        );
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.count"),
+            &Value::from(3_i64)
+        );
+        assert_eq!(
+            attr_value(&attributes, "inspequte.target.label"),
+            &Value::from(format!("ClassA.jar#{primary_hash}(+2)"))
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn root_span_attributes_include_baseline_command() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let jar_path = temp_dir.join("ClassA.jar");
+        fs::write(&jar_path, b"test").expect("write jar");
+
+        let attributes = build_root_span_attributes("baseline", std::slice::from_ref(&jar_path));
+
+        assert_eq!(
+            attr_value(&attributes, "inspequte.command"),
+            &Value::from("baseline")
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn root_span_name_includes_primary_target_name() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let jar_path = temp_dir.join("ClassA.jar");
+        fs::write(&jar_path, b"test").expect("write jar");
+
+        let span_name = build_root_span_name(std::slice::from_ref(&jar_path));
+
+        assert_eq!(span_name, "execution ClassA.jar");
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn root_span_name_includes_primary_target_name_and_count_suffix() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let first_path = temp_dir.join("ClassA.jar");
+        fs::write(&first_path, b"test").expect("write first");
+        let second_path = temp_dir.join("ClassB.jar");
+        fs::write(&second_path, b"test").expect("write second");
+        let third_path = temp_dir.join("ClassC.jar");
+        fs::write(&third_path, b"test").expect("write third");
+
+        let span_name =
+            build_root_span_name(&[first_path.clone(), second_path.clone(), third_path.clone()]);
+        let reordered = build_root_span_name(&[second_path, first_path, third_path]);
+
+        assert_eq!(span_name, "execution ClassA.jar(+2)");
+        assert_eq!(span_name, "execution ClassA.jar(+2)");
+        assert_ne!(span_name, reordered);
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn root_span_attributes_are_deterministic_and_primary_target_comes_from_first_input() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let first_path = temp_dir.join("ClassA.jar");
+        fs::write(&first_path, b"test").expect("write first");
+        let second_path = temp_dir.join("ClassB.jar");
+        fs::write(&second_path, b"test").expect("write second");
+
+        let attributes_one =
+            build_root_span_attributes("scan", &[first_path.clone(), second_path.clone()]);
+        let attributes_two =
+            build_root_span_attributes("scan", &[first_path.clone(), second_path.clone()]);
+        let reordered = build_root_span_attributes("scan", &[second_path, first_path]);
+
+        assert_eq!(
+            attr_value(&attributes_one, "inspequte.target.primary_name"),
+            &Value::from("ClassA.jar")
+        );
+        assert_eq!(
+            attr_value(&attributes_one, "inspequte.target.label"),
+            attr_value(&attributes_two, "inspequte.target.label")
+        );
+        assert_ne!(
+            attr_value(&attributes_one, "inspequte.target.label"),
+            attr_value(&reordered, "inspequte.target.label")
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn expand_path_args_reads_files_and_resolves_relative_entries() {
+        let temp_dir = make_temp_test_dir();
         fs::create_dir_all(&temp_dir).expect("create temp dir");
 
         let canonical_temp_dir = temp_dir.canonicalize().expect("canonicalize temp dir");
@@ -748,13 +1042,7 @@ mod tests {
 
     #[test]
     fn expand_path_args_errors_on_missing_file() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "inspequte-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time")
-                .as_nanos()
-        ));
+        let temp_dir = make_temp_test_dir();
         fs::create_dir_all(&temp_dir).expect("create temp dir");
 
         let args = vec![format!("@{}", temp_dir.join("missing.txt").display())];
@@ -767,13 +1055,7 @@ mod tests {
 
     #[test]
     fn filter_missing_paths_ignores_missing_directory() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "inspequte-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time")
-                .as_nanos()
-        ));
+        let temp_dir = make_temp_test_dir();
         let existing = temp_dir.join("classes");
         fs::create_dir_all(&existing).expect("create classes dir");
         let missing = temp_dir.join("missing-dir");
@@ -787,13 +1069,7 @@ mod tests {
 
     #[test]
     fn filter_missing_paths_rejects_missing_file() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "inspequte-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time")
-                .as_nanos()
-        ));
+        let temp_dir = make_temp_test_dir();
         fs::create_dir_all(&temp_dir).expect("create temp dir");
         let missing = temp_dir.join("missing.jar");
 
@@ -863,13 +1139,7 @@ mod tests {
 
     #[test]
     fn expand_rule_args_supports_at_file() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "inspequte-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time")
-                .as_nanos()
-        ));
+        let temp_dir = make_temp_test_dir();
         fs::create_dir_all(&temp_dir).expect("create temp dir");
         let rules_file = temp_dir.join("rules.txt");
         fs::write(
@@ -895,13 +1165,7 @@ mod tests {
 
     #[test]
     fn expand_rule_args_rejects_comma_separated_line_in_rules_file() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "inspequte-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time")
-                .as_nanos()
-        ));
+        let temp_dir = make_temp_test_dir();
         fs::create_dir_all(&temp_dir).expect("create temp dir");
         let rules_file = temp_dir.join("rules.txt");
         fs::write(&rules_file, "SYSTEM_EXIT,THREAD_RUN_DIRECT_CALL\n").expect("write rules");
@@ -988,13 +1252,7 @@ mod tests {
 
     #[test]
     fn sarif_callgraph_snapshot() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "inspequte-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time")
-                .as_nanos()
-        ));
+        let temp_dir = make_temp_test_dir();
         fs::create_dir_all(&temp_dir).expect("create temp dir");
 
         let class_a = build_class_a();
