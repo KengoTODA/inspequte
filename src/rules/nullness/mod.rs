@@ -30,37 +30,64 @@ impl Rule for NullnessRule {
     }
 
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
-        let mut results = Vec::new();
-        let mut class_map = BTreeMap::new();
-        for class in context.all_classes() {
-            class_map.insert(class.name.clone(), class);
-        }
-
-        for class in context.analysis_target_classes() {
-            let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
-            if let Some(uri) = context.class_artifact_uri(class) {
-                attributes.push(KeyValue::new("inspequte.artifact_uri", uri));
+        let preprocess_attributes = [KeyValue::new("inspequte.phase", "preprocess")];
+        let class_map = context.with_span("nullness.preprocess", &preprocess_attributes, || {
+            let mut class_map = BTreeMap::new();
+            for class in context.all_classes() {
+                class_map.insert(class.name.clone(), class);
             }
-            let class_results =
-                context.with_span("class", &attributes, || -> Result<Vec<SarifResult>> {
-                    let mut class_results = Vec::new();
-                    let artifact_uri = context.class_artifact_uri(class);
-                    class_results.extend(check_overrides(class, &class_map));
-                    for method in &class.methods {
-                        if method.bytecode.is_empty() {
-                            continue;
-                        }
-                        class_results.extend(check_method_flow(
-                            class,
-                            method,
-                            &class_map,
-                            artifact_uri.as_deref(),
-                        )?);
-                    }
-                    Ok(class_results)
-                })?;
-            results.extend(class_results);
-        }
+            class_map
+        });
+
+        let analyze_attributes = [KeyValue::new("inspequte.phase", "analyze")];
+        let results = context.with_span("nullness.analyze", &analyze_attributes, || {
+            let mut results = Vec::new();
+            for class in context.analysis_target_classes() {
+                let mut class_attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
+                let artifact_uri = context.class_artifact_uri(class);
+                if let Some(uri) = artifact_uri.as_ref() {
+                    class_attributes.push(KeyValue::new("inspequte.artifact_uri", uri.clone()));
+                }
+                let class_results =
+                    context.with_span("nullness.class", &class_attributes, || -> Result<Vec<SarifResult>> {
+                        let mut class_results = Vec::new();
+                        let override_results =
+                            context.with_span("nullness.override_check", &[], || {
+                                check_overrides(class, &class_map)
+                            });
+                        class_results.extend(override_results);
+
+                        let flow_attributes = [KeyValue::new(
+                            "inspequte.method_count",
+                            class.methods.len() as i64,
+                        )];
+                        let flow_results = context.with_span(
+                            "nullness.flow_check",
+                            &flow_attributes,
+                            || -> Result<Vec<SarifResult>> {
+                                let mut flow_results = Vec::new();
+                                for method in &class.methods {
+                                    if method.bytecode.is_empty() {
+                                        continue;
+                                    }
+                                    flow_results.extend(check_method_flow(
+                                        context,
+                                        class,
+                                        method,
+                                        &class_map,
+                                        artifact_uri.as_deref(),
+                                    )?);
+                                }
+                                Ok(flow_results)
+                            },
+                        )?;
+                        class_results.extend(flow_results);
+                        Ok(class_results)
+                    })?;
+                results.extend(class_results);
+            }
+            Ok::<Vec<SarifResult>, anyhow::Error>(results)
+        })?;
 
         Ok(deduplicate_results(results))
     }
@@ -368,129 +395,158 @@ fn find_method<'a>(class: &'a Class, name: &str, descriptor: &str) -> Option<&'a
 }
 
 fn check_method_flow(
+    context: &AnalysisContext,
     class: &Class,
     method: &Method,
     class_map: &BTreeMap<String, &Class>,
     artifact_uri: Option<&str>,
 ) -> Result<Vec<SarifResult>> {
-    let mut results = Vec::new();
-    let call_infos = build_method_call_infos(method, class_map)?;
-    let call_index_by_offset = build_callsite_index_by_offset(method, &call_infos);
+    let method_attributes = [
+        KeyValue::new("inspequte.class", class.name.clone()),
+        KeyValue::new("inspequte.method", method.name.clone()),
+        KeyValue::new("inspequte.descriptor", method.descriptor.clone()),
+        KeyValue::new("inspequte.bytecode_len", method.bytecode.len() as i64),
+        KeyValue::new("inspequte.block_count", method.cfg.blocks.len() as i64),
+    ];
+    let (call_infos, call_index_by_offset, entry_state, block_map, predecessors, successors) =
+        context.with_span("nullness.method_preprocess", &method_attributes, || {
+            let call_infos = build_method_call_infos(method, class_map)?;
+            let call_index_by_offset = build_callsite_index_by_offset(method, &call_infos);
 
-    let local_count = local_count(method)?;
-    let mut initial_locals = vec![Nullness::Unknown; local_count];
-    let mut initial_local_type_use = vec![None; local_count];
-    if !method.access.is_static && !initial_locals.is_empty() {
-        initial_locals[0] = Nullness::NonNull;
-        initial_local_type_use[0] = Some(this_type_use(class));
-    }
-    let base_index = if method.access.is_static { 0 } else { 1 };
-    for (index, nullness) in method.nullness.parameter_nullness.iter().enumerate() {
-        let local_index = base_index + index;
-        if let Some(local) = initial_locals.get_mut(local_index) {
-            *local = *nullness;
-        }
-    }
-    if let Some(method_type_use) = method.type_use.as_ref() {
-        for (index, parameter) in method_type_use.parameters.iter().enumerate() {
-            let local_index = base_index + index;
-            if let Some(local) = initial_local_type_use.get_mut(local_index) {
-                *local = Some(parameter.clone());
+            let local_count = local_count(method)?;
+            let mut initial_locals = vec![Nullness::Unknown; local_count];
+            let mut initial_local_type_use = vec![None; local_count];
+            if !method.access.is_static && !initial_locals.is_empty() {
+                initial_locals[0] = Nullness::NonNull;
+                initial_local_type_use[0] = Some(this_type_use(class));
             }
-        }
-    }
-    let entry_state = State {
-        locals: initial_locals,
-        local_type_use: initial_local_type_use,
-        stack: Vec::new(),
-    };
-
-    let mut block_map = BTreeMap::new();
-    for block in &method.cfg.blocks {
-        block_map.insert(block.start_offset, block);
-    }
-    let mut predecessors: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
-    let mut successors: BTreeMap<u32, Vec<(u32, crate::ir::EdgeKind)>> = BTreeMap::new();
-    for edge in &method.cfg.edges {
-        predecessors.entry(edge.to).or_default().push(edge.from);
-        successors
-            .entry(edge.from)
-            .or_default()
-            .push((edge.to, edge.kind));
-    }
-
-    let mut in_states: BTreeMap<u32, State> = BTreeMap::new();
-    let mut out_states: BTreeMap<u32, State> = BTreeMap::new();
-    let mut worklist = VecDeque::new();
-    if block_map.contains_key(&0) {
-        in_states.insert(0, entry_state.clone());
-        worklist.push_back(0);
-    }
-
-    while let Some(block_start) = worklist.pop_front() {
-        let Some(block) = block_map.get(&block_start) else {
-            continue;
-        };
-        let in_state = match predecessors.get(&block_start) {
-            Some(preds) if block_start != 0 => {
-                let mut merged: Option<State> = None;
-                for pred in preds {
-                    if let Some(state) = out_states.get(pred) {
-                        merged = Some(match merged {
-                            Some(existing) => join_states(&existing, state),
-                            None => state.clone(),
-                        });
+            let base_index = if method.access.is_static { 0 } else { 1 };
+            for (index, nullness) in method.nullness.parameter_nullness.iter().enumerate() {
+                let local_index = base_index + index;
+                if let Some(local) = initial_locals.get_mut(local_index) {
+                    *local = *nullness;
+                }
+            }
+            if let Some(method_type_use) = method.type_use.as_ref() {
+                for (index, parameter) in method_type_use.parameters.iter().enumerate() {
+                    let local_index = base_index + index;
+                    if let Some(local) = initial_local_type_use.get_mut(local_index) {
+                        *local = Some(parameter.clone());
                     }
                 }
-                merged.unwrap_or_else(|| in_states[&block_start].clone())
             }
-            _ => in_states
-                .get(&block_start)
-                .cloned()
-                .unwrap_or_else(|| entry_state.clone()),
-        };
+            let entry_state = State {
+                locals: initial_locals,
+                local_type_use: initial_local_type_use,
+                stack: Vec::new(),
+            };
 
-        let transfer = transfer_block(
-            class,
-            method,
-            block,
-            &in_state,
-            &call_infos,
-            &call_index_by_offset,
-            artifact_uri,
-        )?;
-        let out_state = transfer.out_state.clone();
-        out_states.insert(block_start, out_state.clone());
-
-        if let Some(succs) = successors.get(&block_start) {
-            for (succ, kind) in succs {
-                let mut next_state = out_state.clone();
-                if let Some(refinement) = transfer.branch_refinement.as_ref() {
-                    if matches!(kind, crate::ir::EdgeKind::Branch) {
-                        next_state = refinement.apply_to(&next_state, BranchKind::Branch);
-                    } else if matches!(kind, crate::ir::EdgeKind::FallThrough) {
-                        next_state = refinement.apply_to(&next_state, BranchKind::FallThrough);
-                    }
-                }
-                let updated = match in_states.get(succ) {
-                    Some(existing) => join_states(existing, &next_state),
-                    None => next_state,
-                };
-                let should_push = match in_states.get(succ) {
-                    Some(existing) => &updated != existing,
-                    None => true,
-                };
-                in_states.insert(*succ, updated);
-                if should_push {
-                    worklist.push_back(*succ);
-                }
+            let mut block_map = BTreeMap::new();
+            for block in &method.cfg.blocks {
+                block_map.insert(block.start_offset, block);
             }
+            let mut predecessors: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
+            let mut successors: BTreeMap<u32, Vec<(u32, crate::ir::EdgeKind)>> = BTreeMap::new();
+            for edge in &method.cfg.edges {
+                predecessors.entry(edge.to).or_default().push(edge.from);
+                successors
+                    .entry(edge.from)
+                    .or_default()
+                    .push((edge.to, edge.kind));
+            }
+
+            Ok::<_, anyhow::Error>((
+                call_infos,
+                call_index_by_offset,
+                entry_state,
+                block_map,
+                predecessors,
+                successors,
+            ))
+        })?;
+
+    let analyze_attributes = [
+        KeyValue::new("inspequte.class", class.name.clone()),
+        KeyValue::new("inspequte.method", method.name.clone()),
+        KeyValue::new("inspequte.descriptor", method.descriptor.clone()),
+        KeyValue::new("inspequte.edge_count", method.cfg.edges.len() as i64),
+        KeyValue::new("inspequte.call_count", method.calls.len() as i64),
+    ];
+    context.with_span("nullness.method_analyze", &analyze_attributes, || {
+        let mut results = Vec::new();
+        let mut in_states: BTreeMap<u32, State> = BTreeMap::new();
+        let mut out_states: BTreeMap<u32, State> = BTreeMap::new();
+        let mut worklist = VecDeque::new();
+        if block_map.contains_key(&0) {
+            in_states.insert(0, entry_state.clone());
+            worklist.push_back(0);
         }
 
-        results.extend(transfer.results);
-    }
+        while let Some(block_start) = worklist.pop_front() {
+            let Some(block) = block_map.get(&block_start) else {
+                continue;
+            };
+            let in_state = match predecessors.get(&block_start) {
+                Some(preds) if block_start != 0 => {
+                    let mut merged: Option<State> = None;
+                    for pred in preds {
+                        if let Some(state) = out_states.get(pred) {
+                            merged = Some(match merged {
+                                Some(existing) => join_states(&existing, state),
+                                None => state.clone(),
+                            });
+                        }
+                    }
+                    merged.unwrap_or_else(|| in_states[&block_start].clone())
+                }
+                _ => in_states
+                    .get(&block_start)
+                    .cloned()
+                    .unwrap_or_else(|| entry_state.clone()),
+            };
 
-    Ok(results)
+            let transfer = transfer_block(
+                class,
+                method,
+                block,
+                &in_state,
+                &call_infos,
+                &call_index_by_offset,
+                artifact_uri,
+            )?;
+            let out_state = transfer.out_state.clone();
+            out_states.insert(block_start, out_state.clone());
+
+            if let Some(succs) = successors.get(&block_start) {
+                for (succ, kind) in succs {
+                    let mut next_state = out_state.clone();
+                    if let Some(refinement) = transfer.branch_refinement.as_ref() {
+                        if matches!(kind, crate::ir::EdgeKind::Branch) {
+                            next_state = refinement.apply_to(&next_state, BranchKind::Branch);
+                        } else if matches!(kind, crate::ir::EdgeKind::FallThrough) {
+                            next_state = refinement.apply_to(&next_state, BranchKind::FallThrough);
+                        }
+                    }
+                    let updated = match in_states.get(succ) {
+                        Some(existing) => join_states(existing, &next_state),
+                        None => next_state,
+                    };
+                    let should_push = match in_states.get(succ) {
+                        Some(existing) => &updated != existing,
+                        None => true,
+                    };
+                    in_states.insert(*succ, updated);
+                    if should_push {
+                        worklist.push_back(*succ);
+                    }
+                }
+            }
+
+            results.extend(transfer.results);
+        }
+
+        Ok::<Vec<SarifResult>, anyhow::Error>(results)
+    })
 }
 
 /// Nullness state at a program point.
