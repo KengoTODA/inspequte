@@ -72,7 +72,7 @@ impl Rule for StringFormatLocaleMissingRule {
 }
 
 fn is_locale_missing_format_call(call: &crate::ir::CallSite) -> bool {
-    is_string_format_without_locale(call) || is_formatter_without_locale(call)
+    is_string_format_without_locale(call) || is_formatter_constructor_without_locale(call)
 }
 
 fn is_string_format_without_locale(call: &crate::ir::CallSite) -> bool {
@@ -81,7 +81,7 @@ fn is_string_format_without_locale(call: &crate::ir::CallSite) -> bool {
         && call.descriptor == "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;"
 }
 
-fn is_formatter_without_locale(call: &crate::ir::CallSite) -> bool {
+fn is_formatter_constructor_without_locale(call: &crate::ir::CallSite) -> bool {
     if call.owner != "java/util/Formatter" {
         return false;
     }
@@ -147,7 +147,7 @@ class ClassA {
     }
 
     #[test]
-    fn reports_formatter_without_locale() {
+    fn reports_formatter_constructor_without_locale() {
         let sources = vec![SourceFile {
             path: "com/example/ClassA.java".to_string(),
             contents: r#"
@@ -269,7 +269,7 @@ class ClassA {
     }
 
     #[test]
-    fn does_not_report_formatter_format_without_locale_arg_when_constructor_has_locale() {
+    fn does_not_report_formatter_format_without_locale_arg() {
         let sources = vec![SourceFile {
             path: "com/example/ClassA.java".to_string(),
             contents: r#"
@@ -292,7 +292,7 @@ class ClassA {
         let messages = analyze_sources(sources);
         assert!(
             messages.is_empty(),
-            "expected no findings for Formatter with explicit Locale, got: {messages:?}"
+            "expected no findings because Formatter.format(String, ...) is out of scope, got: {messages:?}"
         );
     }
 
@@ -351,7 +351,7 @@ class ClassA {
                 offset: 0,
             };
             assert!(
-                super::is_formatter_without_locale(&call),
+                super::is_formatter_constructor_without_locale(&call),
                 "expected descriptor to be treated as missing locale: {descriptor}"
             );
         }
