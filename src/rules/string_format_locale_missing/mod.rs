@@ -34,10 +34,18 @@ impl Rule for StringFormatLocaleMissingRule {
                     for method in &class.methods {
                         for call in &method.calls {
                             if is_locale_missing_format_call(call) {
-                                let message = result_message(format!(
-                                    "Formatting in {}.{}{} depends on the default locale; pass Locale.ROOT (or another explicit Locale).",
-                                    class.name, method.name, method.descriptor
-                                ));
+                                let message_text = if call.name == "<init>" {
+                                    format!(
+                                        "Formatter in {}.{}{} created without an explicit Locale; pass Locale.ROOT (or another explicit Locale).",
+                                        class.name, method.name, method.descriptor
+                                    )
+                                } else {
+                                    format!(
+                                        "Formatting in {}.{}{} depends on the default locale; pass Locale.ROOT (or another explicit Locale).",
+                                        class.name, method.name, method.descriptor
+                                    )
+                                };
+                                let message = result_message(message_text);
                                 let line = method.line_for_offset(call.offset);
                                 let location = method_location_with_line(
                                     &class.name,
@@ -92,16 +100,20 @@ fn is_formatter_without_locale(call: &crate::ir::CallSite) -> bool {
             | "(Ljava/lang/Appendable;)V"
             | "(Ljava/lang/String;)V"
             | "(Ljava/lang/String;Ljava/lang/String;)V"
+            | "(Ljava/lang/String;Ljava/nio/charset/Charset;)V"
             | "(Ljava/io/File;)V"
             | "(Ljava/io/File;Ljava/lang/String;)V"
+            | "(Ljava/io/File;Ljava/nio/charset/Charset;)V"
             | "(Ljava/io/PrintStream;)V"
             | "(Ljava/io/OutputStream;)V"
             | "(Ljava/io/OutputStream;Ljava/lang/String;)V"
+            | "(Ljava/io/OutputStream;Ljava/nio/charset/Charset;)V"
     )
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::ir::{CallKind, CallSite};
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
     fn analyze_sources(sources: Vec<SourceFile>) -> Vec<String> {
@@ -160,6 +172,20 @@ class ClassA {
 
         let messages = analyze_sources(sources);
         assert_eq!(messages.len(), 2, "expected two findings, got: {messages:?}");
+        assert!(
+            messages.iter().any(|message| {
+                message.contains("created without an explicit Locale")
+                    && message.contains("ClassA.methodX(I)Ljava/lang/String;")
+            }),
+            "expected constructor-specific message, got: {messages:?}"
+        );
+        assert!(
+            messages.iter().any(|message| {
+                message.contains("Formatting in")
+                    && message.contains("ClassA.methodX(I)Ljava/lang/String;")
+            }),
+            "expected formatting-specific message, got: {messages:?}"
+        );
     }
 
     #[test]
@@ -225,6 +251,35 @@ class ClassA {
     }
 
     #[test]
+    fn does_not_report_outputstream_string_locale_constructor() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
+import java.util.Formatter;
+import java.util.Locale;
+
+class ClassA {
+    void methodX() throws Exception {
+        OutputStream varOne = new ByteArrayOutputStream();
+        new Formatter(varOne, "UTF-8", Locale.ROOT);
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert!(
+            messages.is_empty(),
+            "expected no findings for Formatter(OutputStream, String, Locale), got: {messages:?}"
+        );
+    }
+
+    #[test]
     fn does_not_report_locale_aware_formatter_constructors() {
         let sources = vec![SourceFile {
             path: "com/example/ClassA.java".to_string(),
@@ -260,5 +315,28 @@ class ClassA {
             messages.is_empty(),
             "expected no findings for locale-aware constructors, got: {messages:?}"
         );
+    }
+
+    #[test]
+    fn reports_formatter_charset_constructors_without_locale() {
+        let descriptors = [
+            "(Ljava/lang/String;Ljava/nio/charset/Charset;)V",
+            "(Ljava/io/File;Ljava/nio/charset/Charset;)V",
+            "(Ljava/io/OutputStream;Ljava/nio/charset/Charset;)V",
+        ];
+
+        for descriptor in descriptors {
+            let call = CallSite {
+                owner: "java/util/Formatter".to_string(),
+                name: "<init>".to_string(),
+                descriptor: descriptor.to_string(),
+                kind: CallKind::Special,
+                offset: 0,
+            };
+            assert!(
+                super::is_formatter_without_locale(&call),
+                "expected descriptor to be treated as missing locale: {descriptor}"
+            );
+        }
     }
 }
