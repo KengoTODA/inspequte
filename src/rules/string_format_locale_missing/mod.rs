@@ -90,12 +90,13 @@ fn is_formatter_without_locale(call: &crate::ir::CallSite) -> bool {
         call.descriptor.as_str(),
         "()V"
             | "(Ljava/lang/Appendable;)V"
-            | "(Ljava/lang/Appendable;Ljava/lang/String;)V"
+            | "(Ljava/lang/String;)V"
+            | "(Ljava/lang/String;Ljava/lang/String;)V"
             | "(Ljava/io/File;)V"
             | "(Ljava/io/File;Ljava/lang/String;)V"
+            | "(Ljava/io/PrintStream;)V"
             | "(Ljava/io/OutputStream;)V"
             | "(Ljava/io/OutputStream;Ljava/lang/String;)V"
-            | "(Ljava/lang/String;)V"
     )
 }
 
@@ -162,6 +163,40 @@ class ClassA {
     }
 
     #[test]
+    fn reports_each_supported_formatter_constructor_without_locale() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.util.Formatter;
+
+class ClassA {
+    void methodX() throws Exception {
+        File varOne = File.createTempFile("aa", "bb");
+        ByteArrayOutputStream varTwo = new ByteArrayOutputStream();
+        new Formatter();
+        new Formatter(new StringBuilder());
+        new Formatter("var-three.txt");
+        new Formatter("var-four.txt", "UTF-8");
+        new Formatter(varOne);
+        new Formatter(varOne, "UTF-8");
+        new Formatter(System.out);
+        new Formatter(varTwo);
+        new Formatter(varTwo, "UTF-8");
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert_eq!(messages.len(), 9, "expected nine findings, got: {messages:?}");
+    }
+
+    #[test]
     fn does_not_report_locale_aware_calls() {
         let sources = vec![SourceFile {
             path: "com/example/ClassA.java".to_string(),
@@ -186,6 +221,44 @@ class ClassA {
         assert!(
             messages.is_empty(),
             "expected no findings for locale-aware calls, got: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn does_not_report_locale_aware_formatter_constructors() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.util.Formatter;
+import java.util.Locale;
+
+class ClassA {
+    void methodX() throws Exception {
+        File varOne = File.createTempFile("aa", "bb");
+        ByteArrayOutputStream varTwo = new ByteArrayOutputStream();
+        new Formatter(Locale.ROOT);
+        new Formatter(new StringBuilder(), Locale.ROOT);
+        new Formatter("var-three.txt", "UTF-8", Locale.ROOT);
+        new Formatter("var-four.txt", StandardCharsets.UTF_8, Locale.ROOT);
+        new Formatter(varOne, "UTF-8", Locale.ROOT);
+        new Formatter(varOne, StandardCharsets.UTF_8, Locale.ROOT);
+        new Formatter(varTwo, "UTF-8", Locale.ROOT);
+        new Formatter(varTwo, StandardCharsets.UTF_8, Locale.ROOT);
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert!(
+            messages.is_empty(),
+            "expected no findings for locale-aware constructors, got: {messages:?}"
         );
     }
 }
