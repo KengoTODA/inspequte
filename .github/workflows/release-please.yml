@@ -204,7 +204,7 @@ jobs:
             echo "- Slowest jar: ${slowest_jar_id} (${slowest_jar_total_ms} ms total across ${slowest_jar_count} spans)"
             echo "- Slowest class: ${slowest_class_id} (${slowest_class_total_ms} ms total across ${slowest_class_count} spans)"
             echo "- Investigation:"
-            echo "  - Screenshot evidence: Captured after expanding one level of timeline context via Collapse +1."
+            echo "  - Screenshot evidence: Captured after one Collapse all click and two Expand +1 clicks (with legacy Collapse +1 fallback when needed)."
             echo "  - Trace evidence: Slowest rule/jar/class are extracted from aggregated span durations in ${summary_json}."
             echo "  - Next action: Prioritize optimization in the slowest rule, then verify jar/class-level impact in the next run."
           } > "${report_md}"

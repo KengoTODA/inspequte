@@ -7,4 +7,4 @@
 3. Capture a full-page screenshot through the shared helper:
    - `JAEGER_OUT_DIR=target/oss-fp/jaeger node scripts/capture-jaeger-trace-screenshot.mjs <trace-id>`
 
-The helper script collapses timeline context once before taking the screenshot and falls back across known Jaeger XPath variants.
+The helper script clicks `Collapse all` once, then `Expand +1` twice before taking the screenshot, and falls back to the legacy `Collapse +1` flow across known XPath variants if the new sequence fails.
