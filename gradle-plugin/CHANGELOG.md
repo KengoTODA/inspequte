@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.5.2...gradle-plugin-v0.6.0) (2026-03-01)
+
+
+### Features
+
+* **gradle-plugin:** support --rules via extension and task options ([5054558](https://github.com/KengoTODA/inspequte/commit/5054558c0404d2068f3ea3ae48a34fe42bebe726))
+
+
+### Bug Fixes
+
+* **gradle-plugin:** centralise versions in catalog, pin Kotlin, tighten Renovate policy ([#120](https://github.com/KengoTODA/inspequte/issues/120)) ([1a87eab](https://github.com/KengoTODA/inspequte/commit/1a87eabbc1fb8bd16b6d55433ff357ba30e91a31))
+
 ## [0.5.2](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.5.1...gradle-plugin-v0.5.2) (2026-02-24)
 
 
