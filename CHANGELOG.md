@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.24.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.23.0...inspequte-v0.24.0) (2026-03-01)
+
+
+### Features
+
+* **cli:** add `--rules` option to run a subset of analysis rules ([8670b72](https://github.com/KengoTODA/inspequte/commit/8670b72f54870a5bd56f947e797b86f0e86cc0dd))
+* **gradle-plugin:** support --rules via extension and task options ([5054558](https://github.com/KengoTODA/inspequte/commit/5054558c0404d2068f3ea3ae48a34fe42bebe726))
+* **rules:** add STRING_FORMAT_LOCALE_MISSING rule ([#128](https://github.com/KengoTODA/inspequte/issues/128)) ([f91e6a9](https://github.com/KengoTODA/inspequte/commit/f91e6a9bb53d7eb2cc31e232b5e97f6ee9b3b7a0))
+* **telemetry:** improve Jaeger root span target visibility ([f7e5d69](https://github.com/KengoTODA/inspequte/commit/f7e5d695194243a2e4b7e45f8ad53511d00b6151))
+
+
+### Bug Fixes
+
+* **ci:** refresh app token before benchmark docs push ([5c3880c](https://github.com/KengoTODA/inspequte/commit/5c3880c1c1ddeb211ef86692728d65357c242506))
+* **ci:** update jaeger screenshot control sequence ([948a19a](https://github.com/KengoTODA/inspequte/commit/948a19ac5465573fdbb8a1cd997d66ec811b34d7))
+* **gradle-plugin:** centralise versions in catalog, pin Kotlin, tighten Renovate policy ([#120](https://github.com/KengoTODA/inspequte/issues/120)) ([1a87eab](https://github.com/KengoTODA/inspequte/commit/1a87eabbc1fb8bd16b6d55433ff357ba30e91a31))
+
+
+### Performance Improvements
+
+* **nullness:** add granular telemetry spans ([dd4ae00](https://github.com/KengoTODA/inspequte/commit/dd4ae00795729a7f7762e3b33f638039f0f48edb))
+
 ## [0.23.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.22.1...inspequte-v0.23.0) (2026-02-23)
 
 
