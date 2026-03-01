@@ -3,7 +3,7 @@
 # Update all versions together (Gradle Wrapper, Kotlin, JDK) by consulting that matrix.
 # Renovate is configured to propose updates only on the 1st of each month as a single grouped PR.
 [versions]
-kotlin = "2.0.21"
+kotlin = "2.3.10"
 plugin-publish = "2.0.0"
 junit-bom = "6.0.3"
 
