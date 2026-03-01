@@ -94,7 +94,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Run Claude (Opus)
-        uses: anthropics/claude-code-action@0cf5eeec4f908121edd03a81411b55485994f8d3 # v1
+        uses: anthropics/claude-code-action@ba7fa4bcf054319261202aef93d71a89112a8d00 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_CLAUDE_KEY }}
           prompt: ${{ steps.prompt.outputs.prompt }}
