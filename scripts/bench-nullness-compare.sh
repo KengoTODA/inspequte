@@ -4,7 +4,7 @@ set -euo pipefail
 # renovate: datasource=maven depName=com.google.guava:guava versioning=loose
 DATASET_VERSION_GUAVA="33.5.0-jre"
 # renovate: datasource=maven depName=org.sonarsource.sonarqube:sonar-application
-DATASET_VERSION_SONARQUBE="25.6.0.109173"
+DATASET_VERSION_SONARQUBE="25.12.0.117093"
 
 # renovate: datasource=github-releases depName=spotbugs/spotbugs
 TOOL_VERSION_SPOTBUGS="4.9.8"
