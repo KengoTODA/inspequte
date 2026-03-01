@@ -364,6 +364,13 @@
               }
             },
             {
+              "id": "STRING_FORMAT_LOCALE_MISSING",
+              "name": "String/Formatter formatting without explicit locale",
+              "shortDescription": {
+                "text": "String.format(...) and Formatter usage without Locale can vary by runtime locale"
+              }
+            },
+            {
               "id": "STRING_INTERN_CALL",
               "name": "String intern call",
               "shortDescription": {
