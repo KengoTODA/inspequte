@@ -13,7 +13,7 @@ TOOL_VERSION_PMD="7.14.0"
 # renovate: datasource=github-releases depName=typetools/checker-framework
 TOOL_VERSION_CHECKER_FRAMEWORK="3.52.0"
 # renovate: datasource=maven depName=com.uber.nullaway:nullaway
-TOOL_VERSION_NULLAWAY="0.12.12"
+TOOL_VERSION_NULLAWAY="0.13.1"
 # renovate: datasource=maven depName=com.google.errorprone:error_prone_core
 TOOL_VERSION_ERROR_PRONE="2.30.0"
 
