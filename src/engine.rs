@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -17,7 +18,7 @@ use crate::telemetry::{Telemetry, with_span};
 pub(crate) struct AnalysisContext {
     analysis_target_classes: Vec<Class>,
     dependency_classes: Vec<Class>,
-    artifact_uris: BTreeMap<i64, String>,
+    class_artifact_uri_cache: BTreeMap<i64, BTreeMap<String, String>>,
     telemetry: Option<Arc<Telemetry>>,
     has_slf4j: bool,
     has_log4j2: bool,
@@ -145,6 +146,11 @@ pub(crate) fn build_context_with_timings(
     let (has_slf4j, has_log4j2) = detect_logging_frameworks(&classes, telemetry.as_deref());
     let (analysis_target_classes, dependency_classes) =
         partition_classes(classes, &analysis_target_artifacts, &artifact_parents);
+    let class_artifact_uri_cache = build_class_artifact_uri_cache(
+        &analysis_target_classes,
+        &dependency_classes,
+        &artifact_uris,
+    );
     let artifact_duration_ms = artifact_started_at.elapsed().as_millis();
     let timings = ContextTimings {
         call_graph_duration_ms,
@@ -156,7 +162,7 @@ pub(crate) fn build_context_with_timings(
     let context = AnalysisContext {
         analysis_target_classes,
         dependency_classes,
-        artifact_uris,
+        class_artifact_uri_cache,
         telemetry,
         has_slf4j,
         has_log4j2,
@@ -203,25 +209,11 @@ impl AnalysisContext {
         with_span(self.telemetry(), name, attributes, f)
     }
 
-    pub(crate) fn artifact_uri(&self, index: i64) -> Option<&str> {
-        self.artifact_uris.get(&index).map(|value| value.as_str())
-    }
-
     pub(crate) fn class_artifact_uri(&self, class: &Class) -> Option<String> {
-        let uri = self.artifact_uri(class.artifact_index)?;
-        let class_uri = if uri.ends_with(".class") {
-            uri.to_string()
-        } else if uri.ends_with(".jar") {
-            if uri.starts_with("jar:") {
-                format!("{uri}!/{}.class", class.name)
-            } else {
-                format!("jar:{uri}!/{}.class", class.name)
-            }
-        } else {
-            return None;
-        };
-
-        class_source_uri(&class_uri, class).or(Some(class_uri))
+        self.class_artifact_uri_cache
+            .get(&class.artifact_index)
+            .and_then(|by_name| by_name.get(&class.name))
+            .cloned()
     }
 
     pub(crate) fn has_slf4j(&self) -> bool {
@@ -233,14 +225,120 @@ impl AnalysisContext {
     }
 }
 
-fn class_source_uri(class_uri: &str, class: &Class) -> Option<String> {
+fn build_class_artifact_uri_cache(
+    analysis_target_classes: &[Class],
+    dependency_classes: &[Class],
+    artifact_uris: &BTreeMap<i64, String>,
+) -> BTreeMap<i64, BTreeMap<String, String>> {
+    let mut class_artifact_uri_cache = BTreeMap::new();
+    let mut path_exists_cache = BTreeMap::new();
+    for class in analysis_target_classes
+        .iter()
+        .chain(dependency_classes.iter())
+    {
+        let Some(uri) = compute_class_artifact_uri(artifact_uris, class, &mut path_exists_cache)
+        else {
+            continue;
+        };
+        class_artifact_uri_cache
+            .entry(class.artifact_index)
+            .or_insert_with(BTreeMap::new)
+            .insert(class.name.clone(), uri);
+    }
+    class_artifact_uri_cache
+}
+
+fn compute_class_artifact_uri(
+    artifact_uris: &BTreeMap<i64, String>,
+    class: &Class,
+    path_exists_cache: &mut BTreeMap<String, bool>,
+) -> Option<String> {
+    let uri = artifact_uris.get(&class.artifact_index)?;
+    let class_uri = if uri.ends_with(".class") {
+        uri.to_string()
+    } else if uri.ends_with(".jar") {
+        if uri.starts_with("jar:") {
+            format!("{uri}!/{}.class", class.name)
+        } else {
+            format!("jar:{uri}!/{}.class", class.name)
+        }
+    } else {
+        return None;
+    };
+
+    class_source_uri(&class_uri, class, path_exists_cache).or(Some(class_uri))
+}
+
+fn class_source_uri(
+    class_uri: &str,
+    class: &Class,
+    path_exists_cache: &mut BTreeMap<String, bool>,
+) -> Option<String> {
     if !class_uri.ends_with(".class") {
         return None;
     }
 
     let source_name = class.source_file.as_deref()?;
     let prefix = class_uri.rsplit_once('/').map(|(prefix, _)| prefix)?;
-    Some(format!("{prefix}/{source_name}"))
+    let legacy_source_uri = format!("{prefix}/{source_name}");
+    if let Some(gradle_source_uri) = gradle_source_uri(prefix, class, source_name)
+        && file_uri_exists(&gradle_source_uri, path_exists_cache)
+    {
+        return Some(gradle_source_uri);
+    }
+    Some(legacy_source_uri)
+}
+
+fn gradle_source_uri(prefix: &str, class: &Class, source_name: &str) -> Option<String> {
+    if !prefix.starts_with("file://") {
+        return None;
+    }
+
+    let package_dir = class
+        .name
+        .rsplit_once('/')
+        .map(|(package, _)| package)
+        .unwrap_or("");
+    let classes_root = if package_dir.is_empty() {
+        prefix.to_string()
+    } else {
+        let package_suffix = format!("/{package_dir}");
+        prefix.strip_suffix(&package_suffix)?.to_string()
+    };
+    let (project_root, gradle_tail) = classes_root.split_once("/build/classes/")?;
+    let mut tail_segments = gradle_tail.split('/');
+    let lang = tail_segments.next()?;
+    if !matches!(lang, "java" | "kotlin") {
+        return None;
+    }
+    let source_set = tail_segments.next()?;
+    if source_set.is_empty() || tail_segments.next().is_some() {
+        return None;
+    }
+
+    let mut uri = format!("{project_root}/src/{source_set}/{lang}");
+    if !package_dir.is_empty() {
+        uri.push('/');
+        uri.push_str(package_dir);
+    }
+    uri.push('/');
+    uri.push_str(source_name);
+    Some(uri)
+}
+
+fn file_uri_exists(uri: &str, path_exists_cache: &mut BTreeMap<String, bool>) -> bool {
+    if let Some(cached) = path_exists_cache.get(uri) {
+        return *cached;
+    }
+
+    let exists = file_uri_to_path(uri).is_some_and(|path| path.exists());
+    path_exists_cache.insert(uri.to_string(), exists);
+    exists
+}
+
+fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
+    let path = uri.strip_prefix("file://")?;
+    Some(PathBuf::from(path))
 }
 
 fn detect_logging_frameworks(classes: &[Class], telemetry: Option<&Telemetry>) -> (bool, bool) {
@@ -394,6 +492,10 @@ fn is_analysis_target_artifact(
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use serde_json::json;
     use serde_sarif::sarif::{ArtifactLocation, ArtifactRoles};
 
@@ -413,6 +515,20 @@ mod tests {
             artifact_index,
             is_record: false,
         }
+    }
+
+    fn make_temp_test_dir() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "inspequte-engine-test-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ))
+    }
+
+    fn file_uri(path: &Path) -> String {
+        format!("file://{}", path.to_string_lossy())
     }
 
     #[test]
@@ -619,6 +735,211 @@ mod tests {
             context.class_artifact_uri(class),
             Some("file:///tmp/build/classes/com/example/ClassA.java".to_string())
         );
+    }
+
+    #[test]
+    fn class_artifact_uri_prefers_existing_gradle_kotlin_main_source_path() {
+        let temp_dir = make_temp_test_dir();
+        let source_path =
+            temp_dir.join("backend/src/main/kotlin/jp/skypencil/kosmo/backend/wal/LogWriter.kt");
+        fs::create_dir_all(source_path.parent().expect("source parent")).expect("create src dir");
+        fs::write(&source_path, "class ClassA").expect("write source");
+
+        let class_path = temp_dir.join(
+            "backend/build/classes/kotlin/main/jp/skypencil/kosmo/backend/wal/LogWriter.class",
+        );
+        let classes = vec![Class {
+            name: "jp/skypencil/kosmo/backend/wal/LogWriter".to_string(),
+            source_file: Some("LogWriter.kt".to_string()),
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri(file_uri(&class_path))
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        let class = &context.analysis_target_classes()[0];
+        assert_eq!(
+            context.class_artifact_uri(class),
+            Some(file_uri(&source_path))
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn class_artifact_uri_prefers_existing_gradle_kotlin_custom_source_path() {
+        let temp_dir = make_temp_test_dir();
+        let source_path = temp_dir.join("backend/src/custom/kotlin/com/example/file_a.kt");
+        fs::create_dir_all(source_path.parent().expect("source parent")).expect("create src dir");
+        fs::write(&source_path, "class ClassA").expect("write source");
+
+        let class_path =
+            temp_dir.join("backend/build/classes/kotlin/custom/com/example/FileAKt.class");
+        let classes = vec![Class {
+            name: "com/example/FileAKt".to_string(),
+            source_file: Some("file_a.kt".to_string()),
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri(file_uri(&class_path))
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        let class = &context.analysis_target_classes()[0];
+        assert_eq!(
+            context.class_artifact_uri(class),
+            Some(file_uri(&source_path))
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn class_artifact_uri_prefers_existing_gradle_java_main_source_path() {
+        let temp_dir = make_temp_test_dir();
+        let source_path = temp_dir.join("backend/src/main/java/com/example/ClassA.java");
+        fs::create_dir_all(source_path.parent().expect("source parent")).expect("create src dir");
+        fs::write(&source_path, "class ClassA {}").expect("write source");
+
+        let class_path = temp_dir.join("backend/build/classes/java/main/com/example/ClassA.class");
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: Some("ClassA.java".to_string()),
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri(file_uri(&class_path))
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        let class = &context.analysis_target_classes()[0];
+        assert_eq!(
+            context.class_artifact_uri(class),
+            Some(file_uri(&source_path))
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn class_artifact_uri_falls_back_to_legacy_path_when_gradle_source_path_missing() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: Some("ClassA.java".to_string()),
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri(
+                            "file:///tmp/build/classes/java/main/com/example/ClassA.class"
+                                .to_string(),
+                        )
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        let class = &context.analysis_target_classes()[0];
+        assert_eq!(
+            context.class_artifact_uri(class),
+            Some("file:///tmp/build/classes/java/main/com/example/ClassA.java".to_string())
+        );
+    }
+
+    #[test]
+    fn class_artifact_uri_prefers_existing_gradle_source_path_for_inner_class() {
+        let temp_dir = make_temp_test_dir();
+        let source_path = temp_dir.join("backend/src/main/java/com/example/ClassA.java");
+        fs::create_dir_all(source_path.parent().expect("source parent")).expect("create src dir");
+        fs::write(&source_path, "class ClassA { class Inner {} }").expect("write source");
+
+        let class_path =
+            temp_dir.join("backend/build/classes/java/main/com/example/ClassA$Inner.class");
+        let classes = vec![Class {
+            name: "com/example/ClassA$Inner".to_string(),
+            source_file: Some("ClassA.java".to_string()),
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri(file_uri(&class_path))
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        let class = &context.analysis_target_classes()[0];
+        assert_eq!(
+            context.class_artifact_uri(class),
+            Some(file_uri(&source_path))
+        );
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
     }
 
     #[test]
