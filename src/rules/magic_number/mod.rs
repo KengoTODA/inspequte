@@ -9,6 +9,8 @@ use crate::ir::{AnnotationDefaultNumeric, CallKind, Class, InstructionKind, Meth
 use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
+const KOTLIN_DEFAULT_BUFFER_SIZE: i64 = 8192;
+
 /// Rule that detects magic numbers in method bytecode.
 #[derive(Default)]
 pub(crate) struct MagicNumberRule;
@@ -38,6 +40,7 @@ impl Rule for MagicNumberRule {
                 context.with_span("scan.class", &attributes, || -> Result<Vec<SarifResult>> {
                     let mut class_results = Vec::new();
                     let artifact_uri = context.class_artifact_uri(class);
+                    let is_kotlin_class = is_kotlin_source_file(class.source_file.as_deref());
 
                     for method in &class.methods {
                         if method.access.is_synthetic || method.access.is_bridge {
@@ -52,6 +55,7 @@ impl Rule for MagicNumberRule {
                             &class.name,
                             class.super_name.as_deref(),
                             artifact_uri.as_deref(),
+                            is_kotlin_class,
                             &allowlist,
                             &mut class_results,
                         );
@@ -62,6 +66,7 @@ impl Rule for MagicNumberRule {
                             method,
                             class,
                             artifact_uri.as_deref(),
+                            is_kotlin_class,
                             &allowlist,
                             &mut class_results,
                         );
@@ -72,6 +77,7 @@ impl Rule for MagicNumberRule {
                             method,
                             class,
                             artifact_uri.as_deref(),
+                            is_kotlin_class,
                             &allowlist,
                             &mut class_results,
                         );
@@ -99,11 +105,17 @@ fn scan_method_body(
     class_name: &str,
     class_super_name: Option<&str>,
     artifact_uri: Option<&str>,
+    is_kotlin_class: bool,
     allowlist: &HashSet<i64>,
     results: &mut Vec<SarifResult>,
 ) {
     let instructions = collect_instructions(method);
+    let kotlin_default_buffer_offsets =
+        collect_kotlin_default_buffer_offsets(method, &instructions, is_kotlin_class);
     for (idx, inst) in instructions.iter().enumerate() {
+        if kotlin_default_buffer_offsets.contains(&inst.offset) {
+            continue;
+        }
         let value_str = match &inst.kind {
             InstructionKind::ConstInt(v) => {
                 if is_int_allowlisted(*v, allowlist) {
@@ -164,6 +176,7 @@ fn scan_lambda_bodies(
     method: &Method,
     class: &Class,
     artifact_uri: Option<&str>,
+    is_kotlin_class: bool,
     allowlist: &HashSet<i64>,
     results: &mut Vec<SarifResult>,
 ) {
@@ -186,7 +199,15 @@ fn scan_lambda_bodies(
         };
 
         let lambda_instructions = collect_instructions(lambda_method);
+        let kotlin_default_buffer_offsets = collect_kotlin_default_buffer_offsets(
+            lambda_method,
+            &lambda_instructions,
+            is_kotlin_class,
+        );
         for (idx, lambda_inst) in lambda_instructions.iter().enumerate() {
+            if kotlin_default_buffer_offsets.contains(&lambda_inst.offset) {
+                continue;
+            }
             let value_str = match &lambda_inst.kind {
                 InstructionKind::ConstInt(v) => {
                     if is_int_allowlisted(*v, allowlist) {
@@ -239,6 +260,7 @@ fn scan_default_arg_bodies(
     method: &Method,
     class: &Class,
     artifact_uri: Option<&str>,
+    is_kotlin_class: bool,
     allowlist: &HashSet<i64>,
     results: &mut Vec<SarifResult>,
 ) {
@@ -249,7 +271,15 @@ fn scan_default_arg_bodies(
         .filter(|m| m.access.is_synthetic && m.access.is_static && m.name == default_name)
     {
         let default_instructions = collect_instructions(default_method);
+        let kotlin_default_buffer_offsets = collect_kotlin_default_buffer_offsets(
+            default_method,
+            &default_instructions,
+            is_kotlin_class,
+        );
         for (idx, inst) in default_instructions.iter().enumerate() {
+            if kotlin_default_buffer_offsets.contains(&inst.offset) {
+                continue;
+            }
             let value_str = match &inst.kind {
                 InstructionKind::ConstInt(v) => {
                     if is_int_allowlisted(*v, allowlist) {
@@ -381,6 +411,111 @@ fn collect_instructions(method: &Method) -> Vec<FlatInstruction> {
     }
     flat.sort_by_key(|i| i.offset);
     flat
+}
+
+fn is_kotlin_source_file(source_file: Option<&str>) -> bool {
+    source_file.is_some_and(|value| value.ends_with(".kt"))
+}
+
+/// Find `ConstInt(8192)` offsets used as Kotlin default buffered I/O sizes.
+fn collect_kotlin_default_buffer_offsets(
+    method: &Method,
+    instructions: &[FlatInstruction],
+    is_kotlin_class: bool,
+) -> HashSet<u32> {
+    let mut offsets = HashSet::new();
+    if !is_kotlin_class {
+        return offsets;
+    }
+
+    for (idx, inst) in instructions.iter().enumerate() {
+        let InstructionKind::Invoke(call) = &inst.kind else {
+            continue;
+        };
+        if !is_kotlin_default_buffer_constructor(call) {
+            continue;
+        }
+        if let Some(offset) = find_default_buffer_size_const_offset(instructions, &method.bytecode, idx) {
+            offsets.insert(offset);
+        }
+    }
+
+    offsets
+}
+
+fn is_kotlin_default_buffer_constructor(call: &crate::ir::CallSite) -> bool {
+    if call.kind != CallKind::Special || call.name != "<init>" {
+        return false;
+    }
+    matches!(
+        (call.owner.as_str(), call.descriptor.as_str()),
+        ("java/io/BufferedWriter", "(Ljava/io/Writer;I)V")
+            | ("java/io/BufferedReader", "(Ljava/io/Reader;I)V")
+            | ("java/io/BufferedInputStream", "(Ljava/io/InputStream;I)V")
+            | ("java/io/BufferedOutputStream", "(Ljava/io/OutputStream;I)V")
+    )
+}
+
+fn find_default_buffer_size_const_offset(
+    instructions: &[FlatInstruction],
+    bytecode: &[u8],
+    call_idx: usize,
+) -> Option<u32> {
+    let arg_idx = call_idx.checked_sub(1)?;
+    let arg_inst = instructions.get(arg_idx)?;
+    let local_idx = int_load_local_index(arg_inst, bytecode)?;
+    find_stored_default_buffer_const_offset(instructions, bytecode, arg_idx, local_idx)
+}
+
+fn find_stored_default_buffer_const_offset(
+    instructions: &[FlatInstruction],
+    bytecode: &[u8],
+    before_idx: usize,
+    local_idx: u16,
+) -> Option<u32> {
+    for store_idx in (0..before_idx).rev() {
+        let store_inst = &instructions[store_idx];
+        if int_store_local_index(store_inst, bytecode) != Some(local_idx) {
+            continue;
+        }
+        let value_idx = store_idx.checked_sub(1)?;
+        let value_inst = &instructions[value_idx];
+        if let InstructionKind::ConstInt(value) = &value_inst.kind {
+            if *value == KOTLIN_DEFAULT_BUFFER_SIZE {
+                return Some(value_inst.offset);
+            }
+        }
+        return None;
+    }
+    None
+}
+
+fn int_load_local_index(inst: &FlatInstruction, bytecode: &[u8]) -> Option<u16> {
+    match inst.opcode {
+        opcodes::ILOAD => bytecode
+            .get(inst.offset as usize + 1)
+            .copied()
+            .map(u16::from),
+        opcodes::ILOAD_0 => Some(0),
+        opcodes::ILOAD_1 => Some(1),
+        opcodes::ILOAD_2 => Some(2),
+        opcodes::ILOAD_3 => Some(3),
+        _ => None,
+    }
+}
+
+fn int_store_local_index(inst: &FlatInstruction, bytecode: &[u8]) -> Option<u16> {
+    match inst.opcode {
+        0x36 => bytecode
+            .get(inst.offset as usize + 1)
+            .copied()
+            .map(u16::from),
+        0x3b => Some(0),
+        0x3c => Some(1),
+        0x3d => Some(2),
+        0x3e => Some(3),
+        _ => None,
+    }
 }
 
 /// Build the integer allowlist: -1, 0, 1, 2, powers of two up to 1024,
@@ -896,6 +1031,223 @@ class ClassA {
                 .iter()
                 .any(|msg| msg.contains("3600") && msg.contains("methodOne")),
             "expected magic number 3600 attributed to methodOne, got {messages:?}"
+        );
+    }
+
+    #[test]
+    fn ignores_kotlin_default_buffered_writer_size() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+
+import java.io.BufferedWriter
+import java.io.StringWriter
+
+class ClassA {
+    fun methodOne() {
+        val varOne = 8192
+        val varTwo = BufferedWriter(StringWriter(), varOne)
+        varTwo.close()
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            !messages.iter().any(|msg| msg.contains("8192")),
+            "did not expect Kotlin default bufferedWriter 8192 finding: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn ignores_kotlin_default_buffered_reader_size() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+
+import java.io.BufferedReader
+import java.io.StringReader
+
+class ClassA {
+    fun methodOne() {
+        val varOne = 8192
+        val varTwo = BufferedReader(StringReader("tmp"), varOne)
+        varTwo.close()
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            !messages.iter().any(|msg| msg.contains("8192")),
+            "did not expect Kotlin default bufferedReader 8192 finding: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn ignores_kotlin_default_buffered_stream_size() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+
+class ClassA {
+    fun methodOne() {
+        val varOne = 8192
+        val varTwo = BufferedInputStream(ByteArrayInputStream(byteArrayOf(1)), varOne)
+        varTwo.close()
+        val varThree = BufferedOutputStream(ByteArrayOutputStream(), varOne)
+        varThree.close()
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            !messages.iter().any(|msg| msg.contains("8192")),
+            "did not expect Kotlin default buffered stream 8192 finding: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn reports_kotlin_custom_buffered_writer_size() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+
+import java.io.BufferedWriter
+import java.io.StringWriter
+
+class ClassA {
+    fun methodOne() {
+        val varOne = 9000
+        val varTwo = BufferedWriter(StringWriter(), varOne)
+        varTwo.close()
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("9000") && msg.contains("methodOne")),
+            "expected magic number 9000 for custom Kotlin buffer size, got {messages:?}"
+        );
+    }
+
+    #[test]
+    fn reports_kotlin_plain_8192_literal() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+
+class ClassA {
+    fun methodOne(): Int {
+        return 8192
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("8192") && msg.contains("methodOne")),
+            "expected magic number 8192 finding in non-buffer context, got {messages:?}"
+        );
+    }
+
+    #[test]
+    fn reports_java_buffered_writer_8192() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.java".to_string(),
+            contents: r#"
+package com.example;
+import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStreamWriter;
+public class ClassA {
+    public void methodOne() throws Exception {
+        BufferedWriter varOne = new BufferedWriter(
+            new OutputStreamWriter(new ByteArrayOutputStream()),
+            8192
+        );
+        varOne.close();
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("8192") && msg.contains("methodOne")),
+            "expected Java buffered writer 8192 finding, got {messages:?}"
+        );
+    }
+
+    #[test]
+    fn reports_kotlin_direct_buffered_writer_8192_literal() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+
+import java.io.BufferedWriter
+import java.io.StringWriter
+
+class ClassA {
+    fun methodOne() {
+        val varOne = BufferedWriter(StringWriter(), 8192)
+        varOne.close()
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("8192") && msg.contains("methodOne")),
+            "expected direct Kotlin buffered writer 8192 finding, got {messages:?}"
         );
     }
 }
