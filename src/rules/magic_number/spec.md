@@ -50,6 +50,8 @@ The rule applies to all non-synthetic, non-bridge methods, including `<clinit>` 
       `StringBuffer`, `Collection`, `Map`)
     - Enum constructor arguments in `<clinit>` (constants passed to `invokespecial <init>` on
       enum subclasses of `java/lang/Enum`)
+    - Kotlin inline-expanded default buffered I/O size `8192` when passed as the size argument to
+      `BufferedWriter`, `BufferedReader`, `BufferedInputStream`, or `BufferedOutputStream`
     - Values used in annotation contexts
     - Values used in the body of `hashCode()` methods
 - Synthetic or bridge methods.
@@ -223,6 +225,19 @@ class Config {
 
 Not reported: `const val` values are compile-time constants. The Kotlin compiler inlines them at usage sites, so the
 literal does not appear in a method body that would be scanned.
+
+### True Negative — Kotlin bufferedWriter default size
+
+```kotlin
+import java.io.File
+
+class WriterFactory {
+    fun open(file: File) = file.bufferedWriter()
+}
+```
+
+Not reported: Kotlin inlines `DEFAULT_BUFFER_SIZE` (`8192`) for default buffered I/O wrappers.
+The rule treats this compiler-injected size value as a known-safe context.
 
 ### True Positive — annotation default values
 
