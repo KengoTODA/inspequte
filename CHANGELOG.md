@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.25.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.24.0...inspequte-v0.25.0) (2026-03-06)
+
+
+### Features
+
+* **cli:** add --json request mode and publish schema ([954dc63](https://github.com/KengoTODA/inspequte/commit/954dc6381c4a1c8dbb7265fa18dc8eb26e98f469))
+
+
+### Bug Fixes
+
+* **deps:** update rust crate jsonschema to 0.44.0 ([07248b4](https://github.com/KengoTODA/inspequte/commit/07248b4d91e179183716bf4f39b55698217aa225))
+* **deps:** update rust crate jsonschema to 0.44.0 ([5c6f942](https://github.com/KengoTODA/inspequte/commit/5c6f942504c7fc444e4e79e7baf60f08ba46d943))
+* **engine:** resolve class locations to existing Gradle source files ([3c0b667](https://github.com/KengoTODA/inspequte/commit/3c0b6677aa8b4ef54f301c2a6c9e7cee2e75db2d))
+* **magic_number:** ignore Kotlin default buffered 8192 constants ([5b0d024](https://github.com/KengoTODA/inspequte/commit/5b0d024bd548161e4953ecc2e3be642d5d4fce59))
+* **magic_number:** ignore Kotlin default buffered 8192 constants ([9efa064](https://github.com/KengoTODA/inspequte/commit/9efa06450e6e4ae1ca927425a1df1179a0eb67cb))
+* **magic_number:** tighten Kotlin buffered 8192 suppression ([fc26132](https://github.com/KengoTODA/inspequte/commit/fc261320feb721e57c87d183bb23bd731d8a0caf))
+
 ## [0.24.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.23.0...inspequte-v0.24.0) (2026-03-01)
 
 
