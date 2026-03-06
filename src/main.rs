@@ -15,7 +15,7 @@ mod test_harness;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -23,6 +23,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use opentelemetry::KeyValue;
+use serde::Deserialize;
 use serde_json::json;
 use serde_sarif::sarif::Result as SarifResult;
 use serde_sarif::sarif::{
@@ -48,6 +49,12 @@ const DEFAULT_BASELINE_PATH: &str = ".inspequte/baseline.json";
     subcommand_negates_reqs = true
 )]
 struct Cli {
+    #[arg(
+        long,
+        value_name = "JSON|@PATH|-",
+        help = "JSON request (inline JSON, @file, or - for stdin)."
+    )]
+    json: Option<String>,
     #[command(flatten)]
     scan: ScanArgs,
     #[command(subcommand)]
@@ -59,17 +66,19 @@ struct Cli {
 struct ScanArgs {
     #[command(flatten)]
     input: InputArgs,
-    #[arg(long, value_name = "PATH")]
+    #[arg(long, value_name = "PATH", conflicts_with = "json")]
     output: Option<PathBuf>,
     #[arg(
         long,
         value_name = "ID",
+        conflicts_with = "json",
         help = "Optional SARIF run.automationDetails.id (GitHub code scanning category)."
     )]
     automation_details_id: Option<String>,
     #[arg(
         long,
         value_name = "URL",
+        conflicts_with = "json",
         help = "OTLP HTTP collector URL (recommended: http://localhost:4318/)."
     )]
     otel: Option<String>,
@@ -77,13 +86,20 @@ struct ScanArgs {
         long,
         value_name = "RULE_ID[,RULE_ID...]|@PATH",
         action = clap::ArgAction::Append,
+        conflicts_with = "json",
         help = "Rule IDs to run. Accepts comma-separated IDs and @file references (one rule ID per line). Repeatable."
     )]
     rules: Vec<String>,
-    #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
+    #[arg(
+        long,
+        value_name = "PATH",
+        default_value = DEFAULT_BASELINE_PATH,
+        conflicts_with = "json"
+    )]
     baseline: PathBuf,
     #[arg(
         long,
+        conflicts_with = "json",
         help = "Warn instead of failing when the same class name appears in multiple inputs. The class from the lexicographically first artifact path is used."
     )]
     allow_duplicate_classes: bool,
@@ -95,8 +111,8 @@ struct InputArgs {
     #[arg(
         long,
         value_name = "PATH",
-        required = true,
         num_args = 1..,
+        conflicts_with = "json",
         help = "Input class/JAR/directory paths. Use @file to read paths (one per line)."
     )]
     input: Vec<String>,
@@ -104,6 +120,7 @@ struct InputArgs {
         long,
         value_name = "PATH",
         num_args = 1..,
+        conflicts_with = "json",
         help = "Classpath entries. Use @file to read paths (one per line)."
     )]
     classpath: Vec<String>,
@@ -128,19 +145,57 @@ enum Command {
 struct BaselineArgs {
     #[command(flatten)]
     input: InputArgs,
-    #[arg(long, value_name = "PATH", default_value = DEFAULT_BASELINE_PATH)]
+    #[arg(
+        long,
+        value_name = "PATH",
+        default_value = DEFAULT_BASELINE_PATH,
+        conflicts_with = "json"
+    )]
     output: PathBuf,
     #[arg(
         long,
         value_name = "URL",
+        conflicts_with = "json",
         help = "OTLP HTTP collector URL (recommended: http://localhost:4318/)."
     )]
     otel: Option<String>,
     #[arg(
         long,
+        conflicts_with = "json",
         help = "Warn instead of failing when the same class name appears in multiple inputs. The class from the lexicographically first artifact path is used."
     )]
     allow_duplicate_classes: bool,
+}
+
+/// Supported command kinds in JSON request mode.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum JsonCommand {
+    Scan,
+    Baseline,
+}
+
+/// JSON request schema for agent-oriented CLI execution.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct JsonRequest {
+    command: JsonCommand,
+    input: Vec<String>,
+    #[serde(default)]
+    classpath: Vec<String>,
+    #[serde(default)]
+    rules: Vec<String>,
+    baseline: Option<String>,
+    output: Option<String>,
+    #[serde(default)]
+    allow_duplicate_classes: bool,
+}
+
+/// Internal normalized request selected from CLI flags or JSON input.
+#[derive(Debug, Clone)]
+enum ExecutionRequest {
+    Scan(ScanArgs),
+    Baseline(BaselineArgs),
 }
 
 fn main() -> std::process::ExitCode {
@@ -155,9 +210,112 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(cli: Cli) -> Result<()> {
+    match resolve_execution_request(cli)? {
+        ExecutionRequest::Scan(args) => run_scan(args),
+        ExecutionRequest::Baseline(args) => run_baseline(args),
+    }
+}
+
+fn resolve_execution_request(cli: Cli) -> Result<ExecutionRequest> {
+    if let Some(json_arg) = cli.json {
+        if cli.command.is_some() {
+            anyhow::bail!("--json cannot be combined with subcommands");
+        }
+        return parse_json_execution_request(&json_arg);
+    }
     match cli.command {
-        Some(Command::Baseline(args)) => run_baseline(args),
-        None => run_scan(cli.scan),
+        Some(Command::Baseline(args)) => Ok(ExecutionRequest::Baseline(args)),
+        None => Ok(ExecutionRequest::Scan(cli.scan)),
+    }
+}
+
+fn parse_json_execution_request(arg: &str) -> Result<ExecutionRequest> {
+    let content = read_json_argument(arg)?;
+    let request = parse_json_request(&content)?;
+    build_execution_request_from_json(request)
+}
+
+fn read_json_argument(arg: &str) -> Result<String> {
+    if arg == "-" {
+        let mut content = String::new();
+        io::stdin()
+            .read_to_string(&mut content)
+            .context("failed to read --json from stdin")?;
+        return Ok(content);
+    }
+    if let Some(path_str) = arg.strip_prefix('@') {
+        if path_str.is_empty() {
+            anyhow::bail!("empty @file reference in --json");
+        }
+        let path = PathBuf::from(path_str);
+        let content = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read --json file {}", path.display()))?;
+        return Ok(content);
+    }
+    Ok(arg.to_string())
+}
+
+fn parse_json_request(content: &str) -> Result<JsonRequest> {
+    let mut deserializer = serde_json::Deserializer::from_str(content);
+    serde_path_to_error::deserialize::<_, JsonRequest>(&mut deserializer).map_err(|error| {
+        let path = error.path().to_string();
+        let inner = error.into_inner();
+        if path.is_empty() {
+            anyhow::anyhow!("invalid --json payload: {inner}")
+        } else {
+            anyhow::anyhow!("invalid --json payload at {path}: {inner}")
+        }
+    })
+}
+
+fn build_execution_request_from_json(request: JsonRequest) -> Result<ExecutionRequest> {
+    if request.input.is_empty() {
+        anyhow::bail!("invalid --json payload at input: expected at least one path");
+    }
+
+    let input = InputArgs {
+        input: request.input,
+        classpath: request.classpath,
+    };
+
+    match request.command {
+        JsonCommand::Scan => {
+            let scan = ScanArgs {
+                input,
+                output: request.output.map(PathBuf::from),
+                automation_details_id: None,
+                otel: None,
+                rules: request.rules,
+                baseline: request
+                    .baseline
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from(DEFAULT_BASELINE_PATH)),
+                allow_duplicate_classes: request.allow_duplicate_classes,
+            };
+            Ok(ExecutionRequest::Scan(scan))
+        }
+        JsonCommand::Baseline => {
+            if request.baseline.is_some() {
+                anyhow::bail!(
+                    "invalid --json payload at baseline: only supported when command is \"scan\""
+                );
+            }
+            if !request.rules.is_empty() {
+                anyhow::bail!(
+                    "invalid --json payload at rules: only supported when command is \"scan\""
+                );
+            }
+            let baseline = BaselineArgs {
+                input,
+                output: request
+                    .output
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from(DEFAULT_BASELINE_PATH)),
+                otel: None,
+                allow_duplicate_classes: request.allow_duplicate_classes,
+            };
+            Ok(ExecutionRequest::Baseline(baseline))
+        }
     }
 }
 
@@ -1116,6 +1274,117 @@ mod tests {
                 "RETURN_IN_FINALLY".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn cli_accepts_json_option() {
+        let cli = Cli::try_parse_from([
+            "inspequte",
+            "--json",
+            "{\"command\":\"scan\",\"input\":[\".\"]}",
+        ])
+        .expect("parse CLI");
+
+        assert_eq!(
+            cli.json.as_deref(),
+            Some("{\"command\":\"scan\",\"input\":[\".\"]}")
+        );
+    }
+
+    #[test]
+    fn cli_rejects_json_with_input_option() {
+        let result = Cli::try_parse_from([
+            "inspequte",
+            "--json",
+            "{\"command\":\"scan\",\"input\":[\".\"]}",
+            "--input",
+            ".",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_json_execution_request_supports_inline_json() {
+        let request = parse_json_execution_request(
+            "{\"command\":\"scan\",\"input\":[\"target/classes\"],\"classpath\":[\"target/lib\"],\"rules\":[\"SYSTEM_EXIT\"],\"baseline\":\"baseline.json\",\"output\":\"result.sarif\",\"allowDuplicateClasses\":true}",
+        )
+        .expect("parse json request");
+
+        let ExecutionRequest::Scan(scan) = request else {
+            panic!("expected scan request");
+        };
+        assert_eq!(scan.input.input, vec!["target/classes".to_string()]);
+        assert_eq!(scan.input.classpath, vec!["target/lib".to_string()]);
+        assert_eq!(scan.rules, vec!["SYSTEM_EXIT".to_string()]);
+        assert_eq!(scan.baseline, PathBuf::from("baseline.json"));
+        assert_eq!(scan.output, Some(PathBuf::from("result.sarif")));
+        assert!(scan.allow_duplicate_classes);
+    }
+
+    #[test]
+    fn parse_json_execution_request_supports_file_reference() {
+        let temp_dir = make_temp_test_dir();
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let request_file = temp_dir.join("request.json");
+        fs::write(
+            &request_file,
+            "{\"command\":\"baseline\",\"input\":[\"target/classes\"],\"output\":\"baseline.json\"}\n",
+        )
+        .expect("write request file");
+
+        let request =
+            parse_json_execution_request(&format!("@{}", request_file.display())).expect("parse");
+
+        let ExecutionRequest::Baseline(baseline) = request else {
+            panic!("expected baseline request");
+        };
+        assert_eq!(baseline.input.input, vec!["target/classes".to_string()]);
+        assert_eq!(baseline.output, PathBuf::from("baseline.json"));
+        assert_eq!(baseline.input.classpath, Vec::<String>::new());
+
+        fs::remove_dir_all(&temp_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn parse_json_request_rejects_unknown_field() {
+        let result =
+            parse_json_request("{\"command\":\"scan\",\"input\":[\".\"],\"unknownField\":true}");
+
+        assert!(result.is_err());
+        let message = format!("{:#}", result.expect_err("expected parse error"));
+        assert!(message.contains("unknownField"));
+    }
+
+    #[test]
+    fn parse_json_request_reports_field_path_on_type_error() {
+        let result = parse_json_request(
+            "{\"command\":\"scan\",\"input\":[\".\"],\"rules\":\"SYSTEM_EXIT\"}",
+        );
+
+        assert!(result.is_err());
+        let message = format!("{:#}", result.expect_err("expected parse error"));
+        assert!(message.contains("rules"));
+    }
+
+    #[test]
+    fn parse_json_request_rejects_empty_input() {
+        let result = parse_json_execution_request("{\"command\":\"scan\",\"input\":[]}");
+
+        assert!(result.is_err());
+        let message = format!("{:#}", result.expect_err("expected parse error"));
+        assert!(message.contains("input"));
+    }
+
+    #[test]
+    fn parse_json_request_rejects_scan_only_fields_for_baseline_command() {
+        let result = parse_json_execution_request(
+            "{\"command\":\"baseline\",\"input\":[\".\"],\"baseline\":\"baseline.json\"}",
+        );
+
+        assert!(result.is_err());
+        let message = format!("{:#}", result.expect_err("expected parse error"));
+        assert!(message.contains("baseline"));
     }
 
     #[test]

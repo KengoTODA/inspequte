@@ -25,6 +25,9 @@ gradle-plugin/build/
 # Generated rule docs
 docs/rules/*.md
 
+# Generated JSON schema docs (published by docs workflow)
+docs/schemas/*.json
+
 # MkDocs build output
 site/
 

@@ -95,6 +95,27 @@ Summarize findings only for the selected rule IDs and propose fixes.
 - empty lines ignored
 - lines starting with `#` ignored
 
+## JSON request mode (`--json`)
+
+You can pass scan configuration as JSON for stable agent integration:
+
+```text
+inspequte --json '{"command":"scan","input":["app.jar"],"classpath":["lib/"],"output":"results.sarif"}'
+inspequte --json @request.json
+cat request.json | inspequte --json -
+```
+
+`--json` cannot be combined with:
+- `--input`
+- `--classpath`
+- `--rules`
+- `--baseline`
+- `--output`
+- `--allow-duplicate-classes`
+
+Schema:
+- https://kengotoda.github.io/inspequte/schemas/cli-option.json
+
 ## Tips
 
 - Always specify where to write SARIF (`--output`).

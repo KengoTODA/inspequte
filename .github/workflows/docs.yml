@@ -29,6 +29,8 @@ jobs:
         run: pip install --disable-pip-version-check mkdocs-material
       - name: Generate Rule Docs
         run: bash scripts/generate-rule-docs.sh
+      - name: Copy JSON Schemas
+        run: bash scripts/copy-json-schemas.sh
       - name: Build MkDocs Site
         run: mkdocs build --strict
       - name: Configure GitHub Pages

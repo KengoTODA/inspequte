@@ -166,6 +166,17 @@ inspequte --input app.jar --output results.sarif --rules @rules.txt
 ```
 For `@rules.txt`, use one rule ID per line (nested `@file` references are supported); empty lines and lines starting with `#` are ignored.
 
+Agent-friendly JSON input is available via `--json`:
+```
+inspequte --json '{"command":"scan","input":["app.jar"],"classpath":["lib/"],"rules":["SYSTEM_EXIT"],"output":"results.sarif"}'
+inspequte --json @request.json
+cat request.json | inspequte --json -
+```
+`--json` is exclusive with path/rules/baseline scan flags (`--input`, `--classpath`, `--rules`, `--baseline`, `--output`, `--allow-duplicate-classes`).
+
+JSON Schema for the request payload is published at:
+- https://kengotoda.github.io/inspequte/schemas/cli-option.json
+
 ## Gradle usage
 Use the Gradle plugin:
 ```kotlin

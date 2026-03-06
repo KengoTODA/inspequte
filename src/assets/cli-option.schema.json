@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kengotoda.github.io/inspequte/schemas/cli-option.json",
+  "title": "inspequte CLI JSON request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "command",
+    "input"
+  ],
+  "properties": {
+    "command": {
+      "type": "string",
+      "enum": [
+        "scan",
+        "baseline"
+      ]
+    },
+    "input": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "classpath": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "baseline": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowDuplicateClasses": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "scan"
+          }
+        }
+      },
+      "then": {
+        "description": "scan allows baseline and rules."
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "const": "baseline"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "baseline"
+              ]
+            },
+            {
+              "required": [
+                "rules"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
