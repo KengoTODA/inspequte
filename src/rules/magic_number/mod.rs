@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use opentelemetry::KeyValue;
@@ -417,6 +417,12 @@ fn is_kotlin_source_file(source_file: Option<&str>) -> bool {
     source_file.is_some_and(|value| value.ends_with(".kt"))
 }
 
+struct TrackedKotlinBufferSize {
+    const_offset: u32,
+    has_safe_use: bool,
+    only_safe_uses: bool,
+}
+
 /// Find `ConstInt(8192)` offsets used as Kotlin default buffered I/O sizes.
 fn collect_kotlin_default_buffer_offsets(
     method: &Method,
@@ -427,17 +433,48 @@ fn collect_kotlin_default_buffer_offsets(
     if !is_kotlin_class {
         return offsets;
     }
+    let mut tracked = HashMap::<u16, TrackedKotlinBufferSize>::new();
 
     for (idx, inst) in instructions.iter().enumerate() {
-        let InstructionKind::Invoke(call) = &inst.kind else {
+        if let Some(local_idx) = int_store_local_index(inst, &method.bytecode) {
+            if let Some(previous) = tracked.remove(&local_idx) {
+                finalize_kotlin_default_buffer_tracking(previous, &mut offsets);
+            }
+            let Some(previous_idx) = idx.checked_sub(1) else {
+                continue;
+            };
+            let Some(previous_inst) = instructions.get(previous_idx) else {
+                continue;
+            };
+            if let InstructionKind::ConstInt(value) = &previous_inst.kind {
+                if *value == KOTLIN_DEFAULT_BUFFER_SIZE {
+                    tracked.insert(
+                        local_idx,
+                        TrackedKotlinBufferSize {
+                            const_offset: previous_inst.offset,
+                            has_safe_use: false,
+                            only_safe_uses: true,
+                        },
+                    );
+                }
+            }
+            continue;
+        }
+
+        let Some(local_idx) = int_load_local_index(inst, &method.bytecode) else {
             continue;
         };
-        if !is_kotlin_default_buffer_constructor(call) {
+        let Some(state) = tracked.get_mut(&local_idx) else {
             continue;
+        };
+        if is_buffered_constructor_size_load(instructions, idx) {
+            state.has_safe_use = true;
+        } else {
+            state.only_safe_uses = false;
         }
-        if let Some(offset) = find_default_buffer_size_const_offset(instructions, &method.bytecode, idx) {
-            offsets.insert(offset);
-        }
+    }
+    for (_, state) in tracked {
+        finalize_kotlin_default_buffer_tracking(state, &mut offsets);
     }
 
     offsets
@@ -456,38 +493,26 @@ fn is_kotlin_default_buffer_constructor(call: &crate::ir::CallSite) -> bool {
     )
 }
 
-fn find_default_buffer_size_const_offset(
-    instructions: &[FlatInstruction],
-    bytecode: &[u8],
-    call_idx: usize,
-) -> Option<u32> {
-    let arg_idx = call_idx.checked_sub(1)?;
-    let arg_inst = instructions.get(arg_idx)?;
-    let local_idx = int_load_local_index(arg_inst, bytecode)?;
-    find_stored_default_buffer_const_offset(instructions, bytecode, arg_idx, local_idx)
+fn finalize_kotlin_default_buffer_tracking(
+    state: TrackedKotlinBufferSize,
+    offsets: &mut HashSet<u32>,
+) {
+    if state.has_safe_use && state.only_safe_uses {
+        offsets.insert(state.const_offset);
+    }
 }
 
-fn find_stored_default_buffer_const_offset(
+fn is_buffered_constructor_size_load(
     instructions: &[FlatInstruction],
-    bytecode: &[u8],
-    before_idx: usize,
-    local_idx: u16,
-) -> Option<u32> {
-    for store_idx in (0..before_idx).rev() {
-        let store_inst = &instructions[store_idx];
-        if int_store_local_index(store_inst, bytecode) != Some(local_idx) {
-            continue;
-        }
-        let value_idx = store_idx.checked_sub(1)?;
-        let value_inst = &instructions[value_idx];
-        if let InstructionKind::ConstInt(value) = &value_inst.kind {
-            if *value == KOTLIN_DEFAULT_BUFFER_SIZE {
-                return Some(value_inst.offset);
-            }
-        }
-        return None;
-    }
-    None
+    load_idx: usize,
+) -> bool {
+    let Some(next) = instructions.get(load_idx + 1) else {
+        return false;
+    };
+    let InstructionKind::Invoke(call) = &next.kind else {
+        return false;
+    };
+    is_kotlin_default_buffer_constructor(call)
 }
 
 fn int_load_local_index(inst: &FlatInstruction, bytecode: &[u8]) -> Option<u16> {
@@ -506,14 +531,14 @@ fn int_load_local_index(inst: &FlatInstruction, bytecode: &[u8]) -> Option<u16> 
 
 fn int_store_local_index(inst: &FlatInstruction, bytecode: &[u8]) -> Option<u16> {
     match inst.opcode {
-        0x36 => bytecode
+        opcodes::ISTORE => bytecode
             .get(inst.offset as usize + 1)
             .copied()
             .map(u16::from),
-        0x3b => Some(0),
-        0x3c => Some(1),
-        0x3d => Some(2),
-        0x3e => Some(3),
+        opcodes::ISTORE_0 => Some(0),
+        opcodes::ISTORE_1 => Some(1),
+        opcodes::ISTORE_2 => Some(2),
+        opcodes::ISTORE_3 => Some(3),
         _ => None,
     }
 }
@@ -1248,6 +1273,39 @@ class ClassA {
                 .iter()
                 .any(|msg| msg.contains("8192") && msg.contains("methodOne")),
             "expected direct Kotlin buffered writer 8192 finding, got {messages:?}"
+        );
+    }
+
+    #[test]
+    fn reports_kotlin_buffer_size_when_local_has_non_buffer_use() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassA.kt".to_string(),
+            contents: r#"
+package com.example
+
+import java.io.BufferedWriter
+import java.io.StringWriter
+
+class ClassA {
+    fun methodOne(): Int {
+        val varOne = 8192
+        val varTwo = BufferedWriter(StringWriter(), varOne)
+        varTwo.close()
+        return varOne
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = magic_number_messages(&output);
+        assert!(
+            messages
+                .iter()
+                .any(|msg| msg.contains("8192") && msg.contains("methodOne")),
+            "expected magic number 8192 finding when local is used outside buffered constructor, got {messages:?}"
         );
     }
 }
