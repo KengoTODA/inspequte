@@ -406,6 +406,13 @@
               }
             },
             {
+              "id": "UNUSED_LAMBDA_PARAMETERS",
+              "name": "Unused lambda parameter",
+              "shortDescription": {
+                "text": "Reports lambda parameters that are never referenced in the lambda body"
+              }
+            },
+            {
               "id": "URL_EQUALS_CALL",
               "name": "URL equals call",
               "shortDescription": {

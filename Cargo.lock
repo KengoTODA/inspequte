@@ -1082,8 +1082,7 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 [[package]]
 name = "jclassfile"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20d687e1ad42abb7f146ad20a8d104b5b3c6722450797fecfa0f4320f7b82229"
+source = "git+https://github.com/exoego/rusty-jvm.git?branch=kotlin#36a219470b6d5abe3767f73d6a776c63a3d694c5"
 dependencies = [
  "bitflags",
  "cesu8",

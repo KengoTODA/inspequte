@@ -65,7 +65,18 @@ pub(crate) struct Method {
     pub(crate) calls: Vec<CallSite>,
     pub(crate) string_literals: Vec<String>,
     pub(crate) exception_handlers: Vec<ExceptionHandler>,
+    pub(crate) local_variables: Vec<LocalVariable>,
     pub(crate) local_variable_types: Vec<LocalVariableType>,
+}
+
+/// Local variable metadata from the LocalVariableTable attribute.
+#[derive(Clone, Debug)]
+pub(crate) struct LocalVariable {
+    pub(crate) name: String,
+    pub(crate) descriptor: String,
+    pub(crate) index: u16,
+    pub(crate) start_pc: u32,
+    pub(crate) length: u32,
 }
 
 /// Local variable type metadata from the LocalVariableTypeTable attribute.
