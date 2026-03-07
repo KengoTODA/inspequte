@@ -57,3 +57,22 @@ pub(crate) fn method_param_slots(descriptor: &str) -> Result<usize> {
     }
     Ok(slots)
 }
+
+/// Return the starting slot index of each parameter in a method descriptor.
+///
+/// `long` and `double` parameters consume two slots, so the next parameter's
+/// start slot is offset by 2.  The returned indices are relative to the first
+/// parameter (i.e. slot 0 for the first param of a static method).
+pub(crate) fn method_param_start_slots(descriptor: &str) -> Result<Vec<u16>> {
+    let desc = MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
+    let mut result = Vec::new();
+    let mut slot: u16 = 0;
+    for param in desc.parameter_types() {
+        result.push(slot);
+        slot += match param {
+            TypeDescriptor::Long | TypeDescriptor::Double => 2,
+            _ => 1,
+        };
+    }
+    Ok(result)
+}

@@ -4,7 +4,7 @@ use anyhow::Result;
 use opentelemetry::KeyValue;
 use serde_sarif::sarif::Result as SarifResult;
 
-use crate::descriptor::method_param_slots;
+use crate::descriptor::{method_param_slots, method_param_start_slots};
 use crate::engine::AnalysisContext;
 use crate::ir::{Class, InstructionKind, Method};
 use crate::opcodes;
@@ -134,13 +134,16 @@ fn check_java_lambdas(class: &Class, artifact_uri: Option<&str>) -> Result<Vec<S
             continue;
         };
 
-        let total_slots = method_param_slots(&method.descriptor).unwrap_or(0);
         // For static methods, params start at slot 0; for instance, slot 0 is `this`
         let base_slot: u16 = if method.access.is_static { 0 } else { 1 };
-        let lambda_start_slot = base_slot + captured_slots as u16;
-        let lambda_end_slot = base_slot + total_slots as u16;
+        let param_slots: Vec<u16> = method_param_start_slots(&method.descriptor)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|s| base_slot + s)
+            .filter(|&s| s >= base_slot + captured_slots as u16)
+            .collect();
 
-        if lambda_start_slot >= lambda_end_slot {
+        if param_slots.is_empty() {
             continue;
         }
 
@@ -150,7 +153,7 @@ fn check_java_lambdas(class: &Class, artifact_uri: Option<&str>) -> Result<Vec<S
             class,
             method,
             artifact_uri,
-            lambda_start_slot..lambda_end_slot,
+            &param_slots,
             &used,
             0,
         );
@@ -187,13 +190,17 @@ fn check_kotlin_non_inline_lambdas(
             continue;
         }
 
-        let total_slots = method_param_slots(&method.descriptor).unwrap_or(0);
-        // slot 0 is `this`; for invokeSuspend, last param is $result (Object, 1 slot)
-        let lambda_start_slot: u16 = 1;
-        let exclude_tail = if is_invoke_suspend { 1u16 } else { 0 };
-        let lambda_end_slot = (1 + total_slots as u16).saturating_sub(exclude_tail);
+        let all_param_slots = method_param_start_slots(&method.descriptor).unwrap_or_default();
+        // slot 0 is `this`; for invokeSuspend, exclude last param ($result, Object, 1 slot)
+        let exclude_count = if is_invoke_suspend { 1 } else { 0 };
+        let keep = all_param_slots.len().saturating_sub(exclude_count);
+        let param_slots: Vec<u16> = all_param_slots
+            .into_iter()
+            .take(keep)
+            .map(|s| 1 + s) // slot 0 is `this`
+            .collect();
 
-        if lambda_start_slot >= lambda_end_slot {
+        if param_slots.is_empty() {
             continue;
         }
 
@@ -203,7 +210,7 @@ fn check_kotlin_non_inline_lambdas(
             class,
             method,
             artifact_uri,
-            lambda_start_slot..lambda_end_slot,
+            &param_slots,
             &used,
             0,
         );
@@ -212,17 +219,17 @@ fn check_kotlin_non_inline_lambdas(
     Ok(results)
 }
 
-/// Report unused lambda parameter slots in the given range.
+/// Report unused lambda parameters at the given slot indices.
 fn report_unused_slots(
     results: &mut Vec<SarifResult>,
     class: &Class,
     method: &Method,
     artifact_uri: Option<&str>,
-    slot_range: std::ops::Range<u16>,
+    param_slots: &[u16],
     used: &HashSet<u16>,
     offset_for_line: u32,
 ) {
-    for slot in slot_range {
+    for &slot in param_slots {
         if used.contains(&slot) || is_unnamed_param(method, slot) {
             continue;
         }
@@ -791,6 +798,74 @@ class ClassP {
         assert!(
             !has_var_two,
             "varTwo is used as receiver and should not be reported: {messages:?}"
+        );
+    }
+
+    // Edge: Java lambda with double-width (long/double) parameter to exercise
+    // the 2-slot branch in method_param_slots
+    #[test]
+    fn java_lambda_long_param_unused() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassQ.java".to_string(),
+            contents: r#"
+package com.example;
+public class ClassQ {
+    @FunctionalInterface
+    interface LongConsumer {
+        void accept(long varOne);
+    }
+    public void methodX() {
+        LongConsumer varTwo = (varThree) -> {
+            System.out.println("hello");
+        };
+    }
+}
+"#
+            .to_string(),
+        }];
+        let output = harness
+            .compile_and_analyze(Language::Java, &sources, &[])
+            .expect("analysis");
+        let messages = unused_lambda_messages(&output);
+        assert!(
+            !messages.is_empty(),
+            "expected finding for unused long param, got none"
+        );
+    }
+
+    // Edge: Java lambda with mixed single/double-width params (int, double, String)
+    // where only the double param is unused — verifies correct slot calculation
+    #[test]
+    fn java_lambda_mixed_width_params() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassR.java".to_string(),
+            contents: r#"
+package com.example;
+public class ClassR {
+    @FunctionalInterface
+    interface MixedFunc {
+        void accept(int varOne, double varTwo, String varThree);
+    }
+    public void methodX() {
+        MixedFunc varFour = (varFive, varSix, varSeven) -> {
+            System.out.println(varFive);
+            System.out.println(varSeven);
+        };
+    }
+}
+"#
+            .to_string(),
+        }];
+        let output = harness
+            .compile_and_analyze(Language::Java, &sources, &[])
+            .expect("analysis");
+        let messages = unused_lambda_messages(&output);
+        assert_eq!(
+            messages.len(),
+            1,
+            "expected exactly one finding for unused double param: {messages:?}"
         );
     }
 
