@@ -42,20 +42,25 @@ pub(crate) fn method_return_kind(descriptor: &str) -> Result<ReturnKind> {
     Ok(method_descriptor_summary(descriptor)?.return_kind)
 }
 
+/// Number of local variable slots a JVM type occupies (2 for long/double, 1 otherwise).
+fn slot_width(ty: &TypeDescriptor) -> u16 {
+    match ty {
+        TypeDescriptor::Long | TypeDescriptor::Double => 2,
+        _ => 1,
+    }
+}
+
 /// Count the number of JVM local variable slots consumed by a method's parameters.
 ///
 /// Unlike `method_param_count`, this accounts for the fact that `long` and `double`
 /// parameters each consume two slots.
 pub(crate) fn method_param_slots(descriptor: &str) -> Result<usize> {
     let desc = MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
-    let mut slots = 0;
-    for param in desc.parameter_types() {
-        slots += match param {
-            TypeDescriptor::Long | TypeDescriptor::Double => 2,
-            _ => 1,
-        };
-    }
-    Ok(slots)
+    Ok(desc
+        .parameter_types()
+        .iter()
+        .map(|p| slot_width(p) as usize)
+        .sum())
 }
 
 /// Return the starting slot index of each parameter in a method descriptor.
@@ -69,10 +74,7 @@ pub(crate) fn method_param_start_slots(descriptor: &str) -> Result<Vec<u16>> {
     let mut slot: u16 = 0;
     for param in desc.parameter_types() {
         result.push(slot);
-        slot += match param {
-            TypeDescriptor::Long | TypeDescriptor::Double => 2,
-            _ => 1,
-        };
+        slot += slot_width(param);
     }
     Ok(result)
 }
