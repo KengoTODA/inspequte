@@ -338,7 +338,20 @@ fn is_unnamed_param(method: &Method, slot: u16) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
+
+    fn compile_and_analyze(
+        harness: &JvmTestHarness,
+        language: Language,
+        sources: &[SourceFile],
+        classpath: &[PathBuf],
+    ) -> crate::engine::EngineOutput {
+        harness
+            .compile_and_analyze(language, sources, classpath)
+            .expect("run harness analysis")
+    }
 
     fn unused_lambda_messages(output: &crate::engine::EngineOutput) -> Vec<String> {
         output
@@ -368,9 +381,7 @@ public class ClassA {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             !messages.is_empty(),
@@ -397,9 +408,7 @@ public class ClassB {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert_eq!(messages.len(), 1, "expected one finding for unused key param, got: {messages:?}");
     }
@@ -423,9 +432,7 @@ public class ClassF {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             messages.is_empty(),
@@ -449,9 +456,7 @@ public class ClassH {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             messages.is_empty(),
@@ -476,9 +481,7 @@ public class ClassK {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             messages.is_empty(),
@@ -505,9 +508,7 @@ public class ClassL {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert_eq!(
             messages.len(),
@@ -535,9 +536,7 @@ public class ClassM {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert_eq!(
             messages.len(),
@@ -564,11 +563,7 @@ class ClassC {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             !messages.is_empty(),
@@ -592,11 +587,7 @@ class ClassJ {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             messages.is_empty(),
@@ -620,11 +611,7 @@ class ClassK {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             messages.is_empty(),
@@ -650,11 +637,7 @@ class ClassE {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             !messages.is_empty(),
@@ -679,11 +662,7 @@ class ClassF {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             !messages.is_empty(),
@@ -708,11 +687,7 @@ class ClassH {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             messages.is_empty(),
@@ -738,11 +713,7 @@ class ClassO {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             !messages.is_empty(),
@@ -769,11 +740,7 @@ class ClassP {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         // varTwo is used as receiver of .also, so only varThree should be reported
         let has_var_three = messages.iter().any(|m| m.contains("varThree"));
@@ -811,9 +778,7 @@ public class ClassQ {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             !messages.is_empty(),
@@ -845,9 +810,7 @@ public class ClassR {
 "#
             .to_string(),
         }];
-        let output = harness
-            .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("analysis");
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert_eq!(
             messages.len(),
@@ -876,11 +839,7 @@ class ClassD {
 "#
             .to_string(),
         }];
-        let output = harness.compile_and_analyze(Language::Kotlin, &sources, &[]);
-        let Ok(output) = output else {
-            eprintln!("skipping kotlin test: kotlinc not available");
-            return;
-        };
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = unused_lambda_messages(&output);
         assert!(
             !messages.is_empty(),
