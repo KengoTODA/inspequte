@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.25.0...inspequte-v0.26.0) (2026-03-07)
+
+
+### Features
+
+* **rule:** implement STRING_TRIM_IS_EMPTY ([9e01ce9](https://github.com/KengoTODA/inspequte/commit/9e01ce965d0c734db43a8bb96cff1d99ac6c1f51))
+* **rule:** implement STRING_TRIM_IS_EMPTY ([b726eeb](https://github.com/KengoTODA/inspequte/commit/b726eeb331e5cae11867c4b6ef85a49d4f5ee3d5))
+
+
+### Bug Fixes
+
+* **rules:** exclude lists from prefer enumset rule ([7e31507](https://github.com/KengoTODA/inspequte/commit/7e31507c88f291b97905fe8f554b1806ed9c7114))
+
 ## [0.25.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.24.0...inspequte-v0.25.0) (2026-03-06)
 
 
