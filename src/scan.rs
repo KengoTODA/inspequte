@@ -3084,7 +3084,11 @@ mod tests {
         reader
             .read_to_end(&mut bytes)
             .context("read jspecify jar")?;
-        fs::write(&jar_path, bytes).context("write jspecify jar")?;
+        // Write to a temp file first, then rename to avoid leaving a partial jar
+        // if the download is interrupted (which causes "Unexpected end of zip" on retry).
+        let tmp_path = jar_path.with_extension("jar.tmp");
+        fs::write(&tmp_path, &bytes).context("write jspecify jar tmp")?;
+        fs::rename(&tmp_path, &jar_path).context("rename jspecify jar")?;
 
         Ok(jar_path)
     }
