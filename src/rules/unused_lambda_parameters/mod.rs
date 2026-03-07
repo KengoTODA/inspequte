@@ -37,10 +37,6 @@ impl Rule for UnusedLambdaParametersRule {
                     let artifact_uri = context.class_artifact_uri(class);
                     let mut findings = Vec::new();
                     findings.extend(check_java_lambdas(class, artifact_uri.as_deref())?);
-                    findings.extend(check_kotlin_non_inline_lambdas(
-                        class,
-                        artifact_uri.as_deref(),
-                    )?);
                     findings.extend(check_kotlin_inline_lambdas(
                         class,
                         artifact_uri.as_deref(),
@@ -128,63 +124,6 @@ fn check_java_lambdas(class: &Class, artifact_uri: Option<&str>) -> Result<Vec<S
             .into_iter()
             .map(|s| base_slot + s)
             .filter(|&s| s >= base_slot + captured_slots as u16)
-            .collect();
-
-        if param_slots.is_empty() {
-            continue;
-        }
-
-        let used = loaded_slots_in_range(method, 0, u32::MAX);
-        report_unused_slots(
-            &mut results,
-            class,
-            method,
-            artifact_uri,
-            &param_slots,
-            &used,
-            0,
-        );
-    }
-
-    Ok(results)
-}
-
-/// Check for unused lambda parameters in Kotlin non-inline lambda classes.
-///
-/// Kotlin compiles non-inline lambdas to anonymous inner classes that implement
-/// `kotlin/jvm/functions/FunctionN`. The `invoke` method contains the lambda body.
-/// Captured variables are stored as class fields, so all `invoke` params (except `this`)
-/// are lambda parameters.
-fn check_kotlin_non_inline_lambdas(
-    class: &Class,
-    artifact_uri: Option<&str>,
-) -> Result<Vec<SarifResult>> {
-    let mut results = Vec::new();
-
-    if !is_kotlin_lambda_class(class) {
-        return Ok(results);
-    }
-
-    for method in &class.methods {
-        let is_invoke = method.name == "invoke";
-        let is_invoke_suspend = method.name == "invokeSuspend";
-
-        if !is_invoke && !is_invoke_suspend {
-            continue;
-        }
-        // Skip bridge methods
-        if method.access.is_bridge || method.access.is_abstract {
-            continue;
-        }
-
-        let all_param_slots = method_param_start_slots(&method.descriptor).unwrap_or_default();
-        // slot 0 is `this`; for invokeSuspend, exclude last param ($result, Object, 1 slot)
-        let exclude_count = if is_invoke_suspend { 1 } else { 0 };
-        let keep = all_param_slots.len().saturating_sub(exclude_count);
-        let param_slots: Vec<u16> = all_param_slots
-            .into_iter()
-            .take(keep)
-            .map(|s| 1 + s) // slot 0 is `this`
             .collect();
 
         if param_slots.is_empty() {
@@ -318,14 +257,6 @@ fn check_kotlin_inline_lambdas(class: &Class, artifact_uri: Option<&str>) -> Vec
     }
 
     results
-}
-
-/// Check if a class is a Kotlin lambda anonymous class.
-fn is_kotlin_lambda_class(class: &Class) -> bool {
-    class.interfaces.iter().any(|iface| {
-        iface.starts_with("kotlin/jvm/functions/Function")
-            || iface.starts_with("kotlin/jvm/internal/FunctionBase")
-    })
 }
 
 /// Check if a parameter at the given slot is named `_` (intentionally unused).
