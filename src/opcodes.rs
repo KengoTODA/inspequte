@@ -81,7 +81,6 @@ pub(crate) const IF_ACMPNE: u8 = 0xa6;
 pub(crate) const NEW: u8 = 0xbb;
 pub(crate) const NEWARRAY: u8 = 0xbc;
 pub(crate) const ANEWARRAY: u8 = 0xbd;
-pub(crate) const WIDE: u8 = 0xc4;
 pub(crate) const MULTIANEWARRAY: u8 = 0xc5;
 pub(crate) const IFNULL: u8 = 0xc6;
 pub(crate) const IFNONNULL: u8 = 0xc7;

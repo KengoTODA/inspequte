@@ -84,19 +84,6 @@ fn load_slot(opcode: u8, bytecode: &[u8], offset: usize) -> Option<u16> {
         | opcodes::ALOAD_2 => Some(2),
         opcodes::ILOAD_3 | opcodes::LLOAD_3 | opcodes::FLOAD_3 | opcodes::DLOAD_3
         | opcodes::ALOAD_3 => Some(3),
-        // WIDE prefix: next byte is the actual opcode, followed by a 2-byte index
-        opcodes::WIDE => {
-            let actual = *bytecode.get(offset + 1)?;
-            match actual {
-                opcodes::ILOAD | opcodes::LLOAD | opcodes::FLOAD | opcodes::DLOAD
-                | opcodes::ALOAD => {
-                    let hi = *bytecode.get(offset + 2)? as u16;
-                    let lo = *bytecode.get(offset + 3)? as u16;
-                    Some((hi << 8) | lo)
-                }
-                _ => None,
-            }
-        }
         _ => None,
     }
 }
