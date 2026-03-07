@@ -2984,6 +2984,71 @@ mod tests {
         Ok(())
     }
 
+    /// A class file with a non-standard attribute that jclassfile cannot parse
+    /// triggers the minimal fallback parser (`parse_class_bytes_minimal`).
+    /// The attribute name is intentionally fictitious so this test remains
+    /// stable regardless of which JVM spec attributes jclassfile adds later.
+    #[test]
+    fn parse_class_bytes_falls_back_on_unknown_attribute() {
+        let data = build_class_with_unknown_attribute();
+        let parsed = parse_class_bytes(&data).expect("should fall back to minimal parser");
+        assert_eq!(parsed.name, "com/example/FakeClass");
+        assert_eq!(parsed.super_name.as_deref(), Some("java/lang/Object"));
+        // Minimal parser skips methods — verify graceful degradation
+        assert!(parsed.methods.is_empty());
+    }
+
+    /// Build a minimal valid class file that contains a fictitious class-level
+    /// attribute (`InspequteTestOnlyAttribute`).  jclassfile will fail with
+    /// "unmatched attribute", causing `parse_class_bytes` to fall back to the
+    /// minimal parser.
+    fn build_class_with_unknown_attribute() -> Vec<u8> {
+        let mut b = Vec::new();
+        // magic
+        b.extend_from_slice(&[0xCA, 0xFE, 0xBA, 0xBE]);
+        // minor_version, major_version (65 = Java 21)
+        b.extend_from_slice(&0u16.to_be_bytes());
+        b.extend_from_slice(&65u16.to_be_bytes());
+        // constant_pool_count = 6 (entries #1..#5)
+        b.extend_from_slice(&6u16.to_be_bytes());
+        // #1 Utf8 "com/example/FakeClass"
+        let class_name = b"com/example/FakeClass";
+        b.push(1);
+        b.extend_from_slice(&(class_name.len() as u16).to_be_bytes());
+        b.extend_from_slice(class_name);
+        // #2 Class -> #1
+        b.push(7);
+        b.extend_from_slice(&1u16.to_be_bytes());
+        // #3 Utf8 "java/lang/Object"
+        let super_name = b"java/lang/Object";
+        b.push(1);
+        b.extend_from_slice(&(super_name.len() as u16).to_be_bytes());
+        b.extend_from_slice(super_name);
+        // #4 Class -> #3
+        b.push(7);
+        b.extend_from_slice(&3u16.to_be_bytes());
+        // #5 Utf8 — fictitious attribute name
+        let attr_name = b"InspequteTestOnlyAttribute";
+        b.push(1);
+        b.extend_from_slice(&(attr_name.len() as u16).to_be_bytes());
+        b.extend_from_slice(attr_name);
+        // access_flags (ACC_PUBLIC | ACC_SUPER)
+        b.extend_from_slice(&0x0021u16.to_be_bytes());
+        // this_class = #2, super_class = #4
+        b.extend_from_slice(&2u16.to_be_bytes());
+        b.extend_from_slice(&4u16.to_be_bytes());
+        // interfaces_count = 0, fields_count = 0, methods_count = 0
+        b.extend_from_slice(&0u16.to_be_bytes());
+        b.extend_from_slice(&0u16.to_be_bytes());
+        b.extend_from_slice(&0u16.to_be_bytes());
+        // attributes_count = 1
+        b.extend_from_slice(&1u16.to_be_bytes());
+        // attribute { name_index = #5, length = 0 }
+        b.extend_from_slice(&5u16.to_be_bytes());
+        b.extend_from_slice(&0u32.to_be_bytes());
+        b
+    }
+
     fn jspecify_jar_path() -> Result<PathBuf> {
         static JAR_PATH: OnceLock<PathBuf> = OnceLock::new();
         if let Some(path) = JAR_PATH.get() {
