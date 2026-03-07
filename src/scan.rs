@@ -23,8 +23,8 @@ use crate::descriptor::method_param_count;
 use crate::ir::{
     AnnotationDefaultNumeric, AnnotationDefaultValue, CallKind, CallSite, Class, ClassTypeUse,
     ExceptionHandler, Field, FieldAccess, FieldRef, Instruction, InstructionKind, LineNumber,
-    LocalVariableType, Method, MethodAccess, MethodNullness, MethodTypeUse, Nullness,
-    TypeParameterUse, TypeUse, TypeUseKind,
+    LocalVariable, LocalVariableType, Method, MethodAccess, MethodNullness, MethodTypeUse,
+    Nullness, TypeParameterUse, TypeUse, TypeUseKind,
 };
 use crate::opcodes;
 use crate::telemetry::Telemetry;
@@ -1229,6 +1229,8 @@ fn parse_methods(
             parse_bytecode(code, constant_pool, bootstrap_methods).context("parse bytecode")?;
         let exception_handlers =
             parse_exception_handlers(exception_table, constant_pool).context("parse handlers")?;
+        let local_variables = parse_local_variables(code_attributes, constant_pool)
+            .context("parse local variables")?;
         let local_variable_types =
             parse_local_variable_types(code_attributes, constant_pool, default_nullness)
                 .context("parse local variable types")?;
@@ -1251,6 +1253,7 @@ fn parse_methods(
             calls,
             string_literals,
             exception_handlers,
+            local_variables,
             local_variable_types,
         });
     }
@@ -1306,6 +1309,35 @@ fn parse_source_file(
         return Ok(Some(source_file));
     }
     Ok(None)
+}
+
+fn parse_local_variables(
+    attributes: &[jclassfile::attributes::Attribute],
+    constant_pool: &[ConstantPool],
+) -> Result<Vec<LocalVariable>> {
+    let mut locals = Vec::new();
+    for attribute in attributes {
+        let jclassfile::attributes::Attribute::LocalVariableTable {
+            local_variable_table,
+        } = attribute
+        else {
+            continue;
+        };
+        for record in local_variable_table {
+            let name =
+                resolve_utf8(constant_pool, record.name_index()).context("resolve local name")?;
+            let descriptor = resolve_utf8(constant_pool, record.descriptor_index())
+                .context("resolve local descriptor")?;
+            locals.push(LocalVariable {
+                name,
+                descriptor,
+                index: record.index(),
+                start_pc: record.start_pc() as u32,
+                length: record.length() as u32,
+            });
+        }
+    }
+    Ok(locals)
 }
 
 fn parse_local_variable_types(

@@ -41,3 +41,19 @@ pub(crate) enum ReturnKind {
 pub(crate) fn method_return_kind(descriptor: &str) -> Result<ReturnKind> {
     Ok(method_descriptor_summary(descriptor)?.return_kind)
 }
+
+/// Count the number of JVM local variable slots consumed by a method's parameters.
+///
+/// Unlike `method_param_count`, this accounts for the fact that `long` and `double`
+/// parameters each consume two slots.
+pub(crate) fn method_param_slots(descriptor: &str) -> Result<usize> {
+    let desc = MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
+    let mut slots = 0;
+    for param in desc.parameter_types() {
+        slots += match param {
+            TypeDescriptor::Long | TypeDescriptor::Double => 2,
+            _ => 1,
+        };
+    }
+    Ok(slots)
+}

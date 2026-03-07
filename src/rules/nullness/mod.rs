@@ -1234,6 +1234,7 @@ mod tests {
             calls,
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variables: vec![],
             local_variable_types: Vec::new(),
         }
     }
@@ -1412,6 +1413,7 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variables: vec![],
             local_variable_types: Vec::new(),
         };
         let override_method = Method {
@@ -1440,6 +1442,7 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variables: vec![],
             local_variable_types: Vec::new(),
         };
         let base = class_with_methods("com/example/Base", None, vec![base_method]);
@@ -1485,6 +1488,7 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variables: vec![],
             local_variable_types: Vec::new(),
         };
         let override_method = Method {
@@ -1513,6 +1517,7 @@ public @interface NullnessUnspecified {}
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variables: vec![],
             local_variable_types: Vec::new(),
         };
         let base = class_with_methods("com/example/Base", None, vec![base_method]);

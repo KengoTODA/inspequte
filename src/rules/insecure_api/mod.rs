@@ -114,6 +114,7 @@ mod tests {
             calls,
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variables: vec![],
             local_variable_types: Vec::new(),
         }
     }
