@@ -19,7 +19,7 @@ We follow Conventional Commits 1.0.0. Examples:
 
 ### Benchmarks
 - `scripts/bench-classpath.sh <input> [repeat] [classpath...]` runs benchmark scans for a single input.
-- `scripts/bench-spotbugs.sh [repeat]` benchmarks SpotBugs libraries (downloads if needed).
+- `scripts/bench-spotbugs.sh [repeat]` benchmarks `spotbugs.jar` (downloads SpotBugs if needed).
 
 ### OpenTelemetry traces
 Use `--otel <url>` to send OTLP traces over HTTP to a collector:

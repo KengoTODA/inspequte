@@ -30,6 +30,12 @@ if [ ! -d "${lib_dir}" ]; then
   exit 1
 fi
 
+jar_path="${lib_dir}/spotbugs.jar"
+if [ ! -f "${jar_path}" ]; then
+  echo "missing SpotBugs jar: ${jar_path}" >&2
+  exit 1
+fi
+
 log_dir="target/bench"
 log_file="${log_dir}/spotbugs.log"
 otel_url="${OTEL_ENDPOINT:-}"
@@ -43,19 +49,17 @@ fi
 
 cargo build >/dev/null
 
-echo "bench: spotbugs_version=${spotbugs_version} repeat=${repeat}" | tee -a "${log_file}"
-find "${lib_dir}" -type f -name "*.jar" | sort | while IFS= read -r jar_path; do
-  i=1
-  while [ "${i}" -le "${repeat}" ]; do
-    otel_args=""
-    if [ -n "${otel_url}" ]; then
-      otel_args="--otel ${otel_url}"
-    fi
-    ${validate_env} ./target/debug/inspequte --input "${jar_path}" ${otel_args} \
-      1>/dev/null
-    echo "run ${i}: ${jar_path} completed" | tee -a "${log_file}"
-    i=$((i + 1))
-  done
+echo "bench: spotbugs_version=${spotbugs_version} repeat=${repeat} jar=${jar_path}" | tee -a "${log_file}"
+i=1
+while [ "${i}" -le "${repeat}" ]; do
+  otel_args=""
+  if [ -n "${otel_url}" ]; then
+    otel_args="--otel ${otel_url}"
+  fi
+  ${validate_env} ./target/debug/inspequte --input "${jar_path}" ${otel_args} \
+    1>/dev/null
+  echo "run ${i}: ${jar_path} completed" | tee -a "${log_file}"
+  i=$((i + 1))
 done
 
 echo "bench: log=${log_file}"

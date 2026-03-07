@@ -145,7 +145,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
-      - name: Start Jaeger, run benchmark, export trace
+      - name: Start Jaeger, run spotbugs.jar benchmark, export trace
         id: bench
         shell: bash
         run: |
