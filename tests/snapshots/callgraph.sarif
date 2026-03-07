@@ -378,6 +378,13 @@
               }
             },
             {
+              "id": "STRING_TRIM_IS_EMPTY",
+              "name": "String trim followed by isEmpty",
+              "shortDescription": {
+                "text": "String.trim().isEmpty() can be ambiguous; prefer String.isBlank()"
+              }
+            },
+            {
               "id": "SYSTEM_EXIT",
               "name": "System.exit call",
               "shortDescription": {
