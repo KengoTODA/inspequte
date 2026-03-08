@@ -229,9 +229,6 @@ fn check_kotlin_inline_lambdas(class: &Class, artifact_uri: Option<&str>) -> Vec
             let used = loaded_slots_in_range(method, marker_start, marker_end);
 
             for param in &lambda_params {
-                if param.name == "_" || param.name.starts_with("$noName_") {
-                    continue;
-                }
                 if used.contains(&param.index) {
                     continue;
                 }
