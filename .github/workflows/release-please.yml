@@ -397,6 +397,9 @@ jobs:
         if: steps.target-pr.outputs.skip != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          # The initial app token expires during the long-running benchmark.
+          # Push uses a fresh token later in the job, so checkout must not persist credentials.
+          persist-credentials: false
           ref: ${{ steps.target-pr.outputs.head_ref }}
           token: ${{ steps.app-token.outputs.token }}
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
