@@ -717,6 +717,44 @@ public class ClassQ {
         );
     }
 
+    // Edge: Java lambda with three reference params — exercises ALOAD_2 opcode
+    // for loading slot 2 when the third parameter is used
+    #[test]
+    fn java_lambda_three_ref_params_third_used() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set");
+        let sources = vec![SourceFile {
+            path: "com/example/ClassS.java".to_string(),
+            contents: r#"
+package com.example;
+public class ClassS {
+    @FunctionalInterface
+    interface TriConsumer {
+        void accept(String varOne, String varTwo, String varThree);
+    }
+    public void methodX() {
+        TriConsumer varFour = (varFive, varSix, varSeven) -> {
+            System.out.println(varSeven);
+        };
+    }
+}
+"#
+            .to_string(),
+        }];
+        let output = compile_and_analyze(&harness, Language::Java, &sources, &[]);
+        let messages = unused_lambda_messages(&output);
+        assert_eq!(
+            messages.len(),
+            2,
+            "expected two findings for unused params at slot 0 and 1: {messages:?}"
+        );
+        // Verify that the param at slot 2 (varSeven) is NOT reported as unused
+        // because it is loaded via ALOAD_2
+        assert!(
+            messages.iter().all(|m| !m.contains("index 2")),
+            "param at slot 2 should be recognized as used via ALOAD_2: {messages:?}"
+        );
+    }
+
     // Edge: Java lambda with mixed single/double-width params (int, double, String)
     // where only the double param is unused — verifies correct slot calculation
     #[test]
