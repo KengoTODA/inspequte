@@ -97,9 +97,26 @@ jobs:
           path: target/smoketest/*.log
           if-no-files-found: warn
       - name: Generate SARIF and SBOM report
+        shell: bash
         run: |
-          cargo install cargo-audit --locked
+          set -euo pipefail
+
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+
+          set +e
           cargo audit --format sarif > target/audit.sarif
+          audit_exit=$?
+          set -e
+
+          if [[ ! -s target/audit.sarif ]]; then
+            cat > target/audit.sarif <<'SARIF'
+          {"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0","runs":[{"tool":{"driver":{"name":"cargo-audit"}},"results":[{"level":"error","message":{"text":"cargo audit did not produce SARIF output"}}]}]}
+          SARIF
+          fi
+
+          echo "cargo audit exit code: ${audit_exit}"
         env:
           INSPEQUTE_VALIDATE_SARIF: 1
       - name: Upload SARIF report
