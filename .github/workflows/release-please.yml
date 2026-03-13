@@ -151,16 +151,36 @@ jobs:
         run: |
           set -euo pipefail
 
+          mkdir -p target/bench/jaeger-debug
+          bench_log="target/bench/bench-workflow.log"
+
           .codex/skills/jaeger-spotbugs-benchmark/scripts/start-jaeger.sh
-          .codex/skills/jaeger-spotbugs-benchmark/scripts/run-bench-spotbugs-with-otel.sh 1
+          .codex/skills/jaeger-spotbugs-benchmark/scripts/run-bench-spotbugs-with-otel.sh 1 \
+            2>&1 | tee "${bench_log}"
+
+          trace_id="$(sed -n 's/^trace-id=//p' "${bench_log}" | tail -n 1)"
+          if [[ -n "${trace_id}" ]]; then
+            echo "Resolved trace ID from benchmark output: ${trace_id}"
+          else
+            echo "Benchmark output did not include trace-id; falling back to latest trace query."
+          fi
 
           trace_json=""
           for attempt in $(seq 1 20); do
+            export_args=()
+            if [[ -n "${trace_id}" ]]; then
+              export_args+=("${trace_id}")
+            fi
             if trace_json="$(
-              .codex/skills/jaeger-spotbugs-benchmark/scripts/export-jaeger-trace.sh 2>/dev/null
+              .codex/skills/jaeger-spotbugs-benchmark/scripts/export-jaeger-trace.sh "${export_args[@]}" \
+                2>"target/bench/jaeger-debug/export-attempt-${attempt}.stderr"
             )"; then
               break
             fi
+            curl -fsSL "http://localhost:16686/api/services" \
+              -o "target/bench/jaeger-debug/services-attempt-${attempt}.json" || true
+            curl -fsSL "http://localhost:16686/api/traces?service=inspequte&limit=20&lookback=1h" \
+              -o "target/bench/jaeger-debug/query-attempt-${attempt}.json" || true
             sleep 3
           done
 
@@ -217,16 +237,19 @@ jobs:
             echo "report_md=${report_md}"
           } >> "${GITHUB_OUTPUT}"
       - name: Upload benchmark artifacts
+        if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: jaeger-spotbugs-benchmark
           path: |
+            target/bench/bench-workflow.log
             target/bench/spotbugs.log
             target/bench/analyze-trace.log
             target/bench/benchmark-report.md
             target/bench/jaeger-trace-*.json
             target/bench/jaeger-trace-*.summary.json
             target/bench/jaeger-trace-*.png
+            target/bench/jaeger-debug/*
           if-no-files-found: error
       - name: Read release PR number
         id: resolve-pr
