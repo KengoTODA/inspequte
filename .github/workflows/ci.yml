@@ -97,8 +97,14 @@ jobs:
           path: target/smoketest/*.log
           if-no-files-found: warn
       - name: Generate SARIF and SBOM report
+        shell: bash
         run: |
-          cargo install cargo-audit --locked
+          set -euo pipefail
+
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+
           cargo audit --format sarif > target/audit.sarif
         env:
           INSPEQUTE_VALIDATE_SARIF: 1
