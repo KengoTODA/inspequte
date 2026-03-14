@@ -1081,9 +1081,9 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
 name = "jclassfile"
-version = "0.4.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20d687e1ad42abb7f146ad20a8d104b5b3c6722450797fecfa0f4320f7b82229"
+checksum = "4fe249f0ba6da1f55ca5db5204b79a52d6c62aaddffebbf7fb4752c0b5efa9dc"
 dependencies = [
  "bitflags",
  "cesu8",
