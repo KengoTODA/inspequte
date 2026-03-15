@@ -112,6 +112,13 @@
               }
             },
             {
+              "id": "EXECUTOR_SERVICE_NOT_SHUTDOWN",
+              "name": "ExecutorService not shut down",
+              "shortDescription": {
+                "text": "Locally created executor services should be shut down on every exit path"
+              }
+            },
+            {
               "id": "EXPLICIT_FINALIZE_CALL",
               "name": "Explicit finalize call",
               "shortDescription": {
