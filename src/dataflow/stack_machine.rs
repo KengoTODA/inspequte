@@ -105,6 +105,19 @@ where
         self.locals.retain(|index, value| predicate(*index, value));
     }
 
+    /// Rewrites every tracked stack and local value in place.
+    pub(crate) fn rewrite_values<F>(&mut self, mut rewrite: F)
+    where
+        F: FnMut(&mut V),
+    {
+        for value in &mut self.stack {
+            rewrite(value);
+        }
+        for value in self.locals.values_mut() {
+            rewrite(value);
+        }
+    }
+
     /// Canonicalizes symbolic IDs to deterministic compact IDs.
     pub(crate) fn canonicalize_symbolic_ids_u32<FExtract, FAssign>(
         &mut self,
@@ -337,5 +350,27 @@ mod tests {
         }
 
         assert_eq!(left, right);
+    }
+
+    #[test]
+    fn rewrite_values_updates_stack_and_locals() {
+        let mut machine = StackMachine::new(TestValue::Unknown);
+        machine.push(TestValue::Scalar);
+        machine.push(TestValue::Symbol(10));
+        machine.store_local(1, TestValue::Symbol(10));
+        machine.store_local(2, TestValue::Symbol(20));
+
+        machine.rewrite_values(|value| {
+            if *value == TestValue::Symbol(10) {
+                *value = TestValue::Unknown;
+            }
+        });
+
+        assert_eq!(
+            machine.stack_values(),
+            &[TestValue::Scalar, TestValue::Unknown]
+        );
+        assert_eq!(machine.load_local(1), TestValue::Unknown);
+        assert_eq!(machine.load_local(2), TestValue::Symbol(20));
     }
 }

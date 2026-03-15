@@ -366,38 +366,6 @@ fn detect_logging_frameworks(classes: &[Class], telemetry: Option<&Telemetry>) -
                 }
             }
         }
-        let mut references = class
-            .referenced_classes
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        if let Some(super_name) = class.super_name.as_deref() {
-            references.push(super_name);
-        }
-        for iface in &class.interfaces {
-            references.push(iface);
-        }
-        for reference in references {
-            if !has_slf4j
-                && matches!(
-                    reference,
-                    "org/slf4j/Logger" | "org/slf4j/Marker" | "org/slf4j/LoggerFactory"
-                )
-            {
-                has_slf4j = true;
-            }
-            if !has_log4j2
-                && matches!(
-                    reference,
-                    "org/apache/logging/log4j/Logger"
-                        | "org/apache/logging/log4j/LogManager"
-                        | "org/apache/logging/log4j/Marker"
-                        | "org/apache/logging/log4j/message/Message"
-                )
-            {
-                has_log4j2 = true;
-            }
-        }
     }
     let attributes = [
         KeyValue::new("inspequte.slf4j.present", has_slf4j),

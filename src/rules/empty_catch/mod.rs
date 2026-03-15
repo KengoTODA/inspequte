@@ -163,6 +163,7 @@ mod tests {
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: handlers,
+            local_variables: vec![],
             local_variable_types: Vec::new(),
         }
     }

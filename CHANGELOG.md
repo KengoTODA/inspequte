@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.26.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.25.0...inspequte-v0.26.0) (2026-03-14)
+
+
+### Features
+
+* **rule:** add future wait while holding lock rule ([9c8cbc6](https://github.com/KengoTODA/inspequte/commit/9c8cbc6a34d5043b8f83b4b0d7e7b00a4475e37a))
+* **rule:** implement STRING_TRIM_IS_EMPTY ([9e01ce9](https://github.com/KengoTODA/inspequte/commit/9e01ce965d0c734db43a8bb96cff1d99ac6c1f51))
+* **rule:** implement STRING_TRIM_IS_EMPTY ([b726eeb](https://github.com/KengoTODA/inspequte/commit/b726eeb331e5cae11867c4b6ef85a49d4f5ee3d5))
+
+
+### Bug Fixes
+
+* **ci:** avoid expired credentials when pushing benchmark docs ([bad24b8](https://github.com/KengoTODA/inspequte/commit/bad24b817b48d3fbb45fc1e9b3587855f47f9554))
+* **ci:** benchmark spotbugs jar ([aa1079a](https://github.com/KengoTODA/inspequte/commit/aa1079a797f95cc13f179813389399c6ded8b5d6))
+* **ci:** fail workflow on cargo audit findings ([9c12d09](https://github.com/KengoTODA/inspequte/commit/9c12d096e28f1e10f0b27a1a48f2f5a804f6c13e))
+* **ci:** harden jaeger benchmark trace export ([3da3bb4](https://github.com/KengoTODA/inspequte/commit/3da3bb43c229c08fe31048f5f0aafbb97e0e734f))
+* **ci:** make jaeger screenshot capture best effort ([78ea9fc](https://github.com/KengoTODA/inspequte/commit/78ea9fcd36b78a9336897042233d571a8a3e01ed))
+* **ci:** tolerate cargo audit findings in SARIF step ([cd24d5a](https://github.com/KengoTODA/inspequte/commit/cd24d5a845a2944074e07dce8cb1493f63f8299f))
+* **deps:** update quinn-proto to 0.11.14 ([34de0e2](https://github.com/KengoTODA/inspequte/commit/34de0e2357735b73620bbb0f80217ffa9365d93c))
+* **deps:** update rust crate jclassfile to 0.6.0 ([#153](https://github.com/KengoTODA/inspequte/issues/153)) ([8089be1](https://github.com/KengoTODA/inspequte/commit/8089be1617ef833bbb78c2e8f5094108e4ed0f45))
+* **deps:** update rust crate jsonschema to 0.45.0 ([#155](https://github.com/KengoTODA/inspequte/issues/155)) ([5692b64](https://github.com/KengoTODA/inspequte/commit/5692b64f927b20e49e103d35b91a1b755a697cf9))
+* **rules:** exclude lists from prefer enumset rule ([7e31507](https://github.com/KengoTODA/inspequte/commit/7e31507c88f291b97905fe8f554b1806ed9c7114))
+
 ## [0.25.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.24.0...inspequte-v0.25.0) (2026-03-06)
 
 

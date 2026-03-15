@@ -31,7 +31,15 @@ const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
 
 try {
   await page.goto(traceUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForTimeout(3000);
+  await page
+    .waitForFunction(
+      () =>
+        document.querySelectorAll("[role='switch']").length > 0 ||
+        document.querySelector("[class*='TimelineCollapser']") !== null,
+      { timeout: 30000 },
+    )
+    .catch(() => {});
+  await page.waitForTimeout(2000);
 
   const countVisibleSpans = async () =>
     page.evaluate(() => document.querySelectorAll("[role='switch']").length);
@@ -110,18 +118,20 @@ try {
         newSequenceAttempts,
         legacyAttempts,
       });
-      throw new Error(`Failed timeline controls for screenshot (new-sequence + legacy failed): ${details}`);
+      console.error(
+        `warning: timeline controls did not reduce visible spans; capturing screenshot without collapse guarantee: ${details}`,
+      );
     }
   }
 
   const after = await countVisibleSpans();
-  if (after >= before) {
+  if (before > 0 && after >= before) {
     const details = JSON.stringify({
       before,
       after,
       newSequenceAttempts,
     });
-    throw new Error(
+    console.error(
       `Timeline controls did not reduce visible spans after attempts (new-sequence or legacy may have run): ${details}`,
     );
   }

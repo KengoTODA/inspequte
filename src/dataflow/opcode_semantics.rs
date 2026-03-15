@@ -318,6 +318,13 @@ fn decode(opcode: u8) -> Option<Effect> {
         | opcodes::ICONST_3
         | opcodes::ICONST_4
         | opcodes::ICONST_5
+        | opcodes::LCONST_0
+        | opcodes::LCONST_1
+        | opcodes::FCONST_0
+        | opcodes::FCONST_1
+        | opcodes::FCONST_2
+        | opcodes::DCONST_0
+        | opcodes::DCONST_1
         | opcodes::BIPUSH
         | opcodes::SIPUSH
         | opcodes::NEW
@@ -483,6 +490,7 @@ mod tests {
             calls: Vec::new(),
             string_literals: Vec::new(),
             exception_handlers: Vec::new(),
+            local_variables: Vec::new(),
             local_variable_types: Vec::<LocalVariableType>::new(),
         }
     }
@@ -550,6 +558,31 @@ mod tests {
             ApplyOutcome::Applied
         );
         assert_eq!(control_machine.stack_len(), 0);
+    }
+
+    #[test]
+    fn applies_wide_and_float_constant_pushes() {
+        let method = empty_method(vec![
+            opcodes::LCONST_0,
+            opcodes::LCONST_1,
+            opcodes::FCONST_0,
+            opcodes::FCONST_2,
+            opcodes::DCONST_1,
+        ]);
+        let domain = TestDomain;
+        let mut machine = StackMachine::new(-1);
+
+        for (offset, opcode) in method.bytecode.iter().copied().enumerate() {
+            assert_eq!(
+                apply_default_semantics(&mut machine, &method, offset, opcode, &domain),
+                ApplyOutcome::Applied
+            );
+        }
+
+        assert_eq!(machine.stack_len(), 5);
+        for _ in 0..5 {
+            assert_eq!(machine.pop(), 1);
+        }
     }
 
     #[test]
