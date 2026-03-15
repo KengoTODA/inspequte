@@ -565,6 +565,31 @@ public class ClassA {
     }
 
     #[test]
+    fn reports_constructor_created_executor_without_shutdown() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassCtorA.java".to_string(),
+            contents: r#"
+package com.example;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+
+public class ClassCtorA {
+    public void methodCtorX() {
+        ForkJoinPool varOne = new ForkJoinPool();
+        varOne.submit(() -> {});
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert_eq!(messages.len(), 1);
+        assert!(messages[0].contains("may exit without shutdown"));
+    }
+
+    #[test]
     fn does_not_report_executor_shutdown_in_finally() {
         let sources = vec![SourceFile {
             path: "com/example/ClassB.java".to_string(),
@@ -582,6 +607,27 @@ public class ClassB {
         } finally {
             varOne.shutdown();
         }
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert!(messages.is_empty(), "did not expect finding: {messages:?}");
+    }
+
+    #[test]
+    fn does_not_report_non_executor_constructor() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassCtorB.java".to_string(),
+            contents: r#"
+package com.example;
+
+public class ClassCtorB {
+    public void methodCtorY() {
+        Object varOne = new Object();
+        varOne.toString();
     }
 }
 "#
@@ -693,6 +739,63 @@ public class ClassF {
 
         let messages = analyze_sources(sources);
         assert!(messages.is_empty(), "did not expect finding: {messages:?}");
+    }
+
+    #[test]
+    fn reports_app_defined_executor_subclass_without_shutdown() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassCtorC.java".to_string(),
+            contents: r#"
+package com.example;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
+
+public class ClassCtorC {
+    public void methodCtorZ() {
+        ClassWorker varOne = new ClassWorker();
+        varOne.submit(() -> {});
+    }
+
+    static class ClassWorker extends AbstractExecutorService {
+        @Override
+        public void shutdown() {}
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return false;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return false;
+        }
+
+        @Override
+        public boolean awaitTermination(long varOne, TimeUnit varTwo) {
+            return false;
+        }
+
+        @Override
+        public void execute(Runnable varOne) {
+            varOne.run();
+        }
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert_eq!(messages.len(), 1);
+        assert!(messages[0].contains("may exit without shutdown"));
     }
 
     #[test]
