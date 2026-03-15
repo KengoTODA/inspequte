@@ -571,12 +571,14 @@ public class ClassA {
             contents: r#"
 package com.example;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class ClassCtorA {
     public void methodCtorX() {
-        ForkJoinPool varOne = new ForkJoinPool();
+        ThreadPoolExecutor varOne =
+            new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
         varOne.submit(() -> {});
     }
 }
