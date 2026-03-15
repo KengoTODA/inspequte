@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.27.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.26.0...inspequte-v0.27.0) (2026-03-15)
+
+
+### Features
+
+* add EXECUTOR_SERVICE_NOT_SHUTDOWN rule ([#161](https://github.com/KengoTODA/inspequte/issues/161)) ([e0449f8](https://github.com/KengoTODA/inspequte/commit/e0449f8f9c8fa09b7c8a731fbae1478c91209ef9))
+* **rule:** implement UNUSED_LAMBDA_PARAMETERS ([#150](https://github.com/KengoTODA/inspequte/issues/150)) ([74cdbed](https://github.com/KengoTODA/inspequte/commit/74cdbed46e402820d0c4aa0dec9acca70de4b018))
+
+
+### Bug Fixes
+
+* model wide constant opcodes in dataflow ([1c58508](https://github.com/KengoTODA/inspequte/commit/1c58508988bf99192e3b44c354bb54f276134ece))
+
 ## [0.26.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.25.0...inspequte-v0.26.0) (2026-03-14)
 
 
