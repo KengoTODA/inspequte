@@ -17,6 +17,7 @@ Detect executor services that are created inside a method and can reach a method
 - Do not report executors whose ownership is transferred out of the local method scope.
 - Treat these transfers as out of scope and stop tracking them:
   - storing into fields
+  - storing into arrays or other heap-backed containers
   - returning the executor
   - passing the executor as an argument to another call
 - Do not infer lifecycle management across helper methods.
@@ -39,6 +40,7 @@ Detect executor services that are created inside a method and can reach a method
 - TN: executor shut down in `finally`.
 - Edge: branch with early return before shutdown.
 - Scope guard: executor stored into a field is not reported.
+- Scope guard: executor stored into a local array is not reported.
 - Scope guard: executor returned from the method is not reported.
 - Scope guard: executor passed to another method is not reported.
 - TN: try-with-resources/`close()` counts as shutdown.

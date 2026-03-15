@@ -21,6 +21,7 @@ Creating an executor service starts worker threads and associated queues that us
 - Executors received from parameters, fields, or method returns.
 - Cases where ownership is intentionally transferred out of the method, such as:
   - storing the executor into a field
+  - storing the executor into an array or other heap-backed container
   - returning the executor
   - passing the executor as an argument to another method
 - Proof that shutdown happens in a different helper method after transfer.

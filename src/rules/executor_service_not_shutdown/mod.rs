@@ -181,11 +181,11 @@ impl WorklistSemantics for ExecutorLifecycleSemantics<'_> {
             opcodes::ATHROW => {
                 escape_value(state.machine.pop(), state);
             }
-            0xb3 => {
+            opcodes::PUTSTATIC => {
                 escape_top_symbol(state);
                 state.machine.pop_n(1);
             }
-            0xb5 => {
+            opcodes::PUTFIELD => {
                 escape_top_symbol(state);
                 state.machine.pop_n(2);
             }
@@ -696,7 +696,7 @@ public class ClassF {
     }
 
     #[test]
-    fn does_not_report_try_with_resources_close() {
+    fn does_not_report_executor_stored_in_local_array() {
         let sources = vec![SourceFile {
             path: "com/example/ClassG.java".to_string(),
             contents: r#"
@@ -706,6 +706,31 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class ClassG {
+    public void methodS() {
+        Object[] varOne = new Object[1];
+        ExecutorService varTwo = Executors.newSingleThreadExecutor();
+        varOne[0] = varTwo;
+    }
+}
+"#
+            .to_string(),
+        }];
+
+        let messages = analyze_sources(sources);
+        assert!(messages.is_empty(), "did not expect finding: {messages:?}");
+    }
+
+    #[test]
+    fn does_not_report_try_with_resources_close() {
+        let sources = vec![SourceFile {
+            path: "com/example/ClassH.java".to_string(),
+            contents: r#"
+package com.example;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ClassH {
     public void methodS() {
         try (ExecutorService varOne = Executors.newVirtualThreadPerTaskExecutor()) {
             varOne.submit(() -> {});
