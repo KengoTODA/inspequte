@@ -336,36 +336,30 @@ fn handle_invoke(
 
     if call.name == "<init>" {
         let is_excluded = is_excluded_noop_type(&call.owner);
-        if let Some(Value::Symbol(symbol)) = receiver {
-            let is_closeable_ctor = !is_excluded && is_autocloseable_constructor(call, class_map);
-            if is_closeable_ctor {
-                state.active_closeables.insert(symbol);
-                // Wrapper pattern: inner AutoCloseable delegates to outer.
-                for value in args {
-                    escape_value(value, state);
-                }
-            } else if is_excluded {
-                // Excluded no-op type: don't track the outer, and don't escape
-                // args — the outer's close() won't close inner resources.
-                state.machine.rewrite_values(|value| {
-                    if *value == Value::Symbol(symbol) {
-                        *value = Value::Unknown;
-                    }
-                });
-            } else {
-                // Not an AutoCloseable constructor — clear the symbol.
-                state.machine.rewrite_values(|value| {
-                    if *value == Value::Symbol(symbol) {
-                        *value = Value::Unknown;
-                    }
-                });
-                for value in args {
-                    escape_value(value, state);
-                }
-            }
-        } else if !is_excluded {
+        if let Some(Value::Symbol(symbol)) = receiver
+            && !is_excluded
+            && is_autocloseable_constructor(call, class_map)
+        {
+            // Tracked AutoCloseable: wrapper delegation escapes inner args.
+            state.active_closeables.insert(symbol);
             for value in args {
                 escape_value(value, state);
+            }
+        } else {
+            // Clear the NEW symbol for non-tracked constructors.
+            if let Some(Value::Symbol(symbol)) = receiver {
+                state.machine.rewrite_values(|value| {
+                    if *value == Value::Symbol(symbol) {
+                        *value = Value::Unknown;
+                    }
+                });
+            }
+            // Escape args unless the outer is an excluded no-op type
+            // (its close() won't close inner resources).
+            if !is_excluded {
+                for value in args {
+                    escape_value(value, state);
+                }
             }
         }
         return Ok(());
