@@ -322,10 +322,16 @@ fn handle_invoke(
     };
 
     if call.name == "<init>" {
-        if let Some(Value::Symbol(symbol)) = receiver
-            && is_executor_constructor(call, class_map)
-        {
-            state.active_executors.insert(symbol);
+        if let Some(Value::Symbol(symbol)) = receiver {
+            if is_executor_constructor(call, class_map) {
+                state.active_executors.insert(symbol);
+            } else {
+                state.machine.rewrite_values(|value| {
+                    if *value == Value::Symbol(symbol) {
+                        *value = Value::Unknown;
+                    }
+                });
+            }
         }
         for value in args {
             escape_value(value, state);
