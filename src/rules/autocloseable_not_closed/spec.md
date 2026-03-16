@@ -27,7 +27,7 @@ forgetting to use them is a common mistake.
   same locally tracked resource.
 - The rule reports the local creation site whose `close()` is not guaranteed.
 
-The following types are excluded from detection because their `close()` is known to be a no-op:
+The following types are examples of classes excluded from detection because their `close()` is known to be a no-op:
 
 - `java.io.ByteArrayOutputStream`
 - `java.io.ByteArrayInputStream`
@@ -36,6 +36,9 @@ The following types are excluded from detection because their `close()` is known
 - `java.io.CharArrayReader`
 - `java.io.StringWriter`
 - `java.io.StringReader`
+
+This list is not exhaustive. The implementation also excludes additional no-op `AutoCloseable` types, including various
+`javax.imageio.stream.ImageInputStream` implementations such as `javax.imageio.stream.MemoryCacheImageInputStream`.
 
 The following types are excluded from detection because their `close()` is a no-op in the vast majority of use cases
 (created from a collection), and reporting them would produce excessive false positives:
@@ -47,7 +50,7 @@ The following types are excluded from detection because their `close()` is a no-
 
 ## What it does NOT detect
 
-- AutoCloseables received from parameters, fields, or method return values.
+- AutoCloseables received from parameters or fields that were not created in the same method.
 - Cases where ownership is intentionally transferred out of the method, such as:
     - storing the resource into a field
     - storing the resource into an array or other heap-backed container
@@ -56,8 +59,8 @@ The following types are excluded from detection because their `close()` is a no-
 - Wrapper delegation: when a locally created AutoCloseable is passed as a constructor argument to another
   non-excluded AutoCloseable (e.g., `new BufferedReader(new FileReader(...))`), the inner resource is considered
   delegated to the outer and is not reported. However, if the outer type is an excluded no-op type (e.g.,
-  `MemoryCacheImageInputStream`), the inner resource is NOT considered delegated because the outer's `close()` will
-  not close the inner resource.
+  `javax.imageio.stream.MemoryCacheImageInputStream`), the inner resource is NOT considered delegated because the
+  outer's `close()` will not close the inner resource.
 - Proof that `close()` happens in a different helper method after ownership transfer.
 - Custom close methods (`release()`, `dispose()`, etc.) that are not `close()`.
 - Suppression behavior via `@Suppress` or `@SuppressWarnings`.
@@ -275,8 +278,10 @@ class ClassA {
 
 - Report one finding per locally created AutoCloseable whose `close()` is not guaranteed on all reachable exits.
 - Message must be actionable and include the method context. Fix guidance is language-aware:
-  - Java: `AutoCloseable created in <class>.<method><descriptor> may not be closed on all paths; use try-with-resources or call close() in a finally block.`
-  - Kotlin: `AutoCloseable created in <class>.<method><descriptor> may not be closed on all paths; use .use {} or call close() in a finally block.`
+    - Java:
+      `AutoCloseable created in <class>.<method><descriptor> may not be closed on all paths; use try-with-resources or call close() in a finally block.`
+    - Kotlin:
+      `AutoCloseable created in <class>.<method><descriptor> may not be closed on all paths; use .use {} or call close() in a finally block.`
 - Language is determined from the class `SourceFile` attribute (`.kt` suffix indicates Kotlin).
 
 ## Performance considerations

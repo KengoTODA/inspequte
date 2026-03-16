@@ -578,12 +578,10 @@ fn is_known_autocloseable_name(name: &str) -> bool {
             | "java/lang/module/ModuleReader"
             // Network
             | "java/net/DatagramSocket"
-            | "java/net/HttpURLConnection"
             | "java/net/MulticastSocket"
             | "java/net/ServerSocket"
             | "java/net/Socket"
             | "java/net/URLClassLoader"
-            | "java/net/URLConnection"
             // NIO channels
             | "java/nio/channels/AsynchronousByteChannel"
             | "java/nio/channels/AsynchronousChannel"
