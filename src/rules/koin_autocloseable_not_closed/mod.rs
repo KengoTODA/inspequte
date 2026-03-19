@@ -8,6 +8,7 @@ use serde_sarif::sarif::Result as SarifResult;
 
 use crate::engine::AnalysisContext;
 use crate::ir::{CallKind, Class, Instruction, InstructionKind, Method};
+use crate::opcodes;
 use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
 
 /// Rule that detects Koin singleton definitions that create AutoCloseable resources without closing them via onClose.
@@ -125,7 +126,7 @@ fn analyze_method(
         let Some(definition_lambda) = class
             .methods
             .iter()
-            .find(|candidate| candidate.name == definition_lambda_name)
+            .find(|candidate| is_lambda_impl_method(candidate, &definition_lambda_name))
         else {
             continue;
         };
@@ -198,6 +199,17 @@ fn is_lambda_factory_descriptor(descriptor: &str) -> bool {
     descriptor.contains("Lkotlin/jvm/functions/Function")
 }
 
+fn is_lambda_impl_method(method: &Method, expected_name: &str) -> bool {
+    method.name == expected_name
+        && method.access.is_static
+        && !method.access.is_abstract
+        && looks_like_lambda_impl_name(expected_name)
+}
+
+fn looks_like_lambda_impl_name(name: &str) -> bool {
+    name.contains("$lambda$") || name.starts_with("lambda$")
+}
+
 fn is_koin_single_call(call: &crate::ir::CallSite) -> bool {
     call.owner == "org/koin/core/module/Module" && (call.name == "single" || call.name == "single$default")
 }
@@ -238,12 +250,12 @@ fn matching_onclose_callback<'a>(
         let Some(callback_lambda_name) =
             last_lambda_impl_in_range(instructions, search_start, callback_index)
         else {
-            return None;
+            continue;
         };
         let callback_lambda = class
             .methods
             .iter()
-            .find(|candidate| candidate.name == callback_lambda_name)?;
+            .find(|candidate| is_lambda_impl_method(candidate, &callback_lambda_name))?;
         return Some(callback_lambda);
     }
 
@@ -260,20 +272,104 @@ fn created_autocloseable_resource_type(
         TypeDescriptor::Object(name) => name.as_str(),
         _ => return Ok(None),
     };
+    let instructions = collect_instructions(lambda_method);
 
-    for call in &lambda_method.calls {
+    for (instruction_index, call) in instructions.iter().filter_map(|instruction| {
+        let InstructionKind::Invoke(call) = &instruction.kind else {
+            return None;
+        };
+        Some((instruction_index_for_offset(&instructions, instruction.offset)?, call))
+    }) {
         if call.kind != CallKind::Special || call.name != "<init>" {
             continue;
         }
         if !implements_autocloseable(&call.owner, class_index) {
             continue;
         }
-        if call.owner == return_type || is_assignable_to(&call.owner, return_type, class_index) {
+        if !matches_return_type(&call.owner, return_type, class_index) {
+            continue;
+        }
+        if constructed_value_is_returned(lambda_method, &instructions, instruction_index) {
             return Ok(Some(call.owner.clone()));
         }
     }
 
     Ok(None)
+}
+
+fn instruction_index_for_offset(instructions: &[&Instruction], offset: u32) -> Option<usize> {
+    instructions
+        .iter()
+        .position(|instruction| instruction.offset == offset)
+}
+
+fn matches_return_type(
+    constructed_type: &str,
+    return_type: &str,
+    class_index: &BTreeMap<&str, &Class>,
+) -> bool {
+    return_type == "java/lang/Object"
+        || constructed_type == return_type
+        || is_assignable_to(constructed_type, return_type, class_index)
+}
+
+fn constructed_value_is_returned(
+    lambda_method: &Method,
+    instructions: &[&Instruction],
+    constructor_index: usize,
+) -> bool {
+    let Some(next_instruction) = instructions.get(constructor_index + 1) else {
+        return false;
+    };
+    if next_instruction.opcode == opcodes::ARETURN {
+        return true;
+    }
+
+    let Some(local_index) = astore_local_index(lambda_method, next_instruction) else {
+        return false;
+    };
+
+    let mut scan_index = constructor_index + 2;
+    while let Some(instruction) = instructions.get(scan_index) {
+        if overwrites_local(lambda_method, instruction, local_index) {
+            return false;
+        }
+        if aload_local_index(lambda_method, instruction) == Some(local_index) {
+            let Some(return_instruction) = instructions.get(scan_index + 1) else {
+                return false;
+            };
+            return return_instruction.opcode == opcodes::ARETURN;
+        }
+        scan_index += 1;
+    }
+
+    false
+}
+
+fn astore_local_index(method: &Method, instruction: &Instruction) -> Option<usize> {
+    match instruction.opcode {
+        opcodes::ASTORE => method.bytecode.get(instruction.offset as usize + 1).map(|v| *v as usize),
+        opcodes::ASTORE_0 => Some(0),
+        opcodes::ASTORE_1 => Some(1),
+        opcodes::ASTORE_2 => Some(2),
+        opcodes::ASTORE_3 => Some(3),
+        _ => None,
+    }
+}
+
+fn aload_local_index(method: &Method, instruction: &Instruction) -> Option<usize> {
+    match instruction.opcode {
+        opcodes::ALOAD => method.bytecode.get(instruction.offset as usize + 1).map(|v| *v as usize),
+        opcodes::ALOAD_0 => Some(0),
+        opcodes::ALOAD_1 => Some(1),
+        opcodes::ALOAD_2 => Some(2),
+        opcodes::ALOAD_3 => Some(3),
+        _ => None,
+    }
+}
+
+fn overwrites_local(method: &Method, instruction: &Instruction, local_index: usize) -> bool {
+    astore_local_index(method, instruction) == Some(local_index)
 }
 
 fn lambda_calls_close(lambda_method: &Method) -> bool {
@@ -612,5 +708,70 @@ class ClassApp
             messages.is_empty(),
             "did not expect findings from classpath-only module code: {messages:?}"
         );
+    }
+
+    #[test]
+    fn koin_autocloseable_not_closed_ignores_non_returned_autocloseable_construction() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let mut sources = koin_stub_sources();
+        sources.push(SourceFile {
+            path: "com/example/ClassUnused.kt".to_string(),
+            contents: r#"
+package com.example
+
+import org.koin.core.module.Module
+
+class ClassA : AutoCloseable {
+    override fun close() {}
+}
+
+fun methodEight(module: Module) {
+    module.single {
+        ClassA()
+        "value"
+    }
+}
+"#
+            .to_string(),
+        });
+
+        let output = compile_and_analyze(&harness, sources, &[]);
+        let messages = rule_messages(&output);
+        assert!(
+            messages.is_empty(),
+            "did not expect findings when AutoCloseable is not returned: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn koin_autocloseable_not_closed_reports_returned_local_resource() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let mut sources = koin_stub_sources();
+        sources.push(SourceFile {
+            path: "com/example/ClassLocal.kt".to_string(),
+            contents: r#"
+package com.example
+
+import org.koin.core.module.Module
+
+class ClassA : AutoCloseable {
+    override fun close() {}
+}
+
+fun methodNine(module: Module) {
+    module.single {
+        val varOne = ClassA()
+        println("marker")
+        varOne
+    }
+}
+"#
+            .to_string(),
+        });
+
+        let output = compile_and_analyze(&harness, sources, &[]);
+        let messages = rule_messages(&output);
+        assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
+        assert!(messages[0].contains("ClassA"));
     }
 }

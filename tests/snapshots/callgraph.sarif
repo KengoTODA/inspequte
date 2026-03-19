@@ -42,6 +42,13 @@
               }
             },
             {
+              "id": "AUTOCLOSEABLE_NOT_CLOSED",
+              "name": "AutoCloseable not closed",
+              "shortDescription": {
+                "text": "Locally created AutoCloseable instances should be closed on every exit path"
+              }
+            },
+            {
               "id": "BIGDECIMAL_DIVIDE_WITHOUT_ROUNDING",
               "name": "BigDecimal divide without rounding",
               "shortDescription": {
@@ -109,6 +116,13 @@
               "name": "Exception cause not preserved",
               "shortDescription": {
                 "text": "Catch handlers that throw new exceptions without preserving the cause"
+              }
+            },
+            {
+              "id": "EXECUTOR_SERVICE_NOT_SHUTDOWN",
+              "name": "ExecutorService not shut down",
+              "shortDescription": {
+                "text": "Locally created executor services should be shut down on every exit path"
               }
             },
             {
@@ -417,6 +431,13 @@
               "name": "Thread.sleep call",
               "shortDescription": {
                 "text": "Thread.sleep introduces timing-coupled blocking"
+              }
+            },
+            {
+              "id": "UNUSED_LAMBDA_PARAMETERS",
+              "name": "Unused lambda parameter",
+              "shortDescription": {
+                "text": "Reports lambda parameters that are never referenced in the lambda body"
               }
             },
             {
