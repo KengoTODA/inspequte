@@ -42,7 +42,7 @@ jobs:
       - name: Run checks
         run: ./gradlew check --no-daemon
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.32.6
+        uses: github/codeql-action/upload-sarif@v4.33.0
         with:
           sarif_file: build/inspequte/main/report.sarif
 ```
@@ -76,7 +76,7 @@ jobs:
             --classpath lib/ \
             --output results.sarif
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.32.6
+        uses: github/codeql-action/upload-sarif@v4.33.0
         with:
           sarif_file: results.sarif
 ```
