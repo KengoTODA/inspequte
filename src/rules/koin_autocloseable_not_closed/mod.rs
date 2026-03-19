@@ -26,6 +26,10 @@ impl Rule for KoinAutoCloseableNotClosedRule {
     }
 
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
+        if !context.has_koin() {
+            return Ok(Vec::new());
+        }
+
         let class_index: BTreeMap<&str, &Class> = context
             .all_classes()
             .map(|class| (class.name.as_str(), class))
