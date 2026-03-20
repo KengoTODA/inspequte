@@ -180,9 +180,8 @@ fn last_lambda_impl_in_range(
     start_index: usize,
     end_index: usize,
 ) -> Option<String> {
-    if start_index > end_index || end_index >= instructions.len() {
-        return None;
-    }
+    debug_assert!(start_index <= end_index);
+    debug_assert!(end_index < instructions.len());
     instructions[start_index..=end_index]
         .iter()
         .rev()
@@ -252,10 +251,13 @@ fn matching_onclose_callback<'a>(
         else {
             continue;
         };
-        let callback_lambda = class
+        let Some(callback_lambda) = class
             .methods
             .iter()
-            .find(|candidate| is_lambda_impl_method(candidate, &callback_lambda_name))?;
+            .find(|candidate| is_lambda_impl_method(candidate, &callback_lambda_name))
+        else {
+            continue;
+        };
         return Some(callback_lambda);
     }
 
@@ -274,11 +276,14 @@ fn created_autocloseable_resource_type(
     };
     let instructions = collect_instructions(lambda_method);
 
-    for (instruction_index, call) in instructions.iter().filter_map(|instruction| {
+    for (instruction_index, call) in instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, instruction)| {
         let InstructionKind::Invoke(call) = &instruction.kind else {
             return None;
         };
-        Some((instruction_index_for_offset(&instructions, instruction.offset)?, call))
+        Some((idx, call))
     }) {
         if call.kind != CallKind::Special || call.name != "<init>" {
             continue;
@@ -295,12 +300,6 @@ fn created_autocloseable_resource_type(
     }
 
     Ok(None)
-}
-
-fn instruction_index_for_offset(instructions: &[&Instruction], offset: u32) -> Option<usize> {
-    instructions
-        .iter()
-        .position(|instruction| instruction.offset == offset)
 }
 
 fn matches_return_type(
@@ -419,7 +418,14 @@ fn is_assignable_to(
 mod tests {
     use std::path::PathBuf;
 
-    use crate::engine::EngineOutput;
+    use super::*;
+    use crate::descriptor::method_param_count;
+    use crate::engine::{EngineOutput, build_context};
+    use crate::ir::{
+        BasicBlock, CallKind, CallSite, Class, ControlFlowGraph, Instruction, InstructionKind,
+        Method, MethodAccess, MethodNullness,
+    };
+    use crate::opcodes;
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
     fn rule_messages(output: &EngineOutput) -> Vec<String> {
@@ -460,6 +466,36 @@ infix fun <T> BeanDefinition<T>.onClose(callback: (T?) -> Unit): BeanDefinition<
         ]
     }
 
+    fn koin_stub_sources_with_single_default() -> Vec<SourceFile> {
+        vec![
+            SourceFile {
+                path: "org/koin/core/module/Module.kt".to_string(),
+                contents: r#"
+package org.koin.core.module
+
+class Module {
+    fun <T> single(createdAtStart: Boolean = false, definition: () -> T): BeanDefinition<T> =
+        BeanDefinition(definition)
+}
+
+class BeanDefinition<T>(val definition: () -> T)
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "org/koin/core/module/dsl/OptionDSL.kt".to_string(),
+                contents: r#"
+package org.koin.core.module.dsl
+
+import org.koin.core.module.BeanDefinition
+
+infix fun <T> BeanDefinition<T>.onClose(callback: (T?) -> Unit): BeanDefinition<T> = this
+"#
+                .to_string(),
+            },
+        ]
+    }
+
     fn compile_and_analyze(
         harness: &JvmTestHarness,
         sources: Vec<SourceFile>,
@@ -468,6 +504,125 @@ infix fun <T> BeanDefinition<T>.onClose(callback: (T?) -> Unit): BeanDefinition<
         harness
             .compile_and_analyze(Language::Kotlin, &sources, classpath)
             .expect("run harness analysis")
+    }
+
+    fn default_access() -> MethodAccess {
+        MethodAccess {
+            is_public: true,
+            is_static: true,
+            is_synchronized: false,
+            is_abstract: false,
+            is_synthetic: true,
+            is_bridge: false,
+        }
+    }
+
+    fn method_with(
+        name: &str,
+        descriptor: &str,
+        bytecode: Vec<u8>,
+        instructions: Vec<Instruction>,
+        calls: Vec<CallSite>,
+    ) -> Method {
+        let end_offset = instructions
+            .last()
+            .map(|instruction| instruction.offset + 1)
+            .unwrap_or(0);
+        Method {
+            name: name.to_string(),
+            descriptor: descriptor.to_string(),
+            signature: None,
+            access: default_access(),
+            nullness: MethodNullness::unknown(
+                method_param_count(descriptor).expect("parse method descriptor"),
+            ),
+            type_use: None,
+            bytecode,
+            line_numbers: Vec::new(),
+            cfg: ControlFlowGraph {
+                blocks: vec![BasicBlock {
+                    start_offset: 0,
+                    end_offset,
+                    instructions,
+                }],
+                edges: Vec::new(),
+            },
+            calls,
+            string_literals: Vec::new(),
+            exception_handlers: Vec::new(),
+            local_variables: Vec::new(),
+            local_variable_types: Vec::new(),
+        }
+    }
+
+    fn class_with_methods(name: &str, methods: Vec<Method>) -> Class {
+        Class {
+            name: name.to_string(),
+            source_file: None,
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods,
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }
+    }
+
+    fn invoke_instruction(
+        offset: u32,
+        owner: &str,
+        name: &str,
+        descriptor: &str,
+        kind: CallKind,
+    ) -> Instruction {
+        Instruction {
+            offset,
+            opcode: opcodes::NOP,
+            kind: InstructionKind::Invoke(CallSite {
+                owner: owner.to_string(),
+                name: name.to_string(),
+                descriptor: descriptor.to_string(),
+                kind,
+                offset,
+            }),
+        }
+    }
+
+    fn invokedynamic_instruction(
+        offset: u32,
+        descriptor: &str,
+        impl_method: Option<&str>,
+    ) -> Instruction {
+        Instruction {
+            offset,
+            opcode: opcodes::NOP,
+            kind: InstructionKind::InvokeDynamic {
+                descriptor: descriptor.to_string(),
+                impl_method: impl_method.map(ToOwned::to_owned),
+            },
+        }
+    }
+
+    fn other_instruction(offset: u32, opcode: u8) -> Instruction {
+        Instruction {
+            offset,
+            opcode,
+            kind: InstructionKind::Other(opcode),
+        }
+    }
+
+    #[test]
+    fn koin_autocloseable_not_closed_skips_when_koin_is_absent() {
+        let context = build_context(vec![class_with_methods("com/example/ClassA", Vec::new())], &[]);
+
+        assert!(!context.has_koin());
+        let results = KoinAutoCloseableNotClosedRule
+            .run(&context)
+            .expect("run Koin rule without framework");
+        assert!(results.is_empty());
     }
 
     #[test]
@@ -623,6 +778,68 @@ fun methodFive(module: Module) {
     }
 
     #[test]
+    fn koin_autocloseable_not_closed_reports_multiple_findings_in_one_method() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let mut sources = koin_stub_sources();
+        sources.push(SourceFile {
+            path: "com/example/ClassOrder.kt".to_string(),
+            contents: r#"
+package com.example
+
+import org.koin.core.module.Module
+
+class ClassA : AutoCloseable {
+    override fun close() {}
+}
+
+class ClassB : AutoCloseable {
+    override fun close() {}
+}
+
+fun methodTen(module: Module) {
+    module.single { ClassB() }
+    module.single { ClassA() }
+}
+"#
+            .to_string(),
+        });
+
+        let output = compile_and_analyze(&harness, sources, &[]);
+        let messages = rule_messages(&output);
+        assert_eq!(messages.len(), 2, "expected two findings, got {messages:?}");
+        assert!(messages.iter().any(|message| message.contains("ClassA")));
+        assert!(messages.iter().any(|message| message.contains("ClassB")));
+    }
+
+    #[test]
+    fn koin_autocloseable_not_closed_reports_single_default_calls() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let mut sources = koin_stub_sources_with_single_default();
+        sources.push(SourceFile {
+            path: "com/example/ClassDefault.kt".to_string(),
+            contents: r#"
+package com.example
+
+import org.koin.core.module.Module
+
+class ClassA : AutoCloseable {
+    override fun close() {}
+}
+
+fun methodEleven(module: Module) {
+    module.single { ClassA() }
+}
+"#
+            .to_string(),
+        });
+
+        let output = compile_and_analyze(&harness, sources, &[]);
+        let messages = rule_messages(&output);
+        assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
+        assert!(messages[0].contains("ClassA"));
+    }
+
+    #[test]
     fn koin_autocloseable_not_closed_supports_classpath_resource_types() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
         let dependency_sources = vec![SourceFile {
@@ -773,5 +990,216 @@ fun methodNine(module: Module) {
         let messages = rule_messages(&output);
         assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
         assert!(messages[0].contains("ClassA"));
+    }
+
+    #[test]
+    fn matching_onclose_callback_skips_non_matching_candidates() {
+        let callback_method = method_with(
+            "lambda$0",
+            "(Ljava/lang/Object;)V",
+            vec![opcodes::NOP],
+            Vec::new(),
+            Vec::new(),
+        );
+        let class = class_with_methods("com/example/ClassA", vec![callback_method]);
+        let instructions = vec![
+            invoke_instruction(
+                0,
+                "org/koin/core/module/Module",
+                "single",
+                "(Lkotlin/jvm/functions/Function0;)Lorg/koin/core/module/BeanDefinition;",
+                CallKind::Virtual,
+            ),
+            invoke_instruction(
+                1,
+                "java/io/PrintStream",
+                "println",
+                "(Ljava/lang/String;)V",
+                CallKind::Virtual,
+            ),
+            invokedynamic_instruction(
+                2,
+                "(Ljava/lang/Object;)Lkotlin/jvm/functions/Function1;",
+                Some("missing$lambda$0"),
+            ),
+            invoke_instruction(
+                3,
+                "org/koin/core/module/dsl/OptionDSLKt",
+                "onClose",
+                "(Lorg/koin/core/module/BeanDefinition;Lkotlin/jvm/functions/Function1;)Lorg/koin/core/module/BeanDefinition;",
+                CallKind::Static,
+            ),
+            invokedynamic_instruction(
+                4,
+                "(Ljava/lang/Object;)Lkotlin/jvm/functions/Function1;",
+                Some("lambda$0"),
+            ),
+            invoke_instruction(
+                5,
+                "org/koin/core/module/BeanDefinition",
+                "onClose",
+                "(Lkotlin/jvm/functions/Function1;)Lorg/koin/core/module/BeanDefinition;",
+                CallKind::Virtual,
+            ),
+        ];
+        let instruction_refs = instructions.iter().collect::<Vec<_>>();
+
+        let callback = matching_onclose_callback(&class, &instruction_refs, 0)
+            .expect("find later valid callback");
+        assert_eq!(callback.name, "lambda$0");
+    }
+
+    #[test]
+    fn matching_onclose_callback_returns_none_when_definition_is_last_instruction() {
+        let class = class_with_methods("com/example/ClassA", Vec::new());
+        let instructions = vec![invoke_instruction(
+            0,
+            "org/koin/core/module/Module",
+            "single",
+            "(Lkotlin/jvm/functions/Function0;)Lorg/koin/core/module/BeanDefinition;",
+            CallKind::Virtual,
+        )];
+        let instruction_refs = instructions.iter().collect::<Vec<_>>();
+
+        assert!(matching_onclose_callback(&class, &instruction_refs, 0).is_none());
+    }
+
+    #[test]
+    fn constructed_value_is_returned_returns_false_when_local_is_overwritten() {
+        let method = method_with(
+            "lambda$0",
+            "()Ljava/lang/Object;",
+            vec![opcodes::NOP, opcodes::ASTORE_0, opcodes::ASTORE_0],
+            vec![
+                invoke_instruction(0, "com/example/ClassA", "<init>", "()V", CallKind::Special),
+                other_instruction(1, opcodes::ASTORE_0),
+                other_instruction(2, opcodes::ASTORE_0),
+            ],
+            Vec::new(),
+        );
+        let instructions = collect_instructions(&method);
+
+        assert!(!constructed_value_is_returned(&method, &instructions, 0));
+    }
+
+    #[test]
+    fn constructed_value_is_returned_returns_false_when_loaded_value_is_not_returned() {
+        let method = method_with(
+            "lambda$0",
+            "()Ljava/lang/Object;",
+            vec![opcodes::NOP, opcodes::ASTORE_0, opcodes::ALOAD_0, opcodes::NOP],
+            vec![
+                invoke_instruction(0, "com/example/ClassA", "<init>", "()V", CallKind::Special),
+                other_instruction(1, opcodes::ASTORE_0),
+                other_instruction(2, opcodes::ALOAD_0),
+                other_instruction(3, opcodes::NOP),
+            ],
+            Vec::new(),
+        );
+        let instructions = collect_instructions(&method);
+
+        assert!(!constructed_value_is_returned(&method, &instructions, 0));
+    }
+
+    #[test]
+    fn constructed_value_is_returned_supports_explicit_aload_and_astore() {
+        let method = method_with(
+            "lambda$0",
+            "()Ljava/lang/Object;",
+            vec![
+                opcodes::NOP,
+                opcodes::NOP,
+                opcodes::ASTORE,
+                2,
+                opcodes::ALOAD,
+                2,
+                opcodes::ARETURN,
+            ],
+            vec![
+                invoke_instruction(0, "com/example/ClassA", "<init>", "()V", CallKind::Special),
+                other_instruction(2, opcodes::ASTORE),
+                other_instruction(4, opcodes::ALOAD),
+                other_instruction(6, opcodes::ARETURN),
+            ],
+            Vec::new(),
+        );
+        let instructions = collect_instructions(&method);
+
+        assert!(constructed_value_is_returned(&method, &instructions, 0));
+    }
+
+    #[test]
+    fn aload_and_astore_local_index_support_short_forms() {
+        let method = method_with("lambda$0", "()V", vec![opcodes::NOP], Vec::new(), Vec::new());
+
+        assert_eq!(
+            astore_local_index(&method, &other_instruction(0, opcodes::ASTORE_1)),
+            Some(1)
+        );
+        assert_eq!(
+            astore_local_index(&method, &other_instruction(0, opcodes::ASTORE_2)),
+            Some(2)
+        );
+        assert_eq!(
+            astore_local_index(&method, &other_instruction(0, opcodes::ASTORE_3)),
+            Some(3)
+        );
+        assert_eq!(
+            aload_local_index(&method, &other_instruction(0, opcodes::ALOAD_1)),
+            Some(1)
+        );
+        assert_eq!(
+            aload_local_index(&method, &other_instruction(0, opcodes::ALOAD_2)),
+            Some(2)
+        );
+        assert_eq!(
+            aload_local_index(&method, &other_instruction(0, opcodes::ALOAD_3)),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn lambda_calls_close_accepts_special_invocation() {
+        let method = method_with(
+            "lambda$0",
+            "()V",
+            vec![opcodes::NOP],
+            Vec::new(),
+            vec![CallSite {
+                owner: "com/example/ClassA".to_string(),
+                name: "close".to_string(),
+                descriptor: "()V".to_string(),
+                kind: CallKind::Special,
+                offset: 0,
+            }],
+        );
+
+        assert!(lambda_calls_close(&method));
+    }
+
+    #[test]
+    fn looks_like_lambda_impl_name_accepts_plain_lambda_prefix() {
+        assert!(looks_like_lambda_impl_name("lambda$0"));
+    }
+
+    #[test]
+    fn is_koin_onclose_call_accepts_definition_owners() {
+        let bean_definition = CallSite {
+            owner: "org/koin/core/module/BeanDefinition".to_string(),
+            name: "onClose".to_string(),
+            descriptor: "()V".to_string(),
+            kind: CallKind::Virtual,
+            offset: 0,
+        };
+        let definition = CallSite {
+            owner: "org/koin/core/definition/Definition".to_string(),
+            name: "onClose".to_string(),
+            descriptor: "()V".to_string(),
+            kind: CallKind::Virtual,
+            offset: 0,
+        };
+
+        assert!(is_koin_onclose_call(&bean_definition));
+        assert!(is_koin_onclose_call(&definition));
     }
 }

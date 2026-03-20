@@ -529,6 +529,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use crate::ir::{Field, FieldAccess};
     use serde_json::json;
     use serde_sarif::sarif::{ArtifactLocation, ArtifactRoles};
 
@@ -679,6 +680,75 @@ mod tests {
         assert!(context.has_koin());
         assert!(!context.has_slf4j());
         assert!(!context.has_log4j2());
+    }
+
+    #[test]
+    fn build_context_detects_koin_from_field_descriptor() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: vec![Field {
+                name: "varOne".to_string(),
+                descriptor: "Lorg/koin/core/module/Module;".to_string(),
+                signature: None,
+                type_use: None,
+                access: FieldAccess {
+                    is_static: false,
+                    is_private: true,
+                    is_final: true,
+                    is_volatile: false,
+                },
+            }],
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_koin());
+    }
+
+    #[test]
+    fn build_context_detects_koin_from_super_and_interface_references() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: Some("java/lang/Object".to_string()),
+            interfaces: vec!["org/koin/plugin/module/dsl/ModuleExtKt".to_string()],
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_koin());
     }
 
     #[test]
