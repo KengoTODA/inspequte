@@ -254,14 +254,10 @@ jobs:
       - name: Read release PR number
         id: resolve-pr
         if: needs.release-please.outputs.prs_created == 'true'
-        env:
-          RELEASE_PLEASE_PR: ${{ needs.release-please.outputs.pr }}
         shell: bash
         run: |
           set -euo pipefail
-          pr_number="$(
-            jq -r '.number // empty' <<<"${RELEASE_PLEASE_PR}"
-          )"
+          pr_number='${{ fromJSON(needs.release-please.outputs.pr).number }}'
           echo "pr_number=${pr_number}" >> "${GITHUB_OUTPUT}"
       - name: Publish screenshot for PR comment
         id: screenshot-image
