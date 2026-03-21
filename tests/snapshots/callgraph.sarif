@@ -182,6 +182,13 @@
               }
             },
             {
+              "id": "KOIN_AUTOCLOSEABLE_NOT_CLOSED",
+              "name": "Koin AutoCloseable not closed",
+              "shortDescription": {
+                "text": "Koin singleton definitions that construct AutoCloseable resources should close them via onClose"
+              }
+            },
+            {
               "id": "LOCK_NOT_RELEASED_ON_EXCEPTION_PATH",
               "name": "Lock acquired without guaranteed release",
               "shortDescription": {
