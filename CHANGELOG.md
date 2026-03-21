@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.0...inspequte-v0.27.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* **ci:** guard release-please PR parsing ([#178](https://github.com/KengoTODA/inspequte/issues/178)) ([416ca7f](https://github.com/KengoTODA/inspequte/commit/416ca7f7eb9f289b819b475370c2df2386d4d50e))
+* **deps:** update rustls-webpki and aws-lc-sys ([#179](https://github.com/KengoTODA/inspequte/issues/179)) ([443dc62](https://github.com/KengoTODA/inspequte/commit/443dc6293056b9c1908fd8d53596b876d9b28a31))
+
 ## [0.27.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.26.0...inspequte-v0.27.0) (2026-03-20)
 
 
