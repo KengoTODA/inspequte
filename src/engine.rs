@@ -22,6 +22,7 @@ pub(crate) struct AnalysisContext {
     telemetry: Option<Arc<Telemetry>>,
     has_slf4j: bool,
     has_log4j2: bool,
+    has_koin: bool,
 }
 
 /// Timing breakdown for context construction.
@@ -143,7 +144,7 @@ pub(crate) fn build_context_with_timings(
         &[KeyValue::new("inspequte.phase", "artifact_analysis")],
         || analyze_artifacts(artifacts),
     );
-    let (has_slf4j, has_log4j2) = detect_logging_frameworks(&classes, telemetry.as_deref());
+    let (has_slf4j, has_log4j2, has_koin) = detect_known_frameworks(&classes, telemetry.as_deref());
     let (analysis_target_classes, dependency_classes) =
         partition_classes(classes, &analysis_target_artifacts, &artifact_parents);
     let class_artifact_uri_cache = build_class_artifact_uri_cache(
@@ -166,6 +167,7 @@ pub(crate) fn build_context_with_timings(
         telemetry,
         has_slf4j,
         has_log4j2,
+        has_koin,
     };
     (context, timings)
 }
@@ -222,6 +224,10 @@ impl AnalysisContext {
 
     pub(crate) fn has_log4j2(&self) -> bool {
         self.has_log4j2
+    }
+
+    pub(crate) fn has_koin(&self) -> bool {
+        self.has_koin
     }
 }
 
@@ -341,20 +347,24 @@ fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
     Some(PathBuf::from(path))
 }
 
-fn detect_logging_frameworks(classes: &[Class], telemetry: Option<&Telemetry>) -> (bool, bool) {
+fn detect_known_frameworks(classes: &[Class], telemetry: Option<&Telemetry>) -> (bool, bool, bool) {
     let mut has_slf4j = false;
     let mut has_log4j2 = false;
+    let mut has_koin = false;
     for class in classes {
-        if has_slf4j && has_log4j2 {
+        if has_slf4j && has_log4j2 && has_koin {
             break;
         }
-        if !has_slf4j || !has_log4j2 {
+        if !has_slf4j || !has_log4j2 || !has_koin {
             for field in &class.fields {
                 if !has_slf4j && contains_slf4j_type(&field.descriptor) {
                     has_slf4j = true;
                 }
                 if !has_log4j2 && contains_log4j2_type(&field.descriptor) {
                     has_log4j2 = true;
+                }
+                if !has_koin && contains_koin_type(&field.descriptor) {
+                    has_koin = true;
                 }
             }
             for method in &class.methods {
@@ -364,15 +374,64 @@ fn detect_logging_frameworks(classes: &[Class], telemetry: Option<&Telemetry>) -
                 if !has_log4j2 && contains_log4j2_type(&method.descriptor) {
                     has_log4j2 = true;
                 }
+                if !has_koin && contains_koin_type(&method.descriptor) {
+                    has_koin = true;
+                }
+            }
+        }
+        let mut references = class
+            .referenced_classes
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        if let Some(super_name) = class.super_name.as_deref() {
+            references.push(super_name);
+        }
+        for iface in &class.interfaces {
+            references.push(iface);
+        }
+        for reference in references {
+            if !has_slf4j
+                && matches!(
+                    reference,
+                    "org/slf4j/Logger" | "org/slf4j/Marker" | "org/slf4j/LoggerFactory"
+                )
+            {
+                has_slf4j = true;
+            }
+            if !has_log4j2
+                && matches!(
+                    reference,
+                    "org/apache/logging/log4j/Logger"
+                        | "org/apache/logging/log4j/LogManager"
+                        | "org/apache/logging/log4j/Marker"
+                        | "org/apache/logging/log4j/message/Message"
+                )
+            {
+                has_log4j2 = true;
+            }
+            if !has_koin
+                && matches!(
+                    reference,
+                    "org/koin/core/module/Module"
+                        | "org/koin/core/module/BeanDefinition"
+                        | "org/koin/core/definition/KoinDefinition"
+                        | "org/koin/core/module/dsl/OptionDSLKt"
+                        | "org/koin/dsl/ModuleDSLKt"
+                        | "org/koin/plugin/module/dsl/ModuleExtKt"
+                )
+            {
+                has_koin = true;
             }
         }
     }
     let attributes = [
         KeyValue::new("inspequte.slf4j.present", has_slf4j),
         KeyValue::new("inspequte.log4j2.present", has_log4j2),
+        KeyValue::new("inspequte.koin.present", has_koin),
     ];
-    with_span(telemetry, "detect.logging_frameworks", &attributes, || {
-        (has_slf4j, has_log4j2)
+    with_span(telemetry, "detect.frameworks", &attributes, || {
+        (has_slf4j, has_log4j2, has_koin)
     })
 }
 
@@ -387,6 +446,12 @@ fn contains_log4j2_type(descriptor: &str) -> bool {
         || descriptor.contains("Lorg/apache/logging/log4j/Marker;")
         || descriptor.contains("Lorg/apache/logging/log4j/LogManager;")
         || descriptor.contains("Lorg/apache/logging/log4j/message/Message;")
+}
+
+fn contains_koin_type(descriptor: &str) -> bool {
+    descriptor.contains("Lorg/koin/core/module/Module;")
+        || descriptor.contains("Lorg/koin/core/module/BeanDefinition;")
+        || descriptor.contains("Lorg/koin/core/definition/KoinDefinition;")
 }
 
 fn analyze_artifacts(
@@ -464,6 +529,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use crate::ir::{Field, FieldAccess};
     use serde_json::json;
     use serde_sarif::sarif::{ArtifactLocation, ArtifactRoles};
 
@@ -583,6 +649,106 @@ mod tests {
         assert_eq!(context.analysis_target_classes().len(), 2);
         assert!(context.dependency_classes().is_empty());
         assert_eq!(all_names, vec!["com/example/ClassA", "com/example/ClassB"]);
+    }
+
+    #[test]
+    fn build_context_detects_koin_from_referenced_classes() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: vec!["org/koin/core/module/Module".to_string()],
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_koin());
+        assert!(!context.has_slf4j());
+        assert!(!context.has_log4j2());
+    }
+
+    #[test]
+    fn build_context_detects_koin_from_field_descriptor() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: vec![Field {
+                name: "varOne".to_string(),
+                descriptor: "Lorg/koin/core/module/Module;".to_string(),
+                signature: None,
+                type_use: None,
+                access: FieldAccess {
+                    is_static: false,
+                    is_private: true,
+                    is_final: true,
+                    is_volatile: false,
+                },
+            }],
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_koin());
+    }
+
+    #[test]
+    fn build_context_detects_koin_from_super_and_interface_references() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: Some("java/lang/Object".to_string()),
+            interfaces: vec!["org/koin/plugin/module/dsl/ModuleExtKt".to_string()],
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_koin());
     }
 
     #[test]

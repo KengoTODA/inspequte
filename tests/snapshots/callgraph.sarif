@@ -42,6 +42,13 @@
               }
             },
             {
+              "id": "AUTOCLOSEABLE_NOT_CLOSED",
+              "name": "AutoCloseable not closed",
+              "shortDescription": {
+                "text": "Locally created AutoCloseable instances should be closed on every exit path"
+              }
+            },
+            {
               "id": "BIGDECIMAL_DIVIDE_WITHOUT_ROUNDING",
               "name": "BigDecimal divide without rounding",
               "shortDescription": {
@@ -172,6 +179,13 @@
               "name": "InterruptedException not properly handled",
               "shortDescription": {
                 "text": "Restore interrupt status when catching InterruptedException"
+              }
+            },
+            {
+              "id": "KOIN_AUTOCLOSEABLE_NOT_CLOSED",
+              "name": "Koin AutoCloseable not closed",
+              "shortDescription": {
+                "text": "Koin singleton definitions that construct AutoCloseable resources should close them via onClose"
               }
             },
             {

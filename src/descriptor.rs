@@ -42,6 +42,18 @@ pub(crate) fn method_return_kind(descriptor: &str) -> Result<ReturnKind> {
     Ok(method_descriptor_summary(descriptor)?.return_kind)
 }
 
+/// Extract the return type class name from a JVM method descriptor.
+///
+/// Returns `Some("java/io/InputStream")` for `(Ljava/lang/String;)Ljava/io/InputStream;`,
+/// or `None` for void, primitive, or array return types.
+pub(crate) fn method_return_class_name(descriptor: &str) -> Result<Option<String>> {
+    let desc = MethodDescriptor::from_str(descriptor).context("parse method descriptor")?;
+    match desc.return_type() {
+        TypeDescriptor::Object(name) => Ok(Some(name.to_string())),
+        _ => Ok(None),
+    }
+}
+
 /// Number of local variable slots a JVM type occupies (2 for long/double, 1 otherwise).
 fn slot_width(ty: &TypeDescriptor) -> u16 {
     match ty {
