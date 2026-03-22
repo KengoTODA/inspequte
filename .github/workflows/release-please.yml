@@ -411,6 +411,7 @@ jobs:
           head_ref="release-please--branches--main"
           pr_number="$(
             gh pr list \
+              --repo "${GITHUB_REPOSITORY}" \
               --base main \
               --head "${head_ref}" \
               --state open \
