@@ -38,7 +38,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5.0.2
+        uses: gradle/actions/setup-gradle@v6.1.0
       - name: Run checks
         run: ./gradlew check --no-daemon
       - name: Upload SARIF
