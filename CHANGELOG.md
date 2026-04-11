@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.2](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.1...inspequte-v0.27.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* **ci:** make benchmark docs PR lookup repo-explicit ([c3158a7](https://github.com/KengoTODA/inspequte/commit/c3158a7454049ea905f5f2e6d7bc3e62822d3d8b))
+* **deps:** update rust crate opentelemetry-otlp to v0.31.1 ([#184](https://github.com/KengoTODA/inspequte/issues/184)) ([4e930e6](https://github.com/KengoTODA/inspequte/commit/4e930e6fc4d3d50e737de53cfa525303d42205a6))
+
 ## [0.27.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.0...inspequte-v0.27.1) (2026-03-21)
 
 
