@@ -130,7 +130,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Post Codex feedback
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           CODEX_FINAL_MESSAGE: ${{ needs.codex.outputs.final_message }}
         with:
