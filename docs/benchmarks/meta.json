@@ -1,14 +1,14 @@
 {
-  "generated_at_utc": "2026-02-27T23:59:00Z",
-  "dataset": "sonarqube",
+  "generated_at_utc": "2026-04-13T18:58:46Z",
+  "dataset": "all",
   "benchmark": {
-    "warmup": 0,
-    "min_runs": 1
+    "warmup": 1,
+    "min_runs": 5
   },
   "environment": {
-    "os": "Darwin",
-    "kernel": "25.3.0",
-    "cpu": "arm64",
+    "os": "Linux",
+    "kernel": "6.17.0-1010-azure",
+    "cpu": "AMD EPYC 7763 64-Core Processor",
     "java": "openjdk version \"21.0.10\" 2026-01-20 LTS"
   },
   "datasets": {
@@ -18,7 +18,7 @@
       "source_source": "maven-central"
     },
     "sonarqube": {
-      "version": "25.6.0.109173",
+      "version": "26.4.0.121862",
       "binary_source": "maven-central",
       "source_source": "github-tags"
     }
@@ -26,9 +26,8 @@
   "tools": {
     "spotbugs": "4.9.8",
     "pmd": "7.14.0",
-    "pmd_threads": 1,
     "checker_framework": "3.52.0",
-    "nullaway": "0.12.12",
-    "error_prone": "2.30.0"
+    "nullaway": "0.13.1",
+    "error_prone": "2.49.0"
   }
 }

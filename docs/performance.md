@@ -6,14 +6,14 @@
 
 ## Methodology
 - Benchmark metric: median runtime (`hyperfine` JSON `median`).
-- Parameters: `--warmup 0`, `--min-runs 1`.
-- Generated at (UTC): `2026-02-27T23:59:00Z`.
+- Parameters: `--warmup 1`, `--min-runs 5`.
+- Generated at (UTC): `2026-04-13T18:58:46Z`.
 
 ## Datasets
 - Library: Guava `33.5.0-jre`.
   - Binary input: Maven Central JAR.
   - Source input: Maven Central source JAR.
-- Application: SonarQube `25.6.0.109173`.
+- Application: SonarQube `26.4.0.121862`.
   - Binary input: Maven Central `sonar-application` ZIP.
   - Source input: GitHub tag source archive.
 
@@ -22,31 +22,31 @@
 | --- | --- | --- |
 | inspequte | workspace build | `NULLNESS` rule only |
 | SpotBugs | 4.9.8 | `NP_*` via include filter (`Bug code=NP`) |
-| PMD | 7.14.0 | null-related subset in `category/java/errorprone.xml` (threads=1, cache=off) |
+| PMD | 7.14.0 | null-related subset in `category/java/errorprone.xml` (cache=off) |
 | Checker Framework | 3.52.0 | `NullnessChecker` |
-| NullAway | 0.12.12 | Error Prone plugin (`error_prone_core 2.30.0`) |
+| NullAway | 0.13.1 | Error Prone plugin (`error_prone_core 2.49.0`) |
 
 Environment:
-- OS: `Darwin`
-- Kernel: `25.3.0`
-- CPU: `arm64`
+- OS: `Linux`
+- Kernel: `6.17.0-1010-azure`
+- CPU: `AMD EPYC 7763 64-Core Processor`
 - Java: `openjdk version "21.0.10" 2026-01-20 LTS`
 
 ## Results: Guava
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| inspequte | 0.250 s | 0.448 s | 0.247 s | 0.847 s |
-| nullaway | 1.234 s | 1.234 s | 1.134 s | 1.334 s |
-| checker-framework | 1.314 s | 1.314 s | 1.269 s | 1.359 s |
-| pmd | 3.785 s | 3.785 s | 3.785 s | 3.785 s |
-| spotbugs | 12.397 s | 12.397 s | 12.397 s | 12.397 s |
+| inspequte | 0.364 s | 0.365 s | 0.362 s | 0.371 s |
+| nullaway | 1.589 s | 1.592 s | 1.565 s | 1.615 s |
+| checker-framework | 2.487 s | 2.481 s | 2.402 s | 2.549 s |
+| pmd | 6.291 s | 6.348 s | 6.235 s | 6.528 s |
+| spotbugs | 27.338 s | 27.413 s | 26.632 s | 28.756 s |
 
 ## Results: SonarQube
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| pmd | 9.411 s | 9.411 s | 9.411 s | 9.411 s |
-| inspequte | 13.123 s | 13.123 s | 13.123 s | 13.123 s |
-| spotbugs | 466.245 s | 466.245 s | 466.245 s | 466.245 s |
+| pmd | 16.544 s | 16.469 s | 16.020 s | 16.767 s |
+| inspequte | 20.023 s | 20.059 s | 19.956 s | 20.168 s |
+| spotbugs | 1012.548 s | 1003.421 s | 987.560 s | 1015.094 s |
 
 ## Caveats and Fairness
 - Rule sets are aligned to nullness intent, not full one-to-one semantic equivalence.
