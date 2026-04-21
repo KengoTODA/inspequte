@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.3](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.2...inspequte-v0.27.3) (2026-04-21)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate inventory to v0.3.24 ([#199](https://github.com/KengoTODA/inspequte/issues/199)) ([7327bed](https://github.com/KengoTODA/inspequte/commit/7327bedc7178a855325a9484d078f88d7c591c4e))
+* **deps:** update rust crate jsonschema to v0.45.1 ([#200](https://github.com/KengoTODA/inspequte/issues/200)) ([e49c038](https://github.com/KengoTODA/inspequte/commit/e49c038adbdbf85c61620a2b28e3ca7a1761c09e))
+
 ## [0.27.2](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.1...inspequte-v0.27.2) (2026-04-11)
 
 
