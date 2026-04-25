@@ -30,7 +30,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.PRIVATE_KEY }}
       - name: Release Please
-        uses: googleapis/release-please-action@8bb7a2ed0f90c9802c83129a9488d235a1f31a7c # v4.5.0-pre (to use release-please v17.3.0)
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5-pre (to use release-please v17.3.0)
         id: release
         with:
           config-file: release-please-config.json
