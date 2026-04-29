@@ -110,7 +110,7 @@ jobs:
             +refs/pull/${{ github.event.pull_request.number }}/head
       - name: Run Codex
         id: run_codex
-        uses: openai/codex-action@v1.6
+        uses: openai/codex-action@v1.7
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
