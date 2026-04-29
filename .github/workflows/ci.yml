@@ -54,7 +54,7 @@ jobs:
     permissions:
       security-events: write
       actions: read
-      contents: read
+      contents: write # for dependency submission API
       pull-requests: write
     steps:
       - name: Checkout
