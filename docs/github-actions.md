@@ -42,7 +42,7 @@ jobs:
       - name: Run checks
         run: ./gradlew check --no-daemon
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.35.1
+        uses: github/codeql-action/upload-sarif@v4.35.2
         with:
           sarif_file: build/inspequte/main/report.sarif
 ```
@@ -76,7 +76,7 @@ jobs:
             --classpath lib/ \
             --output results.sarif
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.35.1
+        uses: github/codeql-action/upload-sarif@v4.35.2
         with:
           sarif_file: results.sarif
 ```
@@ -110,7 +110,7 @@ jobs:
             +refs/pull/${{ github.event.pull_request.number }}/head
       - name: Run Codex
         id: run_codex
-        uses: openai/codex-action@v1.6
+        uses: openai/codex-action@v1.7
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # renovate: datasource=maven depName=com.google.guava:guava versioning=loose
-DATASET_VERSION_GUAVA="33.5.0-jre"
+DATASET_VERSION_GUAVA="33.6.0-jre"
 # renovate: datasource=maven depName=org.sonarsource.sonarqube:sonar-application
 DATASET_VERSION_SONARQUBE="26.4.0.121862"
 
@@ -13,7 +13,7 @@ TOOL_VERSION_PMD="7.14.0"
 # renovate: datasource=github-releases depName=typetools/checker-framework
 TOOL_VERSION_CHECKER_FRAMEWORK="3.52.0"
 # renovate: datasource=maven depName=com.uber.nullaway:nullaway
-TOOL_VERSION_NULLAWAY="0.13.1"
+TOOL_VERSION_NULLAWAY="0.13.4"
 # renovate: datasource=maven depName=com.google.errorprone:error_prone_core
 TOOL_VERSION_ERROR_PRONE="2.49.0"
 
