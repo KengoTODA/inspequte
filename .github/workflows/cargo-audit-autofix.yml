@@ -1,0 +1,348 @@
+name: Cargo Audit Autofix
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+concurrency:
+  group: cargo-audit-autofix
+  cancel-in-progress: false
+
+env:
+  AUTOFIX_LABEL: cargo-audit-autofix
+  REVIEWER: KengoTODA
+
+jobs:
+  triage:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      eligible: ${{ steps.scope.outputs.eligible }}
+      has_audit_sarif: ${{ steps.artifact.outputs.has_audit_sarif }}
+      base_ref: ${{ steps.scope.outputs.base_ref }}
+      checkout_ref: ${{ steps.scope.outputs.checkout_ref }}
+      source_ref: ${{ steps.scope.outputs.source_ref }}
+      source_kind: ${{ steps.scope.outputs.source_kind }}
+      trigger_run_url: ${{ steps.scope.outputs.trigger_run_url }}
+    steps:
+      - name: Determine eligible source
+        id: scope
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_NAME: ${{ github.event.workflow_run.event }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          REPOSITORY: ${{ github.repository }}
+          TRIGGER_RUN_URL: ${{ github.event.workflow_run.html_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          eligible="false"
+          base_ref=""
+          checkout_ref=""
+          source_ref=""
+          source_kind=""
+
+          if [[ "${EVENT_NAME}" == "push" && "${HEAD_BRANCH}" == "${DEFAULT_BRANCH}" ]]; then
+            eligible="true"
+            base_ref="${DEFAULT_BRANCH}"
+            checkout_ref="${HEAD_SHA}"
+            source_ref="${DEFAULT_BRANCH}"
+            source_kind="main"
+          elif [[ "${EVENT_NAME}" == "pull_request" && "${HEAD_REPOSITORY}" == "${REPOSITORY}" && -n "${HEAD_BRANCH}" ]]; then
+            eligible="true"
+            base_ref="${HEAD_BRANCH}"
+            checkout_ref="${HEAD_SHA}"
+            source_ref="${HEAD_BRANCH}"
+            source_kind="internal-pr"
+          fi
+
+          {
+            echo "eligible=${eligible}"
+            echo "base_ref=${base_ref}"
+            echo "checkout_ref=${checkout_ref}"
+            echo "source_ref=${source_ref}"
+            echo "source_kind=${source_kind}"
+            echo "trigger_run_url=${TRIGGER_RUN_URL}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Cargo audit autofix triage"
+            echo ""
+            echo "- eligible: \`${eligible}\`"
+            echo "- source-kind: \`${source_kind:-skipped}\`"
+            echo "- source-ref: \`${source_ref:-n/a}\`"
+            echo "- triggering run: ${TRIGGER_RUN_URL}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Check for cargo audit SARIF artifact
+        id: artifact
+        if: steps.scope.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact_id="$(gh api \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name == "cargo-audit-sarif" and .expired == false) | .id' \
+            | head -n1)"
+
+          if [[ -n "${artifact_id}" ]]; then
+            echo "has_audit_sarif=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "has_audit_sarif=false" >> "${GITHUB_OUTPUT}"
+            echo "- cargo-audit-sarif artifact: \`missing\`" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+  autofix:
+    needs: triage
+    if: needs.triage.outputs.eligible == 'true' && needs.triage.outputs.has_audit_sarif == 'true'
+    runs-on: ubuntu-latest
+    environment: codex
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Create app token
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3
+        with:
+          app-id: ${{ vars.APP_ID_CODEX }}
+          private-key: ${{ secrets.PRIVATE_KEY_CODEX }}
+
+      - name: Check for existing autofix PR
+        id: existing_pr
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          AUTOFIX_LABEL: ${{ env.AUTOFIX_LABEL }}
+          SOURCE_REF: ${{ needs.triage.outputs.source_ref }}
+          TRIGGER_RUN_URL: ${{ needs.triage.outputs.trigger_run_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          existing_number="$(gh pr list \
+            --state open \
+            --json number,labels \
+            --jq ".[] | select(any(.labels[].name; . == \"${AUTOFIX_LABEL}\")) | .number" \
+            | head -n1)"
+
+          if [[ -n "${existing_number}" ]]; then
+            comment_body="${RUNNER_TEMP}/cargo-audit-existing-pr.md"
+            cat > "${comment_body}" <<EOF
+          Another cargo audit failure was detected while this autofix PR is open.
+
+          - source ref: \`${SOURCE_REF}\`
+          - triggering run: ${TRIGGER_RUN_URL}
+
+          This workflow keeps only one \`${AUTOFIX_LABEL}\` PR open at a time.
+          EOF
+            gh pr comment "${existing_number}" --body-file "${comment_body}"
+            echo "found=true" >> "${GITHUB_OUTPUT}"
+            echo "number=${existing_number}" >> "${GITHUB_OUTPUT}"
+            {
+              echo "## Cargo audit autofix"
+              echo ""
+              echo "- action: \`reused-existing-pr\`"
+              echo "- pr: #${existing_number}"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "found=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Checkout source ref
+        if: steps.existing_pr.outputs.found != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.triage.outputs.checkout_ref }}
+
+      - name: Download cargo audit SARIF
+        if: steps.existing_pr.outputs.found != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/audit-input
+          gh run download "${TRIGGER_RUN_ID}" \
+            --name cargo-audit-sarif \
+            --dir target/audit-input
+          audit_file="$(find target/audit-input -type f -name 'audit.sarif' | head -n1)"
+          if [[ -z "${audit_file}" ]]; then
+            echo "Downloaded cargo-audit-sarif artifact does not contain audit.sarif." >&2
+            exit 1
+          fi
+          if [[ "${audit_file}" != "target/audit-input/audit.sarif" ]]; then
+            cp "${audit_file}" target/audit-input/audit.sarif
+          fi
+          test -s target/audit-input/audit.sarif
+
+      - name: Write Codex prompt
+        if: steps.existing_pr.outputs.found != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/codex-workflow/prompts target/codex-workflow/output
+          cat > target/codex-workflow/prompts/cargo-audit-autofix.md <<'PROMPT'
+          You are Codex in this repository.
+
+          Use `.codex/skills/inspequte-cargo-audit-fix/SKILL.md`.
+
+          Inputs:
+          - cargo audit SARIF: `target/audit-input/audit.sarif`
+          - dependency manifests: `Cargo.toml`, `Cargo.lock`
+
+          Task:
+          1. Read the cargo audit SARIF and identify the vulnerable dependency updates needed.
+          2. Update dependencies with the smallest dependency change that resolves the advisories.
+          3. Prefer lockfile-only `cargo update -p <crate> --precise <fixed_version>` changes.
+          4. Edit `Cargo.toml` only if the direct dependency requirement blocks the fixed version.
+          5. Run `cargo fmt`, `cargo build`, `cargo test`, and `cargo audit --format sarif`.
+
+          Final response format:
+          - Summarize advisories fixed.
+          - Summarize files changed.
+          - Report verification commands and outcomes.
+          - If unresolved, state the crate, advisory, attempted update, and blocker.
+          PROMPT
+
+      - name: Codex cargo audit autofix
+        if: steps.existing_pr.outputs.found != 'true'
+        uses: openai/codex-action@e0fdf01220eb9a88167c4898839d273e3f2609d1 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          safety-strategy: drop-sudo
+          prompt-file: target/codex-workflow/prompts/cargo-audit-autofix.md
+          output-file: target/codex-workflow/output/cargo-audit-autofix-final-message.txt
+          sandbox: workspace-write
+          codex-args: --full-auto
+
+      - name: Check for dependency changes
+        if: steps.existing_pr.outputs.found != 'true'
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+            {
+              echo "## Cargo audit autofix"
+              echo ""
+              echo "- action: \`no-changes\`"
+              echo "- reason: Codex did not produce dependency updates."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Verify dependency update
+        if: steps.existing_pr.outputs.found != 'true' && steps.diff.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v cargo-audit >/dev/null 2>&1; then
+            cargo install cargo-audit --locked
+          fi
+
+          cargo fmt > target/codex-workflow/output/cargo-fmt.txt 2>&1
+          cargo build > target/codex-workflow/output/cargo-build.txt 2>&1
+          cargo test > target/codex-workflow/output/cargo-test.txt 2>&1
+          cargo audit --format sarif > target/codex-workflow/output/cargo-audit.sarif 2> target/codex-workflow/output/cargo-audit.stderr
+
+          {
+            echo "## Cargo audit autofix verification"
+            echo ""
+            echo "- cargo fmt: \`pass\`"
+            echo "- cargo build: \`pass\`"
+            echo "- cargo test: \`pass\`"
+            echo "- cargo audit: \`pass\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Commit, push, and create PR
+        if: steps.existing_pr.outputs.found != 'true' && steps.diff.outputs.has_changes == 'true'
+        id: create_pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          AUTOFIX_LABEL: ${{ env.AUTOFIX_LABEL }}
+          REVIEWER: ${{ env.REVIEWER }}
+          BASE_REF: ${{ needs.triage.outputs.base_ref }}
+          SOURCE_REF: ${{ needs.triage.outputs.source_ref }}
+          SOURCE_KIND: ${{ needs.triage.outputs.source_kind }}
+          TRIGGER_RUN_URL: ${{ needs.triage.outputs.trigger_run_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          branch_name="codex/cargo-audit-autofix-${GITHUB_RUN_ID}"
+          git switch -c "${branch_name}"
+          git add -A
+          git commit -m "fix(deps): resolve cargo audit findings"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --set-upstream origin "${branch_name}"
+
+          body_file="target/codex-workflow/output/pr-body.md"
+          cat > "${body_file}" <<EOF
+          Generated by cargo-audit-autofix workflow.
+
+          - source kind: \`${SOURCE_KIND}\`
+          - source ref: \`${SOURCE_REF}\`
+          - triggering CI run: ${TRIGGER_RUN_URL}
+          EOF
+
+          pr_url="$(gh pr create \
+            --base "${BASE_REF}" \
+            --head "${branch_name}" \
+            --title "fix(deps): resolve cargo audit findings" \
+            --body-file "${body_file}")"
+          pr_number="$(gh pr view "${pr_url}" --json number --jq '.number')"
+
+          gh label create "${AUTOFIX_LABEL}" \
+            --description "Automated cargo audit dependency fix" \
+            --color "B60205" || true
+          gh pr edit "${pr_number}" --add-label "${AUTOFIX_LABEL}" --add-reviewer "${REVIEWER}"
+
+          {
+            echo "pr_number=${pr_number}"
+            echo "pr_url=${pr_url}"
+            echo "branch_name=${branch_name}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Cargo audit autofix PR"
+            echo ""
+            echo "- pr: ${pr_url}"
+            echo "- reviewer: \`${REVIEWER}\`"
+            echo "- label: \`${AUTOFIX_LABEL}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload autofix artifacts
+        if: always() && steps.existing_pr.outputs.found != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-audit-autofix
+          path: |
+            target/audit-input/audit.sarif
+            target/codex-workflow/prompts/cargo-audit-autofix.md
+            target/codex-workflow/output/**
+          if-no-files-found: warn

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cargo Audit Fix"
+  short_description: "Fix Rust dependency audit failures"
+  default_prompt: "Use $inspequte-cargo-audit-fix to update dependencies from a cargo audit SARIF report."
+policy:
+  allow_implicit_invocation: true
