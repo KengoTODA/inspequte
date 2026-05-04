@@ -142,6 +142,8 @@ jobs:
           private-key: ${{ secrets.PRIVATE_KEY }}
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Install Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
@@ -192,8 +194,8 @@ jobs:
           trace_id="$(basename "${trace_json}" .json)"
           trace_id="${trace_id#jaeger-trace-}"
 
-          npm install --no-save --no-package-lock playwright@1.53.0
-          npx playwright install --with-deps chromium
+          npm install --ignore-scripts --no-save --no-package-lock playwright@1.53.0
+          ./node_modules/.bin/playwright install --with-deps chromium
           screenshot_png="$(node scripts/capture-jaeger-trace-screenshot.mjs "${trace_id}")"
 
           .codex/skills/jaeger-spotbugs-benchmark/scripts/analyze-trace-json.sh "${trace_json}" \
