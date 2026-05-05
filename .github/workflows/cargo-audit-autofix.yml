@@ -38,7 +38,9 @@ jobs:
           EVENT_NAME: ${{ github.event.workflow_run.event }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          PR_HEAD_REF: ${{ github.event.workflow_run.pull_requests[0].head.ref }}
+          PR_HEAD_REPOSITORY: ${{ github.event.workflow_run.pull_requests[0].head.repo.full_name }}
+          PR_HEAD_SHA: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
           REPOSITORY: ${{ github.repository }}
           TRIGGER_RUN_URL: ${{ github.event.workflow_run.html_url }}
         shell: bash
@@ -57,11 +59,11 @@ jobs:
             checkout_ref="${HEAD_SHA}"
             source_ref="${DEFAULT_BRANCH}"
             source_kind="main"
-          elif [[ "${EVENT_NAME}" == "pull_request" && "${HEAD_REPOSITORY}" == "${REPOSITORY}" && -n "${HEAD_BRANCH}" ]]; then
+          elif [[ "${EVENT_NAME}" == "pull_request" && "${PR_HEAD_REPOSITORY}" == "${REPOSITORY}" && -n "${PR_HEAD_REF}" && -n "${PR_HEAD_SHA}" ]]; then
             eligible="true"
-            base_ref="${HEAD_BRANCH}"
-            checkout_ref="${HEAD_SHA}"
-            source_ref="${HEAD_BRANCH}"
+            base_ref="${PR_HEAD_REF}"
+            checkout_ref="${PR_HEAD_SHA}"
+            source_ref="${PR_HEAD_REF}"
             source_kind="internal-pr"
           fi
 
