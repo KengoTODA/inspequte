@@ -194,8 +194,32 @@ jobs:
           fi
           test -s target/audit-input/audit.sarif
 
-      - name: Write Codex prompt
+      - name: Check cargo audit findings
         if: steps.existing_pr.outputs.found != 'true'
+        id: audit_findings
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          result_count="$(ruby -rjson -e '
+            sarif = JSON.parse(File.read("target/audit-input/audit.sarif"))
+            puts sarif.fetch("runs", []).sum { |run| run.fetch("results", []).length }
+          ')"
+
+          if [[ "${result_count}" -gt 0 ]]; then
+            echo "has_findings=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "has_findings=false" >> "${GITHUB_OUTPUT}"
+            {
+              echo "## Cargo audit autofix"
+              echo ""
+              echo "- action: \`skipped\`"
+              echo "- reason: downloaded SARIF contains no results"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Write Codex prompt
+        if: steps.existing_pr.outputs.found != 'true' && steps.audit_findings.outputs.has_findings == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -224,7 +248,7 @@ jobs:
           PROMPT
 
       - name: Codex cargo audit autofix
-        if: steps.existing_pr.outputs.found != 'true'
+        if: steps.existing_pr.outputs.found != 'true' && steps.audit_findings.outputs.has_findings == 'true'
         uses: openai/codex-action@e0fdf01220eb9a88167c4898839d273e3f2609d1 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -235,7 +259,7 @@ jobs:
           codex-args: --full-auto
 
       - name: Check for dependency changes
-        if: steps.existing_pr.outputs.found != 'true'
+        if: steps.existing_pr.outputs.found != 'true' && steps.audit_findings.outputs.has_findings == 'true'
         id: diff
         shell: bash
         run: |
@@ -250,6 +274,34 @@ jobs:
               echo "- action: \`no-changes\`"
               echo "- reason: Codex did not produce dependency updates."
             } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Validate dependency-only changes
+        if: steps.existing_pr.outputs.found != 'true' && steps.diff.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          invalid_paths="$(git status --porcelain \
+            | sed -E 's/^...//; s/^.* -> //' \
+            | grep -Ev '^(Cargo\.toml|Cargo\.lock)$' || true)"
+
+          if [[ -n "${invalid_paths}" ]]; then
+            {
+              echo "Codex produced changes outside the dependency manifest allowlist:" >&2
+              echo "${invalid_paths}" >&2
+            }
+            {
+              echo "## Cargo audit autofix"
+              echo ""
+              echo "- action: \`failed\`"
+              echo "- reason: changes outside \`Cargo.toml\` / \`Cargo.lock\`"
+              echo ""
+              echo '```'
+              echo "${invalid_paths}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
           fi
 
       - name: Verify dependency update
@@ -296,7 +348,7 @@ jobs:
 
           branch_name="codex/cargo-audit-autofix-${GITHUB_RUN_ID}"
           git switch -c "${branch_name}"
-          git add -A
+          git add Cargo.toml Cargo.lock
           git commit -m "fix(deps): resolve cargo audit findings"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --set-upstream origin "${branch_name}"
@@ -320,19 +372,26 @@ jobs:
           gh label create "${AUTOFIX_LABEL}" \
             --description "Automated cargo audit dependency fix" \
             --color "B60205" || true
-          gh pr edit "${pr_number}" --add-label "${AUTOFIX_LABEL}" --add-reviewer "${REVIEWER}"
+          gh pr edit "${pr_number}" --add-label "${AUTOFIX_LABEL}"
+          if gh pr edit "${pr_number}" --add-reviewer "${REVIEWER}"; then
+            reviewer_status="requested"
+          else
+            reviewer_status="request-failed"
+            echo "Reviewer request for ${REVIEWER} failed; leaving the autofix PR open." >&2
+          fi
 
           {
             echo "pr_number=${pr_number}"
             echo "pr_url=${pr_url}"
             echo "branch_name=${branch_name}"
+            echo "reviewer_status=${reviewer_status}"
           } >> "${GITHUB_OUTPUT}"
 
           {
             echo "## Cargo audit autofix PR"
             echo ""
             echo "- pr: ${pr_url}"
-            echo "- reviewer: \`${REVIEWER}\`"
+            echo "- reviewer: \`${REVIEWER}\` (${reviewer_status})"
             echo "- label: \`${AUTOFIX_LABEL}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
