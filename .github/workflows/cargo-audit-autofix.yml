@@ -112,7 +112,7 @@ jobs:
     environment: codex
     permissions:
       actions: read
-      contents: write
+      contents: read
       issues: write
       pull-requests: write
     steps:
@@ -303,6 +303,13 @@ jobs:
             } >> "${GITHUB_STEP_SUMMARY}"
             exit 1
           fi
+
+      - name: Install Rust
+        if: steps.existing_pr.outputs.found != 'true' && steps.diff.outputs.has_changes == 'true'
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        if: steps.existing_pr.outputs.found != 'true' && steps.diff.outputs.has_changes == 'true'
 
       - name: Verify dependency update
         if: steps.existing_pr.outputs.found != 'true' && steps.diff.outputs.has_changes == 'true'
