@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.4](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.3...inspequte-v0.27.4) (2026-05-09)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate jsonschema to v0.46.4 ([#229](https://github.com/KengoTODA/inspequte/issues/229)) ([f156164](https://github.com/KengoTODA/inspequte/commit/f156164b9ef3281ef7d0e832bcad2c1766a97e8f))
+* **deps:** update rust crate reqwest to v0.13.3 ([#227](https://github.com/KengoTODA/inspequte/issues/227)) ([85fbe0b](https://github.com/KengoTODA/inspequte/commit/85fbe0b487e0ff989c04c18cbf4973215d72ce0b))
+
 ## [0.27.3](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.2...inspequte-v0.27.3) (2026-04-30)
 
 
