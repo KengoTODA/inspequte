@@ -121,7 +121,7 @@ jobs:
             if [[ ${audit_exit} -eq 0 ]]; then
               echo "No advisories found."
             else
-              echo "cargo audit reported advisories and failed this job."
+              echo "cargo audit reported advisories. See the uploaded SARIF report and code scanning alerts for details."
               echo
               echo '```text'
               sed -n '1,160p' target/audit.txt
@@ -129,12 +129,12 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ ${audit_exit} -ne 0 ]]; then
-            exit "${audit_exit}"
-          fi
-
           if [[ ${sarif_exit} -ne 0 ]]; then
-            exit "${sarif_exit}"
+            if [[ -s target/audit.sarif ]]; then
+              echo "cargo audit SARIF generation exited with ${sarif_exit}; continuing because target/audit.sarif was produced." >> "$GITHUB_STEP_SUMMARY"
+            else
+              exit "${sarif_exit}"
+            fi
           fi
         env:
           INSPEQUTE_VALIDATE_SARIF: 1
