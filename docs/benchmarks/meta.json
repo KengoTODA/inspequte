@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-09T11:11:42Z",
+  "generated_at_utc": "2026-06-07T08:37:15Z",
   "dataset": "all",
   "benchmark": {
     "warmup": 1,
@@ -7,9 +7,9 @@
   },
   "environment": {
     "os": "Linux",
-    "kernel": "6.17.0-1010-azure",
-    "cpu": "AMD EPYC 7763 64-Core Processor",
-    "java": "openjdk version \"21.0.10\" 2026-01-20 LTS"
+    "kernel": "6.17.0-1015-azure",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "java": "openjdk version \"21.0.11\" 2026-04-21 LTS"
   },
   "datasets": {
     "guava": {
@@ -18,7 +18,7 @@
       "source_source": "maven-central"
     },
     "sonarqube": {
-      "version": "26.4.0.121862",
+      "version": "26.6.0.123539",
       "binary_source": "maven-central",
       "source_source": "github-tags"
     }

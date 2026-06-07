@@ -7,13 +7,13 @@
 ## Methodology
 - Benchmark metric: median runtime (`hyperfine` JSON `median`).
 - Parameters: `--warmup 1`, `--min-runs 5`.
-- Generated at (UTC): `2026-05-09T11:11:42Z`.
+- Generated at (UTC): `2026-06-07T08:37:15Z`.
 
 ## Datasets
 - Library: Guava `33.6.0-jre`.
   - Binary input: Maven Central JAR.
   - Source input: Maven Central source JAR.
-- Application: SonarQube `26.4.0.121862`.
+- Application: SonarQube `26.6.0.123539`.
   - Binary input: Maven Central `sonar-application` ZIP.
   - Source input: GitHub tag source archive.
 
@@ -28,25 +28,25 @@
 
 Environment:
 - OS: `Linux`
-- Kernel: `6.17.0-1010-azure`
-- CPU: `AMD EPYC 7763 64-Core Processor`
-- Java: `openjdk version "21.0.10" 2026-01-20 LTS`
+- Kernel: `6.17.0-1015-azure`
+- CPU: `AMD EPYC 9V74 80-Core Processor`
+- Java: `openjdk version "21.0.11" 2026-04-21 LTS`
 
 ## Results: Guava
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| inspequte | 0.366 s | 0.367 s | 0.363 s | 0.374 s |
-| nullaway | 1.538 s | 1.542 s | 1.526 s | 1.565 s |
-| checker-framework | 2.363 s | 2.367 s | 2.332 s | 2.428 s |
-| pmd | 6.252 s | 6.280 s | 6.184 s | 6.397 s |
-| spotbugs | 25.550 s | 26.202 s | 23.840 s | 28.407 s |
+| inspequte | 0.403 s | 0.406 s | 0.401 s | 0.418 s |
+| nullaway | 1.546 s | 1.549 s | 1.518 s | 1.579 s |
+| checker-framework | 2.350 s | 2.336 s | 2.246 s | 2.378 s |
+| pmd | 5.860 s | 5.868 s | 5.799 s | 5.976 s |
+| spotbugs | 24.426 s | 24.694 s | 23.099 s | 26.660 s |
 
 ## Results: SonarQube
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| pmd | 16.514 s | 16.479 s | 16.007 s | 16.793 s |
-| inspequte | 19.547 s | 19.540 s | 19.479 s | 19.598 s |
-| spotbugs | 989.398 s | 992.815 s | 982.586 s | 1014.504 s |
+| pmd | 13.674 s | 13.721 s | 13.313 s | 14.114 s |
+| inspequte | 22.381 s | 22.441 s | 22.170 s | 22.900 s |
+| spotbugs | 1011.504 s | 1009.917 s | 1001.953 s | 1016.613 s |
 
 ## Caveats and Fairness
 - Rule sets are aligned to nullness intent, not full one-to-one semantic equivalence.
