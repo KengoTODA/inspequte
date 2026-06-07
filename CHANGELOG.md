@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.4...inspequte-v1.0.0) (2026-06-07)
+
+
+### Bug Fixes
+
+* **deps:** update opentelemetry-rust monorepo to 0.32 ([99a58ee](https://github.com/KengoTODA/inspequte/commit/99a58eeec3f64e7952e4900b53af0a254d613b4f))
+
+
+### Documentation
+
+* update README to remove project intention section ([eed936f](https://github.com/KengoTODA/inspequte/commit/eed936fb8d6f1995c5947d2bdee8b101963867a6))
+
 ## [0.27.4](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.3...inspequte-v0.27.4) (2026-05-09)
 
 
