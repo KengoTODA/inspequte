@@ -7,7 +7,7 @@ DATASET_VERSION_GUAVA="33.6.0-jre"
 DATASET_VERSION_SONARQUBE="26.6.0.123539"
 
 # renovate: datasource=github-releases depName=spotbugs/spotbugs
-TOOL_VERSION_SPOTBUGS="4.10.1"
+TOOL_VERSION_SPOTBUGS="4.10.2"
 # renovate: datasource=github-releases depName=pmd/pmd
 TOOL_VERSION_PMD="7.14.0"
 # renovate: datasource=github-releases depName=typetools/checker-framework
