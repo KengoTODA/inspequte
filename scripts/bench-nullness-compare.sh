@@ -15,12 +15,12 @@ TOOL_VERSION_CHECKER_FRAMEWORK="3.52.0"
 # renovate: datasource=maven depName=com.uber.nullaway:nullaway
 TOOL_VERSION_NULLAWAY="0.13.4"
 # renovate: datasource=maven depName=com.google.errorprone:error_prone_core
-TOOL_VERSION_ERROR_PRONE="2.49.0"
+TOOL_VERSION_ERROR_PRONE="2.50.0"
 
 # renovate: datasource=maven depName=org.jspecify:jspecify
 GUAVA_VERSION_JSPECIFY="1.0.0"
 # renovate: datasource=maven depName=com.google.errorprone:error_prone_annotations
-GUAVA_VERSION_ERROR_PRONE_ANNOTATIONS="2.49.0"
+GUAVA_VERSION_ERROR_PRONE_ANNOTATIONS="2.50.0"
 # renovate: datasource=maven depName=com.google.j2objc:j2objc-annotations
 GUAVA_VERSION_J2OBJC="3.1"
 
