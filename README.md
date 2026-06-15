@@ -229,7 +229,7 @@ Use the Gradle plugin in CI and install the CLI from GitHub Releases:
     distribution: temurin
     java-version: "21"
 - name: Setup Gradle
-  uses: gradle/actions/setup-gradle@v6.1.1
+  uses: gradle/actions/setup-gradle@v6.2.0
 - name: Run inspequte tasks
   run: ./gradlew check --no-daemon
 - name: Upload SARIF to GitHub Code Scanning (optional)
