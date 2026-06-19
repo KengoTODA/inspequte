@@ -224,7 +224,7 @@ Use the Gradle plugin in CI and install the CLI from GitHub Releases:
 - name: Install inspequte
   uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
 - name: Setup Java
-  uses: actions/setup-java@v5.2.0
+  uses: actions/setup-java@v5.3.0
   with:
     distribution: temurin
     java-version: "21"
