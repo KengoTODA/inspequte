@@ -29,7 +29,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7
       - name: Install inspequte
         uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
       - name: Setup Java
@@ -66,7 +66,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7
       - name: Install inspequte
         uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
       - name: Run inspequte
@@ -100,7 +100,7 @@ jobs:
     outputs:
       final_message: ${{ steps.run_codex.outputs.final-message }}
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
       - name: Pre-fetch base and head refs
