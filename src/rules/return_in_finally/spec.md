@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Return in finally'
+description: 'Return statements in finally blocks override exceptions or prior returns'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'RETURN_IN_FINALLY'
+---
+
 ## Summary
 - Rule ID: `return_in_finally`
 - Name: Return in finally

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Exception cause not preserved'
+description: 'Catch handlers that throw new exceptions without preserving the cause'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'EXCEPTION_CAUSE_NOT_PRESERVED'
+---
+
 ## Summary
 - Rule ID: `exception_cause_not_preserved`
 - Name: Exception cause not preserved

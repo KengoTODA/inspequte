@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Object.wait without timeout'
+description: 'Timeout-free Object.wait calls can block indefinitely'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'OBJECT_WAIT_WITHOUT_TIMEOUT'
+---
+
 # OBJECT_WAIT_WITHOUT_TIMEOUT
 
 ## Summary

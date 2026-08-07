@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Future wait while holding lock'
+description: 'Blocking Future waits should not happen while a lock is still held'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'FUTURE_WAIT_WHILE_HOLDING_LOCK'
+---
+
 # future_wait_while_holding_lock
 
 ## Summary

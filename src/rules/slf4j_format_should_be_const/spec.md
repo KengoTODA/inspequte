@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J format should be const'
+description: 'SLF4J format strings should be compile-time constants'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_FORMAT_SHOULD_BE_CONST'
+---
+
 # SLF4J_FORMAT_SHOULD_BE_CONST
 
 ## Summary

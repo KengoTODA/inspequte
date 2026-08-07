@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Insecure API usage'
+description: 'Calls to insecure process or reflection APIs'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'INSECURE_API'
+---
+
 # INSECURE_API
 
 ## Summary

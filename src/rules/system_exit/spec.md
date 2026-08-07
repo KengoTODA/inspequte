@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'System.exit call'
+description: 'Direct calls to System.exit(int) terminate the JVM abruptly'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SYSTEM_EXIT'
+---
+
 # SYSTEM_EXIT
 
 ## Summary
