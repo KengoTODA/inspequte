@@ -8,7 +8,7 @@ rule_id: 'EXCEPTION_CAUSE_NOT_PRESERVED'
 ---
 
 ## Summary
-- Rule ID: `exception_cause_not_preserved`
+- Rule ID: `EXCEPTION_CAUSE_NOT_PRESERVED`
 - Name: Exception cause not preserved
 - Description: Detects catch handlers that throw a new exception without preserving the caught exception as the cause.
 
