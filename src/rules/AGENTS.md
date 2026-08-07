@@ -64,6 +64,37 @@ Spec stability enables:
 - Reproducible behavior
 - Automatic documentation generation
 
+## OKF Metadata
+Each `spec.md` is an OKF v0.2 concept document. The generated `docs/rules/`
+directory is the distributable OKF bundle; `src/rules/` itself also contains
+plans and implementation files and is not a standalone bundle.
+
+Use this project profile at the start of every spec:
+
+```yaml
+---
+type: 'Static Analysis Rule'
+title: '<RuleMetadata.name>'
+description: '<RuleMetadata.description>'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: '<RuleMetadata.id>'
+---
+```
+
+- Keep `type` exactly `Static Analysis Rule`.
+- Keep `title`, `description`, and `rule_id` identical to the rule's Rust
+  `RuleMetadata`.
+- Keep `rule_id` in uppercase snake case and repeat it exactly in `## Summary`.
+- Keep `jvm` and `static-analysis` in `tags`; optional domain tags may follow.
+- Use only `draft`, `stable`, or `deprecated` for `status`.
+- Use quoted scalar values and an inline list so the dependency-free project
+  tooling can parse the profile consistently.
+
+Run `bash scripts/validate-rule-specs.sh` after changing a rule spec or its
+runtime metadata. Run `bash scripts/generate-rule-docs.sh` to rebuild the
+generated OKF bundle locally.
+
 ## Avoid
 - Modifying `spec.md` to justify implementation shortcuts.
 - Allowing implementation comments to redefine behavior.
