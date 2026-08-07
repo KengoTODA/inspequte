@@ -28,7 +28,7 @@ jobs:
           distribution: 'temurin'
           java-version-file: '.java-version'
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
       - name: Build and test Gradle plugin
         run: ./gradlew build --no-daemon
         working-directory: gradle-plugin
@@ -126,7 +126,7 @@ jobs:
           distribution: 'temurin'
           java-version-file: '.java-version'
       - name: Generate and submit Gradle dependency graph
-        uses: gradle/actions/dependency-submission@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6
+        uses: gradle/actions/dependency-submission@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
           build-root-directory: gradle-plugin
 
