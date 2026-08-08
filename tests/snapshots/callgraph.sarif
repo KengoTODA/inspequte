@@ -322,6 +322,13 @@
               }
             },
             {
+              "id": "RUN_BLOCKING_REACHABLE_FROM_COROUTINE",
+              "name": "runBlocking reachable from coroutine",
+              "shortDescription": {
+                "text": "runBlocking calls reachable from a coroutine through plain function calls block a shared coroutine thread"
+              }
+            },
+            {
               "id": "RUN_FINALIZATION_CALL",
               "name": "Explicit finalization trigger call",
               "shortDescription": {
