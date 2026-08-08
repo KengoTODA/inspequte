@@ -148,7 +148,7 @@ A Java class in the analysis target invokes `FlowKt.debounce(varOne, 200L)` dire
   `Call to <function> in <class>.<method><descriptor> passes a raw Long milliseconds value. Use the kotlin.time.Duration overload available on the classpath, for example <function>(500.milliseconds).`
 - `<function>` is the plain function name from the table (`delay`, `withTimeout`, `withTimeoutOrNull`, `debounce`, or `sample`).
 - Location is reported at the enclosing method logical location and, where available, the source line of the call site.
-- Findings are emitted in deterministic order, sorted by enclosing class name, method name, method descriptor, and call-site position.
+- Findings are emitted in deterministic order. Repeated calls to the same function in the same method are reported in call-site position order.
 
 ## Performance considerations
 - The call-site scan is linear in the instruction count of analysis target methods, with a constant-time match per call instruction.

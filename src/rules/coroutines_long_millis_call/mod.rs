@@ -59,13 +59,21 @@ impl Rule for CoroutinesLongMillisCallRule {
     }
 
     fn run(&self, context: &AnalysisContext) -> Result<Vec<SarifResult>> {
-        let class_index: BTreeMap<&str, &Class> = context
-            .all_classes()
-            .map(|class| (class.name.as_str(), class))
-            .collect();
+        // Index only the classes that can own a target call. The first matching
+        // class wins, so analysis target classes and earlier classpath artifacts
+        // take priority over later duplicates, mirroring classpath resolution.
+        let mut owner_classes: BTreeMap<&str, &Class> = BTreeMap::new();
+        for class in context.all_classes() {
+            let is_owner = TARGET_CALLS
+                .iter()
+                .any(|target| target.owner == class.name.as_str());
+            if is_owner {
+                owner_classes.entry(class.name.as_str()).or_insert(class);
+            }
+        }
         let available_targets: Vec<&TargetCall> = TARGET_CALLS
             .iter()
-            .filter(|target| duration_counterpart_available(target, &class_index))
+            .filter(|target| duration_counterpart_available(target, &owner_classes))
             .collect();
         if available_targets.is_empty() {
             return Ok(Vec::new());
@@ -155,9 +163,9 @@ struct RuleFinding {
 
 fn duration_counterpart_available(
     target: &TargetCall,
-    class_index: &BTreeMap<&str, &Class>,
+    owner_classes: &BTreeMap<&str, &Class>,
 ) -> bool {
-    let Some(owner) = class_index.get(target.owner) else {
+    let Some(owner) = owner_classes.get(target.owner) else {
         return false;
     };
     let mangled_prefix = format!("{}-", target.function);
@@ -168,6 +176,8 @@ fn duration_counterpart_available(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::engine::EngineOutput;
     use crate::test_harness::{CompileOutput, JvmTestHarness, Language, SourceFile};
 
@@ -178,6 +188,34 @@ mod tests {
             .filter(|result| result.rule_id.as_deref() == Some("COROUTINES_LONG_MILLIS_CALL"))
             .filter_map(|result| result.message.text.clone())
             .collect()
+    }
+
+    fn rule_start_lines(output: &EngineOutput) -> Vec<Option<i64>> {
+        output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("COROUTINES_LONG_MILLIS_CALL"))
+            .map(|result| {
+                result
+                    .locations
+                    .as_ref()
+                    .and_then(|locations| locations.first())
+                    .and_then(|location| location.physical_location.as_ref())
+                    .and_then(|physical| physical.region.as_ref())
+                    .and_then(|region| region.start_line)
+            })
+            .collect()
+    }
+
+    fn compile_and_analyze(
+        harness: &JvmTestHarness,
+        language: Language,
+        sources: &[SourceFile],
+        classpath: &[PathBuf],
+    ) -> EngineOutput {
+        harness
+            .compile_and_analyze(language, sources, classpath)
+            .expect("run harness analysis")
     }
 
     fn coroutines_stub_sources() -> Vec<SourceFile> {
@@ -346,9 +384,7 @@ suspend fun functionOne() {
             .to_string(),
         });
 
-        let output = harness
-            .compile_and_analyze(Language::Kotlin, &sources, &[])
-            .expect("run harness analysis");
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = rule_messages(&output);
         assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
         assert!(
@@ -382,9 +418,7 @@ suspend fun functionOne(): String {
             .to_string(),
         });
 
-        let output = harness
-            .compile_and_analyze(Language::Kotlin, &sources, &[])
-            .expect("run harness analysis");
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = rule_messages(&output);
         assert_eq!(messages.len(), 2, "expected two findings, got {messages:?}");
         assert_eq!(
@@ -425,9 +459,7 @@ fun functionTwo(varOne: Flow<Int>): Flow<Int> = varOne.sample(200)
             .to_string(),
         });
 
-        let output = harness
-            .compile_and_analyze(Language::Kotlin, &sources, &[])
-            .expect("run harness analysis");
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = rule_messages(&output);
         assert_eq!(messages.len(), 2, "expected two findings, got {messages:?}");
         assert!(
@@ -463,9 +495,7 @@ suspend fun functionOne() {
             .to_string(),
         });
 
-        let output = harness
-            .compile_and_analyze(Language::Kotlin, &sources, &[])
-            .expect("run harness analysis");
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = rule_messages(&output);
         assert!(
             messages.is_empty(),
@@ -536,13 +566,51 @@ fun functionTwo(varOne: Flow<Int>): Flow<Int> = varOne.debounce(200).sample(200)
             .to_string(),
         });
 
-        let output = harness
-            .compile_and_analyze(Language::Kotlin, &sources, &[])
-            .expect("run harness analysis");
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = rule_messages(&output);
         assert!(
             messages.is_empty(),
             "did not expect findings without Duration counterparts: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn coroutines_long_millis_call_ignores_mangled_method_with_different_descriptor() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![
+            SourceFile {
+                path: "kotlinx/coroutines/Delay.kt".to_string(),
+                contents: r#"
+@file:JvmName("DelayKt")
+
+package kotlinx.coroutines
+
+suspend fun delay(timeMillis: Long) {}
+
+fun `delay-abc`(timeMillis: Long) {}
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/FileTen.kt".to_string(),
+                contents: r#"
+package com.example
+
+import kotlinx.coroutines.delay
+
+suspend fun functionOne() {
+    delay(500)
+}
+"#
+                .to_string(),
+            },
+        ];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = rule_messages(&output);
+        assert!(
+            messages.is_empty(),
+            "did not expect findings when the dash-named method has a different descriptor: {messages:?}"
         );
     }
 
@@ -564,9 +632,7 @@ fun functionOne() {
             .to_string(),
         });
 
-        let output = harness
-            .compile_and_analyze(Language::Kotlin, &sources, &[])
-            .expect("run harness analysis");
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = rule_messages(&output);
         assert!(
             messages.is_empty(),
@@ -593,9 +659,7 @@ suspend fun functionOne() {
             .to_string(),
         });
 
-        let output = harness
-            .compile_and_analyze(Language::Kotlin, &sources, &[])
-            .expect("run harness analysis");
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
         let messages = rule_messages(&output);
         assert_eq!(messages.len(), 2, "expected two findings, got {messages:?}");
         assert!(
@@ -603,6 +667,11 @@ suspend fun functionOne() {
                 .iter()
                 .all(|message| message.contains("Call to delay in")),
             "both findings must name delay: {messages:?}"
+        );
+        assert_eq!(
+            rule_start_lines(&output),
+            vec![Some(7), Some(8)],
+            "findings must carry the call-site lines in call-site order"
         );
     }
 
@@ -635,13 +704,12 @@ class ClassA
             .to_string(),
         }];
 
-        let output = harness
-            .compile_and_analyze(
-                Language::Kotlin,
-                &app_sources,
-                &[dependency_classes.classes_dir().to_path_buf()],
-            )
-            .expect("run harness analysis");
+        let output = compile_and_analyze(
+            &harness,
+            Language::Kotlin,
+            &app_sources,
+            &[dependency_classes.classes_dir().to_path_buf()],
+        );
         let messages = rule_messages(&output);
         assert!(
             messages.is_empty(),
@@ -670,13 +738,12 @@ public class ClassA {
             .to_string(),
         }];
 
-        let output = harness
-            .compile_and_analyze(
-                Language::Java,
-                &app_sources,
-                &[stub_classes.classes_dir().to_path_buf()],
-            )
-            .expect("run harness analysis");
+        let output = compile_and_analyze(
+            &harness,
+            Language::Java,
+            &app_sources,
+            &[stub_classes.classes_dir().to_path_buf()],
+        );
         let messages = rule_messages(&output);
         assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
         assert!(

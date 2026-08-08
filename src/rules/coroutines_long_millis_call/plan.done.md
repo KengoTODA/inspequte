@@ -23,7 +23,7 @@ Scan all call sites in analysis target classes and report a finding for each cal
 | `kotlinx/coroutines/flow/FlowKt` | `debounce` | `(Lkotlinx/coroutines/flow/Flow;J)Lkotlinx/coroutines/flow/Flow;` |
 | `kotlinx/coroutines/flow/FlowKt` | `sample` | `(Lkotlinx/coroutines/flow/Flow;J)Lkotlinx/coroutines/flow/Flow;` |
 
-These descriptors were verified against the kotlinx-coroutines JVM API. `kotlin.time.Duration` is a value class whose JVM representation is `J`, so the Duration overloads compile to name-mangled methods (for example `delay-VtjQ1oo` on `kotlinx/coroutines/DelayKt`) with descriptors identical to the Long variants. Matching the plain (unmangled) name exactly therefore never matches a Duration call site; the mangled dash suffix is the only distinguishing feature, and exact plain-name matching excludes it by construction.
+These descriptors were verified against the kotlinx-coroutines JVM API. `kotlin.time.Duration` is a value class whose JVM representation is `J`, so the Duration overloads compile to name-mangled methods (for example `delay-VtjQ1oo` on `kotlinx/coroutines/DelayKt`) with descriptors identical to the Long variants. Matching the plain (unmangled) name exactly therefore never matches a Duration call site. The mangled dash suffix is the only distinguishing feature, and exact plain-name matching excludes it by construction.
 
 `kotlinx/coroutines/flow/FlowKt` is a `@JvmMultifileClass` facade in the real library. Kotlin-compiled call sites reference the facade, and the facade class file declares delegating static methods, so both the call-site match and the availability check below work against `FlowKt`.
 
@@ -48,41 +48,41 @@ No new engine-level framework flag (like `has_koin`) is needed. The availability
 **In scope:**
 - Exact-match call sites of the five triples above, in analysis target classes only.
 - Availability gate against the analysis classpath as described.
-- Kotlin- and Java-compiled call sites alike; the rule does not attempt source-language discrimination (see Non-goals and Risks).
+- Kotlin- and Java-compiled call sites alike. The rule does not attempt source-language discrimination (see Non-goals and Risks).
 
 **Non-goals:**
 - Other millis-based APIs: `Thread.sleep`, `Object.wait`, `kotlinx.coroutines.time.*` (java.time interop), `onTimeout` select clauses, `delay` on `Delay` implementations, `debounce`/`sample` selector-function overloads, or any API not in the table.
 - Argument-value analysis. No special-casing of constants such as `0L`, no unit inference, no data-flow on where the Long came from.
-- Suggesting a concrete Duration expression rewrite. The message is advisory; no fix generation.
+- Suggesting a concrete Duration expression rewrite. The message is advisory and generates no fix.
 - Reporting call sites inside dependency (classpath-only) classes.
 - Version detection beyond the mangled-counterpart existence check. No artifact-name or manifest parsing.
 - Annotation-based suppression: `@Suppress` / `@SuppressWarnings` semantics are not supported.
-- Annotation-driven semantics beyond JSpecify are out of scope; this rule uses no annotation semantics at all.
+- Annotation-driven semantics beyond JSpecify are out of scope. This rule uses no annotation semantics at all.
 
 ## Determinism constraints
 - Iterate analysis target classes, methods, and call sites in stable scan order.
-- Build the owner-class lookup from `all_classes()` into a `BTreeMap` (or perform a single deterministic pass); never depend on hash-map iteration order.
+- Build the owner-class lookup from `all_classes()` into a `BTreeMap` (or perform a single deterministic pass). Never depend on hash-map iteration order.
 - Sort findings by `(class name, method name, method descriptor, call-site offset)` before emitting.
-- Output depends only on the scanned class files; no environment or timing sensitivity.
+- Output depends only on the scanned class files, with no environment or timing sensitivity.
 
 ## Test strategy
 Use the existing kotlinc harness (`src/test_harness.rs`, `Language::Kotlin`) with stub Kotlin sources for the kotlinx.coroutines API compiled in-test, following the `koin_autocloseable_not_closed` `koin_stub_sources` precedent. Stubs pin JVM class names with `@file:JvmName` (one stub file per owner class, since `@JvmName` cannot be shared across files without multifile-class plumbing):
 
 - `DelayKt` stub: `suspend fun delay(timeMillis: Long)` plus `suspend fun delay(duration: kotlin.time.Duration)`.
-- `TimeoutKt` stub: `suspend fun <T> withTimeout(timeMillis: Long, block: suspend CoroutineScope.() -> T): T` and the `OrNull` variant, each with a Duration counterpart; plus a minimal `CoroutineScope` stub.
-- `FlowKt` stub: `fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T>` and `sample`, each with a Duration counterpart; plus a minimal `Flow` interface stub.
+- `TimeoutKt` stub: `suspend fun <T> withTimeout(timeMillis: Long, block: suspend CoroutineScope.() -> T): T` and the `OrNull` variant, each with a Duration counterpart, plus a minimal `CoroutineScope` stub.
+- `FlowKt` stub: `fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T>` and `sample`, each with a Duration counterpart, plus a minimal `Flow` interface stub.
 
-`kotlin.time.Duration` comes from the stdlib that kotlinc provides. The mangling suffix of stub-compiled Duration overloads may differ from the real library's; this is fine because the availability check matches on the `name-` prefix, not an exact mangled name.
+`kotlin.time.Duration` comes from the stdlib that kotlinc provides. The mangling suffix of stub-compiled Duration overloads may differ from the real library's. This is fine because the availability check matches on the `name-` prefix, not an exact mangled name.
 
 Compile stubs into a separate classes dir and pass it as the harness classpath so they are dependency classes, mirroring real usage. Where the availability gate must be varied between compile and analyze, call `harness.compile(...)` and `harness.analyze(...)` separately with different classpaths.
 
 Planned cases:
-- TP: suspend function calling `delay(500)`; expect one finding naming `delay`.
-- TP: `withTimeout(1_000) { ... }` and `withTimeoutOrNull(1_000) { ... }`; one finding each.
-- TP: `flow.debounce(200)` and `flow.sample(200)`; one finding each.
+- TP: suspend function calling `delay(500)`. Expect one finding naming `delay`.
+- TP: `withTimeout(1_000) { ... }` and `withTimeoutOrNull(1_000) { ... }`. One finding each.
+- TP: `flow.debounce(200)` and `flow.sample(200)`. One finding each.
 - TN: Duration-overload call sites (`delay(500.milliseconds)`, `debounce(200.milliseconds)`, ...) produce no findings (mangled names do not match).
-- TN (availability, old library): stubs compiled WITHOUT Duration overloads; Long call sites present, expect no findings.
-- TN (availability, unresolvable owner): compile target against stubs, then analyze with an empty classpath; expect no findings.
+- TN (availability, old library): stubs compiled WITHOUT Duration overloads. Long call sites are present and no findings are expected.
+- TN (availability, unresolvable owner): compile target against stubs, then analyze with an empty classpath. Expect no findings.
 - TN: an unrelated user-defined `delay(Long)` in a different owner class is not reported.
 - Edge: multiple matching calls in one method report deterministically ordered findings, one per call site.
 - Edge: call site in a classpath-only (dependency) class is not reported.
@@ -93,15 +93,15 @@ Planned cases:
 - No CFG traversal, no data-flow, no inter-procedural analysis.
 
 ## Risks
-- [ ] Old kotlinx-coroutines versions without Duration overloads. Mitigation: availability gate requires a mangled counterpart on the resolved owner class; unresolvable owner means no findings.
+- [ ] Old kotlinx-coroutines versions without Duration overloads. Mitigation: availability gate requires a mangled counterpart on the resolved owner class. An unresolvable owner means no findings.
 - [ ] Mangled suffixes drift across Kotlin/library versions and differ in test stubs. Mitigation: prefix match on `name-`, never exact mangled names.
-- [ ] Prefix check could match an unrelated future mangled overload and mis-report availability. Mitigation: low likelihood; spec phase may adopt the descriptor-equality tightening (Duration erases to `J`, so the counterpart descriptor equals the Long variant's).
-- [ ] `FlowKt` facade shape could differ in exotic builds (shading, relocation). Mitigation: exact owner match is the documented contract; relocated coroutines are out of scope and silently not reported due to the availability gate.
-- [ ] Java call sites (raw `Continuation` interop) would be reported although the Duration overload is awkward from Java. Accepted noise: such call sites are vanishingly rare and the rule performs no source-language discrimination; document in `spec.md`.
-- [ ] Intentional Long-API usage (for example values already held as millis from config). Accepted: the rule is advisory; message must stay actionable and name the exact function.
+- [ ] Prefix check could match an unrelated future mangled overload and mis-report availability. Mitigation: low likelihood. The spec phase may adopt the descriptor-equality tightening (Duration erases to `J`, so the counterpart descriptor equals the Long variant's).
+- [ ] `FlowKt` facade shape could differ in exotic builds (shading, relocation). Mitigation: exact owner match is the documented contract. Relocated coroutines are out of scope and silently not reported due to the availability gate.
+- [ ] Java call sites (raw `Continuation` interop) would be reported although the Duration overload is awkward from Java. Accepted noise: such call sites are vanishingly rare and the rule performs no source-language discrimination. This is documented in `spec.md`.
+- [ ] Intentional Long-API usage (for example values already held as millis from config). Accepted: the rule is advisory. The message must stay actionable and name the exact function.
 - [ ] Determinism regressions from unordered iteration. Mitigation: BTreeMap index and explicit `(class, method, descriptor, offset)` sort, matching the koin rule precedent.
 
 ## Post-mortem
 - Went well: value-class name mangling made the Long/Duration distinction unambiguous at bytecode level, so exact (owner, name, descriptor) matching plus a mangled-counterpart availability gate needed no CFG or dataflow.
-- Tricky: the kotlinc test-harness stubs get compiler-generated mangled suffixes that differ from the real library, and the classpath TempDir was dropped too early in one test iteration; both were resolved by prefix-based matching and keeping the CompileOutput alive.
+- Tricky: the kotlinc test-harness stubs get compiler-generated mangled suffixes that differ from the real library, and the classpath TempDir was dropped too early in one test iteration. Both were resolved by prefix-based matching and keeping the CompileOutput alive.
 - Follow-up: consider covering kotlinx.coroutines.time (java.time based) variants and selector-function debounce/sample overloads in a future rule revision.
