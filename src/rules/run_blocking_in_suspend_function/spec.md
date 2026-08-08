@@ -23,22 +23,21 @@ The rule reports calls to `kotlinx.coroutines.runBlocking` that occur inside com
 The rule reports a finding when all of the following hold.
 
 1. The enclosing method has the compiled `suspend` shape. Its final parameter type is `Lkotlin/coroutines/Continuation;` and its return type is `Ljava/lang/Object;`.
-2. The method contains a static call to owner `kotlinx/coroutines/BuildersKt` with one of these exact name and descriptor pairs.
-   - `runBlocking(Lkotlin/coroutines/CoroutineContext;Lkotlin/jvm/functions/Function2;)Ljava/lang/Object;`
-   - `runBlocking$default(Lkotlin/coroutines/CoroutineContext;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Ljava/lang/Object;`
+2. The method contains a static call to owner `kotlinx/coroutines/BuildersKt` whose method name starts with `runBlocking`. The JVM names kotlinc emits are `runBlocking` and the `runBlocking$default` bridge for kotlinx.coroutines up to 1.10.x. kotlinx.coroutines 1.11.0 renamed the Kotlin-visible facade with `@JvmName("runBlockingK")`, so newer call sites emit `runBlockingK` and `runBlockingK$default` instead. All of these names are matched.
 3. The enclosing class is part of the analysis target, not a classpath or dependency class.
 
-Both the no-context form `runBlocking { ... }` (compiled to the `runBlocking$default` bridge) and the explicit-context form `runBlocking(context) { ... }` (compiled to the full signature) are reported. Each matching call site produces exactly one finding.
+Both the no-context form `runBlocking { ... }` (compiled to a `$default` bridge) and the explicit-context form `runBlocking(context) { ... }` (compiled to the full signature) are reported. Each matching call site produces exactly one finding.
 
 When the analysis input contains no reference to kotlinx.coroutines, the rule produces no findings.
 
 ## What it does NOT detect
 - `runBlocking` calls in non-suspend methods. Entry points such as `main`, tests, and blocking bridge code are legitimate `runBlocking` call sites.
 - `runBlocking` calls inside suspend lambdas. The synthetic `invokeSuspend` bodies of compiler-generated lambda classes are out of scope for this version, so such calls are a documented false negative.
+- `runBlocking` used as a default parameter expression of a suspend function. Default argument evaluation compiles into the synthetic `$default` bridge of the enclosing function, whose trailing parameter is not a `Continuation`, so the bridge does not match the suspend shape. Such calls are a documented false negative.
 - Other blocking APIs inside suspend functions, such as `Thread.sleep`, `Future.get`, or blocking IO. Those are separate concerns.
 - Inter-procedural cases. A suspend function calling a non-suspend helper that itself calls `runBlocking` is not reported.
 - Actual deadlock proof or dispatcher analysis. The call site itself is the finding.
-- Calls named `runBlocking` on any owner other than `kotlinx/coroutines/BuildersKt`, or with a different descriptor.
+- Calls named `runBlocking` on any owner other than `kotlinx/coroutines/BuildersKt`.
 
 Annotation policy is as follows. `@Suppress`-style suppression (including `@Suppress` and `@SuppressWarnings`) is unsupported and never hides a finding. Annotation-driven semantics are JSpecify-only project-wide. This rule uses no annotation-driven semantics, and non-JSpecify annotations must not change its behavior.
 
@@ -118,12 +117,13 @@ Findings are deterministic. Running the same input twice produces identical find
 ## Acceptance criteria
 - A suspend function calling `runBlocking { ... }` without a context argument is reported (the `runBlocking$default` bridge shape).
 - A suspend function calling `runBlocking(context) { ... }` with an explicit context is reported (the full signature shape).
+- A suspend function calling `runBlocking` compiled against kotlinx.coroutines 1.11.0 or newer is reported (the `runBlockingK` and `runBlockingK$default` JVM names).
 - A non-suspend function calling `runBlocking { ... }` is not reported.
 - A suspend function using `withContext(...)` or plain suspending calls, with no `runBlocking`, is not reported.
 - `runBlocking` inside a suspend lambda passed to a coroutine builder is not reported.
 - Two `runBlocking` calls in one suspend function produce exactly two findings in call-site order.
 - An analysis input without kotlinx.coroutines references produces no findings.
-- Only calls whose owner is `kotlinx/coroutines/BuildersKt` with one of the two exact descriptors are reported.
+- Only static calls whose owner is `kotlinx/coroutines/BuildersKt` and whose name starts with `runBlocking` are reported.
 - Findings include class, method, descriptor, and source line when available, and use the message shape defined in `## Output`.
 - Repeated runs on the same input produce byte-identical findings and ordering.
 - `@Suppress`-style annotations do not suppress findings, and non-JSpecify annotations do not change behavior.

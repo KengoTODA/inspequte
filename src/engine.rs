@@ -366,47 +366,40 @@ fn detect_known_frameworks(
         if has_slf4j && has_log4j2 && has_koin && has_kotlinx_coroutines {
             break;
         }
-        if !has_slf4j || !has_log4j2 || !has_koin || !has_kotlinx_coroutines {
-            for field in &class.fields {
-                if !has_slf4j && contains_slf4j_type(&field.descriptor) {
-                    has_slf4j = true;
-                }
-                if !has_log4j2 && contains_log4j2_type(&field.descriptor) {
-                    has_log4j2 = true;
-                }
-                if !has_koin && contains_koin_type(&field.descriptor) {
-                    has_koin = true;
-                }
-                if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&field.descriptor) {
-                    has_kotlinx_coroutines = true;
-                }
+        for field in &class.fields {
+            if !has_slf4j && contains_slf4j_type(&field.descriptor) {
+                has_slf4j = true;
             }
-            for method in &class.methods {
-                if !has_slf4j && contains_slf4j_type(&method.descriptor) {
-                    has_slf4j = true;
-                }
-                if !has_log4j2 && contains_log4j2_type(&method.descriptor) {
-                    has_log4j2 = true;
-                }
-                if !has_koin && contains_koin_type(&method.descriptor) {
-                    has_koin = true;
-                }
-                if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&method.descriptor) {
-                    has_kotlinx_coroutines = true;
-                }
+            if !has_log4j2 && contains_log4j2_type(&field.descriptor) {
+                has_log4j2 = true;
+            }
+            if !has_koin && contains_koin_type(&field.descriptor) {
+                has_koin = true;
+            }
+            if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&field.descriptor) {
+                has_kotlinx_coroutines = true;
             }
         }
-        let mut references = class
+        for method in &class.methods {
+            if !has_slf4j && contains_slf4j_type(&method.descriptor) {
+                has_slf4j = true;
+            }
+            if !has_log4j2 && contains_log4j2_type(&method.descriptor) {
+                has_log4j2 = true;
+            }
+            if !has_koin && contains_koin_type(&method.descriptor) {
+                has_koin = true;
+            }
+            if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&method.descriptor) {
+                has_kotlinx_coroutines = true;
+            }
+        }
+        let references = class
             .referenced_classes
             .iter()
             .map(String::as_str)
-            .collect::<Vec<_>>();
-        if let Some(super_name) = class.super_name.as_deref() {
-            references.push(super_name);
-        }
-        for iface in &class.interfaces {
-            references.push(iface);
-        }
+            .chain(class.super_name.as_deref())
+            .chain(class.interfaces.iter().map(String::as_str));
         for reference in references {
             if !has_slf4j
                 && matches!(
@@ -777,6 +770,35 @@ mod tests {
 
         let context = build_context(classes, &artifacts);
         assert!(context.has_koin());
+    }
+
+    #[test]
+    fn build_context_detects_kotlinx_coroutines_from_super_and_interface_references() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: Some("java/lang/Object".to_string()),
+            interfaces: vec!["kotlinx/coroutines/CoroutineScope".to_string()],
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_kotlinx_coroutines());
     }
 
     #[test]

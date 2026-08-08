@@ -16,10 +16,10 @@ pub(crate) struct RunBlockingInSuspendFunctionRule;
 crate::register_rule!(RunBlockingInSuspendFunctionRule);
 
 const RUN_BLOCKING_OWNER: &str = "kotlinx/coroutines/BuildersKt";
-const RUN_BLOCKING_DESCRIPTOR: &str =
-    "(Lkotlin/coroutines/CoroutineContext;Lkotlin/jvm/functions/Function2;)Ljava/lang/Object;";
-const RUN_BLOCKING_DEFAULT_DESCRIPTOR: &str =
-    "(Lkotlin/coroutines/CoroutineContext;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Ljava/lang/Object;";
+/// Every compiled suspend method descriptor ends with the trailing Continuation
+/// parameter followed by the Object return type. Used as a cheap pre-filter; the
+/// parse in `is_compiled_suspend_shape` stays the authority.
+const COMPILED_SUSPEND_SUFFIX: &str = "Lkotlin/coroutines/Continuation;)Ljava/lang/Object;";
 
 impl Rule for RunBlockingInSuspendFunctionRule {
     fn metadata(&self) -> RuleMetadata {
@@ -37,13 +37,13 @@ impl Rule for RunBlockingInSuspendFunctionRule {
 
         let mut findings = Vec::new();
         for class in context.analysis_target_classes() {
+            let artifact_uri = context.class_artifact_uri(class);
             let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
-            if let Some(uri) = context.class_artifact_uri(class) {
-                attributes.push(KeyValue::new("inspequte.artifact_uri", uri));
+            if let Some(uri) = &artifact_uri {
+                attributes.push(KeyValue::new("inspequte.artifact_uri", uri.clone()));
             }
             let class_findings =
                 context.with_span("scan.class", &attributes, || -> Vec<RuleFinding> {
-                    let artifact_uri = context.class_artifact_uri(class);
                     let mut class_findings = Vec::new();
                     for method in &class.methods {
                         if !is_compiled_suspend_shape(&method.descriptor) {
@@ -74,6 +74,7 @@ impl Rule for RunBlockingInSuspendFunctionRule {
                 .then(left.method_name.cmp(&right.method_name))
                 .then(left.method_descriptor.cmp(&right.method_descriptor))
                 .then(left.offset.cmp(&right.offset))
+                .then(left.artifact_uri.cmp(&right.artifact_uri))
         });
 
         Ok(findings
@@ -100,7 +101,6 @@ impl Rule for RunBlockingInSuspendFunctionRule {
 }
 
 /// Intermediate finding used to sort results deterministically before SARIF conversion.
-#[derive(Clone, Debug, Eq, PartialEq)]
 struct RuleFinding {
     class_name: String,
     method_name: String,
@@ -111,6 +111,13 @@ struct RuleFinding {
 }
 
 fn is_compiled_suspend_shape(descriptor: &str) -> bool {
+    // Cheap constant-time pre-filter: every compiled suspend shape ends with the
+    // trailing Continuation parameter plus the Object return. The parse below stays
+    // as the authority; it rejects arrays ("[Lkotlin/...") and class names that
+    // merely end with the suffix (e.g. "LmyLkotlin/coroutines/Continuation;").
+    if !descriptor.ends_with(COMPILED_SUSPEND_SUFFIX) {
+        return false;
+    }
     let Ok(parsed) = MethodDescriptor::from_str(descriptor) else {
         return false;
     };
@@ -124,12 +131,19 @@ fn is_compiled_suspend_shape(descriptor: &str) -> bool {
     )
 }
 
+/// Matches static `BuildersKt` calls whose name starts with `runBlocking`.
+///
+/// kotlinc emits `runBlocking` and the `runBlocking$default` bridge for
+/// kotlinx.coroutines up to 1.10.x. kotlinx.coroutines 1.11.0 renamed the
+/// Kotlin-visible JVM facade with `@JvmName("runBlockingK")`, so newer call
+/// sites emit `runBlockingK` and `runBlockingK$default` instead. Matching by
+/// owner, kind, and name prefix covers all of these and is drift-proof; the
+/// facade is library-owned, so every `runBlocking*` method on it blocks the
+/// calling thread.
 fn is_run_blocking_call(call: &CallSite) -> bool {
     call.kind == CallKind::Static
         && call.owner == RUN_BLOCKING_OWNER
-        && ((call.name == "runBlocking" && call.descriptor == RUN_BLOCKING_DESCRIPTOR)
-            || (call.name == "runBlocking$default"
-                && call.descriptor == RUN_BLOCKING_DEFAULT_DESCRIPTOR))
+        && call.name.starts_with("runBlocking")
 }
 
 #[cfg(test)]
@@ -149,6 +163,11 @@ mod tests {
             .filter_map(|result| result.message.text.clone())
             .collect()
     }
+
+    const RUN_BLOCKING_DESCRIPTOR: &str =
+        "(Lkotlin/coroutines/CoroutineContext;Lkotlin/jvm/functions/Function2;)Ljava/lang/Object;";
+    const RUN_BLOCKING_DEFAULT_DESCRIPTOR: &str =
+        "(Lkotlin/coroutines/CoroutineContext;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Ljava/lang/Object;";
 
     fn coroutines_stub_source() -> SourceFile {
         SourceFile {
@@ -172,6 +191,31 @@ suspend fun <T> withContext(context: CoroutineContext, block: suspend CoroutineS
 }
 
 fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
+}
+"#
+            .to_string(),
+        }
+    }
+
+    /// Mirrors kotlinx.coroutines 1.11.0+, where the Kotlin-visible runBlocking
+    /// carries @JvmName("runBlockingK"), so Kotlin call sites emit the
+    /// runBlockingK and runBlockingK$default JVM names.
+    fn coroutines_jvm_name_stub_source() -> SourceFile {
+        SourceFile {
+            path: "kotlinx/coroutines/Builders.kt".to_string(),
+            contents: r#"
+@file:JvmName("BuildersKt")
+
+package kotlinx.coroutines
+
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+
+interface CoroutineScope
+
+@JvmName("runBlockingK")
+fun <T> runBlocking(context: CoroutineContext = EmptyCoroutineContext, block: suspend CoroutineScope.() -> T): T {
+    throw UnsupportedOperationException("stub")
 }
 "#
             .to_string(),
@@ -213,7 +257,7 @@ fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
     }
 
     #[test]
-    fn is_run_blocking_call_requires_exact_owner_name_and_descriptor() {
+    fn is_run_blocking_call_requires_builders_kt_owner_and_static_kind() {
         let call = |owner: &str, name: &str, descriptor: &str, kind: CallKind| CallSite {
             owner: owner.to_string(),
             name: name.to_string(),
@@ -234,6 +278,26 @@ fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
             RUN_BLOCKING_DEFAULT_DESCRIPTOR,
             CallKind::Static,
         )));
+        // kotlinx.coroutines 1.11.0+ emits the @JvmName("runBlockingK") facade.
+        assert!(is_run_blocking_call(&call(
+            RUN_BLOCKING_OWNER,
+            "runBlockingK",
+            RUN_BLOCKING_DESCRIPTOR,
+            CallKind::Static,
+        )));
+        assert!(is_run_blocking_call(&call(
+            RUN_BLOCKING_OWNER,
+            "runBlockingK$default",
+            RUN_BLOCKING_DEFAULT_DESCRIPTOR,
+            CallKind::Static,
+        )));
+        // The descriptor is not part of the contract; only owner, kind, and name are.
+        assert!(is_run_blocking_call(&call(
+            RUN_BLOCKING_OWNER,
+            "runBlocking",
+            RUN_BLOCKING_DEFAULT_DESCRIPTOR,
+            CallKind::Static,
+        )));
         assert!(!is_run_blocking_call(&call(
             "com/example/ClassBKt",
             "runBlocking",
@@ -244,12 +308,6 @@ fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
             RUN_BLOCKING_OWNER,
             "withContext",
             RUN_BLOCKING_DESCRIPTOR,
-            CallKind::Static,
-        )));
-        assert!(!is_run_blocking_call(&call(
-            RUN_BLOCKING_OWNER,
-            "runBlocking",
-            RUN_BLOCKING_DEFAULT_DESCRIPTOR,
             CallKind::Static,
         )));
         assert!(!is_run_blocking_call(&call(
@@ -361,6 +419,43 @@ suspend fun methodB(context: CoroutineContext): String = runBlocking(context) {
         assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
         assert!(messages[0].contains("methodB"));
         assert!(messages[0].contains("runBlocking in suspend function"));
+    }
+
+    #[test]
+    fn run_blocking_in_suspend_function_reports_jvm_name_renamed_bridge_calls() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![
+            coroutines_jvm_name_stub_source(),
+            SourceFile {
+                path: "com/example/ClassI.kt".to_string(),
+                contents: r#"
+package com.example
+
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.runBlocking
+
+fun loadValue(): String = "value"
+
+suspend fun methodA(): String = runBlocking {
+    loadValue()
+}
+
+suspend fun methodB(context: CoroutineContext): String = runBlocking(context) {
+    loadValue()
+}
+"#
+                .to_string(),
+            },
+        ];
+
+        let output = compile_and_analyze(&harness, sources, &[]);
+        let messages = rule_messages(&output);
+        assert_eq!(
+            messages.len(),
+            2,
+            "expected findings for the runBlockingK and runBlockingK$default bridges, got {messages:?}"
+        );
+        assert!(messages.iter().all(|message| message.contains("ClassIKt")));
     }
 
     #[test]
@@ -487,6 +582,33 @@ suspend fun methodE() {
         let messages = rule_messages(&output);
         assert_eq!(messages.len(), 2, "expected two findings, got {messages:?}");
         assert!(messages.iter().all(|message| message.contains("methodE")));
+        // The two messages are identical, so call-site order is only observable
+        // through the location lines. Assert they are ascending.
+        let start_lines: Vec<Option<i64>> = output
+            .results
+            .iter()
+            .filter(|result| {
+                result.rule_id.as_deref() == Some("RUN_BLOCKING_IN_SUSPEND_FUNCTION")
+            })
+            .map(|result| {
+                result
+                    .locations
+                    .iter()
+                    .flatten()
+                    .filter_map(|location| location.physical_location.as_ref())
+                    .filter_map(|physical| physical.region.as_ref())
+                    .find_map(|region| region.start_line)
+            })
+            .collect();
+        assert_eq!(start_lines.len(), 2);
+        assert!(
+            start_lines[0].is_some() && start_lines[1].is_some(),
+            "expected source lines on both findings: {start_lines:?}"
+        );
+        assert!(
+            start_lines[0] < start_lines[1],
+            "expected findings in ascending call-site order: {start_lines:?}"
+        );
     }
 
     #[test]
