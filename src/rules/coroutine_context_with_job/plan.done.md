@@ -81,3 +81,8 @@ Tests compile Kotlin sources through the existing test harness (`Language::Kotli
 - [ ] False negatives from the intra-procedural limit (jobs from fields, parameters, or helper methods). Accepted for v1 and documented as non-goals in `spec.md`.
 - [ ] False positives if a tracked factory result is combined into a context that is only used for legitimate scope construction. Mitigation: taint flows are checked at the builder call argument, and `CoroutineScope(...)` sinks are explicitly not reported.
 - [ ] Builder facades differ across kotlinx-coroutines versions (for example channels package history for `actor`). Mitigation: pin the supported owner names in `spec.md` and add version notes if e2e targets reveal drift.
+
+## Post-mortem
+- What went well: the shared `src/dataflow` StackMachine and the Koin rule's Kotlin harness patterns transferred directly, and verify returned Go on the first iteration with all 12 acceptance criteria evidenced by tests.
+- What was tricky: kotlinc inserts `checkcast kotlin/coroutines/CoroutineContext` between the Job factory and the builder call, so the rule needed a checkcast-preserving semantics hook plus descriptor-based `invokedynamic` stack modeling to keep argument slots accurate.
+- Follow-ups: consider modeling void-returning invokedynamic sites in the shared transfer logic, and revisit intra-procedural false negatives (jobs from fields or helper methods) if real-world scans show demand.
