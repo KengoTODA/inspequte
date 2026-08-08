@@ -81,3 +81,8 @@ Use the Kotlin test harness (`Language::Kotlin`) with kotlinx stubs via `@file:J
 - [ ] kotlinx.coroutines version drift could change the `runBlocking$default` bridge shape. Mitigation: match both listed signatures exactly and cover both in tests.
 - [ ] Kotlin stubs in the harness must compile to the exact `BuildersKt` facade signatures. Mitigation: assert the expected call shape in fixtures; reuse the proven `@file:JvmName` facade pattern.
 - [ ] Engine gate change touches shared `detect_known_frameworks` (tuple return grows). Mitigation: mirror the `has_koin` wiring exactly and extend existing engine tests.
+
+## Post-mortem
+- What went well: the no-dataflow call-site plus method-shape design kept the rule small, and verify returned Go on the first iteration with all acceptance criteria backed by tests.
+- What was tricky: the plan initially recorded the runBlocking context parameter as kotlinx/coroutines/CoroutineContext; the spec phase caught that the correct descriptor is kotlin/coroutines/CoroutineContext, and stub fixtures were validated against real kotlinc output.
+- Follow-ups: consider attributing invokeSuspend bodies of SuspendLambda subclasses to their creating context so runBlocking inside suspend lambdas can be reported, and unify the has_kotlinx_coroutines gate when PR #289 merges.
