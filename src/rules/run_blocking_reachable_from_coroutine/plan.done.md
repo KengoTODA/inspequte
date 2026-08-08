@@ -259,3 +259,16 @@ Generic class and method names per harness guidelines.
 - [ ] Performance on large inputs. Graph build is linear but adds one index
   over all target methods. Mitigation: gate on kotlinx detection so non-Kotlin
   projects pay nothing.
+
+## Post-mortem
+
+- The spec phase caught a factual error in this plan. Suspend function
+  `$default` bridges append mask parameters after the Continuation, so the
+  trailing-Continuation heuristic does not match them. They are documented as
+  an accepted false negative instead of roots.
+- The engine builds no call graph despite its `call_graph_*` telemetry keys,
+  so the rule builds reachability locally. Verify passed on the first
+  iteration with non-blocking findings only.
+- Compiling the kotlinx stub facades to a classpath directory instead of the
+  analysis target set kept the stubs' own `runBlocking$default` bridge from
+  surfacing as a fixture-artifact finding.
