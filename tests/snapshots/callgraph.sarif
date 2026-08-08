@@ -91,6 +91,13 @@
               }
             },
             {
+              "id": "COROUTINE_CONTEXT_WITH_JOB",
+              "name": "Coroutine context with Job",
+              "shortDescription": {
+                "text": "Coroutine builder and withContext calls that pass a CoroutineContext containing a Job element break structured concurrency"
+              }
+            },
+            {
               "id": "DELETE_ON_EXIT_CALL",
               "name": "File.deleteOnExit call",
               "shortDescription": {
