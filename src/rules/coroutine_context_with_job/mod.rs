@@ -8,7 +8,7 @@ use serde_sarif::sarif::Result as SarifResult;
 
 use crate::dataflow::opcode_semantics::{
     ApplyOutcome, SemanticsCoverage, SemanticsDebugConfig, SemanticsHooks, ValueDomain,
-    apply_semantics, emit_opcode_semantics_summary_event, opcode_semantics_debug_enabled,
+    apply_semantics, opcode_semantics_debug_enabled,
 };
 use crate::dataflow::stack_machine::StackMachine;
 use crate::engine::AnalysisContext;
@@ -41,8 +41,6 @@ impl Rule for CoroutineContextWithJobRule {
             return Ok(Vec::new());
         }
 
-        let debug_enabled = opcode_semantics_debug_enabled();
-        let mut rule_coverage = SemanticsCoverage::default();
         let mut findings = Vec::new();
         for class in context.analysis_target_classes() {
             let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
@@ -59,10 +57,11 @@ impl Rule for CoroutineContextWithJobRule {
                         if method.bytecode.is_empty() {
                             continue;
                         }
-                        let analysis =
-                            analyze_method(&class.name, method, artifact_uri.as_deref())?;
-                        rule_coverage.merge_from(&analysis.coverage);
-                        class_findings.extend(analysis.findings);
+                        class_findings.extend(analyze_method(
+                            &class.name,
+                            method,
+                            artifact_uri.as_deref(),
+                        )?);
                     }
                     Ok(class_findings)
                 },
@@ -77,10 +76,6 @@ impl Rule for CoroutineContextWithJobRule {
                 .then(left.method_descriptor.cmp(&right.method_descriptor))
                 .then(left.offset.cmp(&right.offset))
         });
-
-        if debug_enabled && rule_coverage.fallback_not_handled > 0 {
-            emit_opcode_semantics_summary_event(RULE_ID, &rule_coverage);
-        }
 
         Ok(findings
             .into_iter()
@@ -171,12 +166,6 @@ struct RuleFinding {
     message: String,
 }
 
-/// Method-level analysis output with coverage summary for debug telemetry events.
-struct MethodAnalysis {
-    findings: Vec<RuleFinding>,
-    coverage: SemanticsCoverage,
-}
-
 /// Cached descriptor summary used to avoid repeated parse work in invoke handling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct CallDescriptorSummary {
@@ -189,7 +178,7 @@ fn analyze_method(
     class_name: &str,
     method: &Method,
     artifact_uri: Option<&str>,
-) -> Result<MethodAnalysis> {
+) -> Result<Vec<RuleFinding>> {
     let instructions = collect_instructions(method);
     let mut findings = Vec::new();
     let mut machine = StackMachine::new(TrackedValue::Unknown);
@@ -253,7 +242,7 @@ fn analyze_method(
         }
     }
 
-    Ok(MethodAnalysis { findings, coverage })
+    Ok(findings)
 }
 
 fn finding_message(
@@ -379,7 +368,8 @@ fn call_descriptor_summary<'a>(
 mod tests {
     use super::*;
     use crate::engine::{EngineOutput, build_context};
-    use crate::ir::Class;
+    use crate::descriptor::method_param_count;
+    use crate::ir::{BasicBlock, Class, ControlFlowGraph, MethodAccess, MethodNullness};
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
     fn rule_messages(output: &EngineOutput) -> Vec<String> {
@@ -878,5 +868,126 @@ fun funOne(scope: CoroutineScope) {
             message.starts_with("actor call in com/example/ClassAKt.funOne")
                 && message.contains("created by SupervisorJob()")
         }));
+    }
+
+    #[test]
+    fn coroutine_context_with_job_tracks_context_across_invokedynamic() {
+        let sources = sources_with(
+            r#"
+package com.example
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+
+fun funOne(scope: CoroutineScope) {
+    val varOne = Runnable { }
+    varOne.run()
+    scope.launch(Job()) { }
+}
+"#,
+        );
+        let messages = rule_messages(&compile_and_analyze(sources));
+        assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
+        assert!(messages[0].starts_with("launch call in com/example/ClassAKt.funOne"));
+    }
+
+    fn synthetic_method(name: &str, bytecode: Vec<u8>, cfg: ControlFlowGraph) -> Method {
+        Method {
+            name: name.to_string(),
+            descriptor: "()V".to_string(),
+            signature: None,
+            access: MethodAccess {
+                is_public: true,
+                is_static: true,
+                is_synchronized: false,
+                is_abstract: false,
+                is_synthetic: false,
+                is_bridge: false,
+            },
+            nullness: MethodNullness::unknown(method_param_count("()V").expect("param count")),
+            type_use: None,
+            bytecode,
+            line_numbers: Vec::new(),
+            cfg,
+            calls: Vec::new(),
+            string_literals: Vec::new(),
+            exception_handlers: Vec::new(),
+            local_variables: Vec::new(),
+            local_variable_types: Vec::new(),
+        }
+    }
+
+    fn synthetic_class(methods: Vec<Method>) -> Class {
+        Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: vec!["kotlinx/coroutines/BuildersKt".to_string()],
+            fields: Vec::new(),
+            methods,
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }
+    }
+
+    #[test]
+    fn coroutine_context_with_job_skips_methods_without_bytecode() {
+        let cfg = ControlFlowGraph {
+            blocks: Vec::new(),
+            edges: Vec::new(),
+        };
+        let context = build_context(
+            vec![synthetic_class(vec![synthetic_method(
+                "methodX",
+                Vec::new(),
+                cfg,
+            )])],
+            &[],
+        );
+
+        assert!(context.has_kotlinx_coroutines());
+        let results = CoroutineContextWithJobRule
+            .run(&context)
+            .expect("run rule over bytecode-less method");
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn coroutine_context_with_job_propagates_malformed_call_descriptor_error() {
+        let cfg = ControlFlowGraph {
+            blocks: vec![BasicBlock {
+                start_offset: 0,
+                end_offset: 3,
+                instructions: vec![Instruction {
+                    offset: 0,
+                    opcode: opcodes::INVOKESTATIC,
+                    kind: InstructionKind::Invoke(CallSite {
+                        owner: "com/example/ClassB".to_string(),
+                        name: "methodY".to_string(),
+                        descriptor: "(broken".to_string(),
+                        kind: CallKind::Static,
+                        offset: 0,
+                    }),
+                }],
+            }],
+            edges: Vec::new(),
+        };
+        let context = build_context(
+            vec![synthetic_class(vec![synthetic_method(
+                "methodX",
+                vec![0],
+                cfg,
+            )])],
+            &[],
+        );
+
+        let error = CoroutineContextWithJobRule
+            .run(&context)
+            .expect_err("malformed call descriptor must surface as an error");
+        assert!(error.to_string().contains("parse call descriptor"));
     }
 }

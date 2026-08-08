@@ -712,6 +712,47 @@ mod tests {
     }
 
     #[test]
+    fn build_context_detects_kotlinx_coroutines_from_field_descriptor() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: None,
+            interfaces: Vec::new(),
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: vec![Field {
+                name: "varOne".to_string(),
+                descriptor: "Lkotlinx/coroutines/Job;".to_string(),
+                signature: None,
+                type_use: None,
+                access: FieldAccess {
+                    is_static: false,
+                    is_private: true,
+                    is_final: true,
+                    is_volatile: false,
+                },
+            }],
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_kotlinx_coroutines());
+        assert!(!context.has_koin());
+    }
+
+    #[test]
     fn build_context_detects_kotlinx_coroutines_from_referenced_classes() {
         let classes = vec![Class {
             name: "com/example/ClassA".to_string(),
