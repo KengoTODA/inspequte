@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Explicit GC call'
+description: 'Direct calls to explicit GC APIs should be avoided'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'EXPLICIT_GC_CALL'
+---
+
 # EXPLICIT_GC_CALL
 
 ## Summary

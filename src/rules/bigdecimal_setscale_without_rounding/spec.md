@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'BigDecimal setScale without rounding'
+description: 'BigDecimal.setScale(int) can throw when rounding is required'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'BIGDECIMAL_SET_SCALE_WITHOUT_ROUNDING'
+---
+
 # BIGDECIMAL_SET_SCALE_WITHOUT_ROUNDING
 
 ## Summary

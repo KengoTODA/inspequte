@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'URL hashCode call'
+description: 'URL.hashCode may trigger host resolution and surprising hash semantics'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'URL_HASHCODE_CALL'
+---
+
 # URL_HASHCODE_CALL
 
 ## Summary

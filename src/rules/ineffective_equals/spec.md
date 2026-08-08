@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Ineffective equals/hashCode'
+description: 'Classes with equals without hashCode or vice versa'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'INEFFECTIVE_EQUALS_HASHCODE'
+---
+
 # INEFFECTIVE_EQUALS_HASHCODE
 
 ## Summary

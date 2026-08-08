@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Koin AutoCloseable not closed'
+description: 'Koin singleton definitions that construct AutoCloseable resources should close them via onClose'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'KOIN_AUTOCLOSEABLE_NOT_CLOSED'
+---
+
 # KOIN_AUTOCLOSEABLE_NOT_CLOSED
 
 ## Summary

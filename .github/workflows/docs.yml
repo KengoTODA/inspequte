@@ -27,6 +27,8 @@ jobs:
           python-version: "3.x"
       - name: Install MkDocs
         run: python -m pip install --disable-pip-version-check -r docs/requirements.txt
+      - name: Validate Rule Specs
+        run: bash scripts/validate-rule-specs.sh
       - name: Generate Rule Docs
         run: bash scripts/generate-rule-docs.sh
       - name: Copy JSON Schemas

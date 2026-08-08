@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'String trim followed by isEmpty'
+description: 'String.trim().isEmpty() can be ambiguous; prefer String.isBlank()'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'STRING_TRIM_IS_EMPTY'
+---
+
 # STRING_TRIM_IS_EMPTY
 
 ## Summary

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'InterruptedException not properly handled'
+description: 'Restore interrupt status when catching InterruptedException'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'INTERRUPTED_EXCEPTION_NOT_RESTORED'
+---
+
 # INTERRUPTED_EXCEPTION_NOT_RESTORED
 
 ## Summary

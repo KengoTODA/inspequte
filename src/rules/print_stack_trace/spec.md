@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Direct printStackTrace call'
+description: 'Throwable.printStackTrace should be replaced with structured logging'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'PRINT_STACK_TRACE'
+---
+
 # PRINT_STACK_TRACE
 
 ## Summary

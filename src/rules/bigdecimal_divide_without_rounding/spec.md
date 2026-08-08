@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'BigDecimal divide without rounding'
+description: 'BigDecimal.divide(BigDecimal) can throw on non-terminating decimals'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'BIGDECIMAL_DIVIDE_WITHOUT_ROUNDING'
+---
+
 # BIGDECIMAL_DIVIDE_WITHOUT_ROUNDING
 
 ## Summary

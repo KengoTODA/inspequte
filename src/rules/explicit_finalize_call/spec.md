@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Explicit finalize call'
+description: 'Direct virtual calls to finalize() bypass GC lifecycle and indicate broken resource cleanup'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'EXPLICIT_FINALIZE_CALL'
+---
+
 # EXPLICIT_FINALIZE_CALL
 
 ## Summary

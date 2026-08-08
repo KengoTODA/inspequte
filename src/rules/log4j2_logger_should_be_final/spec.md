@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Log4j2 logger should be final'
+description: 'Log4j2 Logger fields should be final'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOG4J2_LOGGER_SHOULD_BE_FINAL'
+---
+
 # LOG4J2_LOGGER_SHOULD_BE_FINAL
 
 ## Summary

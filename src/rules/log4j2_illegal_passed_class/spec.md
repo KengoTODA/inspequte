@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Log4j2 illegal passed class'
+description: 'LogManager.getLogger should be called with the caller class'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOG4J2_ILLEGAL_PASSED_CLASS'
+---
+
 # LOG4J2_ILLEGAL_PASSED_CLASS
 
 ## Summary
