@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Long.getLong call'
+description: 'Long.getLong reads system properties, not numeric input strings'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LONG_GETLONG_CALL'
+---
+
 # LONG_GETLONG_CALL
 
 ## Summary

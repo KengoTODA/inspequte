@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Log4j2 preformatted message'
+description: 'Log4j2 messages should use placeholders instead of manual formatting'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOG4J2_MANUALLY_PROVIDED_MESSAGE'
+---
+
 # LOG4J2_MANUALLY_PROVIDED_MESSAGE
 
 ## Summary

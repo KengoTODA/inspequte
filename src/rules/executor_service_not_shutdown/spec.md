@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'ExecutorService not shut down'
+description: 'Locally created executor services should be shut down on every exit path'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'EXECUTOR_SERVICE_NOT_SHUTDOWN'
+---
+
 # EXECUTOR_SERVICE_NOT_SHUTDOWN
 
 ## Summary

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Nullness checks'
+description: 'Nullness issues guided by JSpecify annotations'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'NULLNESS'
+---
+
 # NULLNESS
 
 ## Summary

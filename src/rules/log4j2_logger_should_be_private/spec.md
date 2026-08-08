@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Log4j2 logger should be private'
+description: 'Log4j2 Logger fields should be private'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOG4J2_LOGGER_SHOULD_BE_PRIVATE'
+---
+
 # LOG4J2_LOGGER_SHOULD_BE_PRIVATE
 
 ## Summary

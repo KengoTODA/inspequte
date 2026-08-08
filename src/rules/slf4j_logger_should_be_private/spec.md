@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J logger should be private'
+description: 'SLF4J Logger fields should be private'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_LOGGER_SHOULD_BE_PRIVATE'
+---
+
 # SLF4J_LOGGER_SHOULD_BE_PRIVATE
 
 ## Summary
