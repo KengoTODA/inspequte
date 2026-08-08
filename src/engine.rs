@@ -366,34 +366,32 @@ fn detect_known_frameworks(
         if has_slf4j && has_log4j2 && has_koin && has_kotlinx_coroutines {
             break;
         }
-        if !has_slf4j || !has_log4j2 || !has_koin || !has_kotlinx_coroutines {
-            for field in &class.fields {
-                if !has_slf4j && contains_slf4j_type(&field.descriptor) {
-                    has_slf4j = true;
-                }
-                if !has_log4j2 && contains_log4j2_type(&field.descriptor) {
-                    has_log4j2 = true;
-                }
-                if !has_koin && contains_koin_type(&field.descriptor) {
-                    has_koin = true;
-                }
-                if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&field.descriptor) {
-                    has_kotlinx_coroutines = true;
-                }
+        for field in &class.fields {
+            if !has_slf4j && contains_slf4j_type(&field.descriptor) {
+                has_slf4j = true;
             }
-            for method in &class.methods {
-                if !has_slf4j && contains_slf4j_type(&method.descriptor) {
-                    has_slf4j = true;
-                }
-                if !has_log4j2 && contains_log4j2_type(&method.descriptor) {
-                    has_log4j2 = true;
-                }
-                if !has_koin && contains_koin_type(&method.descriptor) {
-                    has_koin = true;
-                }
-                if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&method.descriptor) {
-                    has_kotlinx_coroutines = true;
-                }
+            if !has_log4j2 && contains_log4j2_type(&field.descriptor) {
+                has_log4j2 = true;
+            }
+            if !has_koin && contains_koin_type(&field.descriptor) {
+                has_koin = true;
+            }
+            if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&field.descriptor) {
+                has_kotlinx_coroutines = true;
+            }
+        }
+        for method in &class.methods {
+            if !has_slf4j && contains_slf4j_type(&method.descriptor) {
+                has_slf4j = true;
+            }
+            if !has_log4j2 && contains_log4j2_type(&method.descriptor) {
+                has_log4j2 = true;
+            }
+            if !has_koin && contains_koin_type(&method.descriptor) {
+                has_koin = true;
+            }
+            if !has_kotlinx_coroutines && contains_kotlinx_coroutines_type(&method.descriptor) {
+                has_kotlinx_coroutines = true;
             }
         }
         let mut references = class

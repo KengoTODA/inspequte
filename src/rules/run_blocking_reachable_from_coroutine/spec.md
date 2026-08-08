@@ -36,13 +36,15 @@ The expected call shapes are the static calls
 
 ### Roots (coroutine entry points)
 A method in an analysis target class is a root when either:
-1. It is a compiled suspend function. The detection shape is a trailing `Lkotlin/coroutines/Continuation;` parameter combined with a `Ljava/lang/Object;` return type.
+1. It is a compiled suspend function. The detection shape is a trailing `Lkotlin/coroutines/Continuation;` parameter combined with a `Ljava/lang/Object;` return type. An array of `Continuation` as the last parameter does not match the shape.
 2. It is a method named `invokeSuspend` with descriptor `(Ljava/lang/Object;)Ljava/lang/Object;` declared in a class whose direct superclass is `kotlin/coroutines/jvm/internal/SuspendLambda`. This covers the bodies of suspend lambdas passed to `launch`, `async`, `withContext`, `produce`, `actor`, and `runBlocking` itself.
+
+A named suspend function declared on a restricted-suspension scope such as `SequenceScope` also matches the compiled suspend function shape and is treated as a root. The restriction annotation is not visible in the analyzed bytecode. Findings reachable only through such a function are a known, accepted false positive.
 
 ### Reachability
 A sink is reported when its enclosing method is reachable from any root through call edges, with one exclusion. Reachability follows these constraints:
 - Roots are reachable at distance zero. A sink inside a root method body is reachable.
-- A call edge resolves only to the method with the exact called owner, name, and descriptor among analysis target classes. When the named owner declares no such method, the edge resolves to the nearest matching method inherited through the superclass chain within the analysis target classes. Edges never expand to overriding implementations in subclasses.
+- A call edge resolves only to the method with the exact called owner, name, and descriptor among analysis target classes. When the named owner declares no such method, the edge resolves to the nearest matching method inherited within the analysis target classes, searching the superclass chain first and then superinterfaces. This covers inherited concrete methods and interface default methods. Edges never expand to overriding implementations in subclasses.
 - Edges never follow invokedynamic call sites, plain (non-suspend) lambdas, `Thread` construction, executor submission, or any other callback registration boundary.
 - Cycles in the call graph must not prevent termination or duplicate findings.
 
@@ -157,21 +159,21 @@ A `runBlocking { }` call without an explicit context compiles to `runBlocking$de
   - The chain is the shortest chain from any root to the enclosing method. Among equally short chains, the lexicographically smallest frame sequence is rendered.
   - The chain renders at most 10 frames. Longer chains render the first 5 frames, a single `...` element, and the last 5 frames.
   - Synthetic lambda frames render their JVM class name as compiled, for example `com.example.MainKt$functionOne$1.invokeSuspend`.
-- Findings are ordered by enclosing class, method name, method descriptor, and call site offset.
+- The rule sorts its findings by enclosing class, method name, method descriptor, and call site offset before emission. The engine then orders the final SARIF results by rule id and message text.
 - The same input analyzed twice produces identical findings, ordering, and messages.
 
 ## Performance considerations
 - The rule performs one linear pass to index analysis target methods, one linear pass to resolve call edges with logarithmic lookups, and a single traversal from the root set. Overall cost is proportional to the number of target methods plus call sites.
 - No CFG exploration and no dataflow analysis are used. Memory is bounded by one index entry per target method plus one predecessor record per reachable method.
 - The kotlinx.coroutines gate keeps the rule at zero cost for inputs that do not reference the framework.
-- Superclass-chain fallback during edge resolution is bounded by hierarchy depth within analysis target classes.
+- Inheritance fallback during edge resolution is bounded by hierarchy size within analysis target classes.
 
 ## Acceptance criteria
 1. Reports `runBlocking` and `runBlocking$default` call sites on `kotlinx/coroutines/BuildersKt` whose enclosing analysis target method is reachable from a coroutine root.
 2. Treats compiled suspend functions (trailing `Lkotlin/coroutines/Continuation;` parameter with `Ljava/lang/Object;` return) as roots.
 3. Treats `invokeSuspend(Ljava/lang/Object;)Ljava/lang/Object;` methods of classes whose direct superclass is `kotlin/coroutines/jvm/internal/SuspendLambda` as roots, and does not treat `RestrictedSuspendLambda` subclasses as roots.
 4. Never reports a call site whose enclosing method matches the compiled suspend function shape, leaving it to `RUN_BLOCKING_IN_SUSPEND_FUNCTION`.
-5. Resolves call edges only to the exact named target with a superclass-chain fallback, without expansion to overriding implementations, and without following invokedynamic, `Thread`, executor, or callback boundaries.
+5. Resolves call edges only to the exact named target with a superclass-chain and superinterface fallback, without expansion to overriding implementations, and without following invokedynamic, `Thread`, executor, or callback boundaries.
 6. Confines roots, edges, and sinks to analysis target classes.
 7. Emits exactly one finding per reachable sink call site, with the message template above and a chain that is the deterministic shortest, lexicographically smallest path, capped at 10 frames with middle elision.
 8. Produces no findings when the input does not reference kotlinx.coroutines.

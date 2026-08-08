@@ -1,5 +1,5 @@
 use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use anyhow::Result;
 use serde_sarif::sarif::Result as SarifResult;
@@ -41,6 +41,29 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
             return Ok(Vec::new());
         }
 
+        let mut roots: Vec<MethodKey> = Vec::new();
+        let mut has_reportable_sink = false;
+        for class in context.analysis_target_classes() {
+            for method in &class.methods {
+                if is_coroutine_root(class, method) {
+                    roots.push((
+                        class.name.as_str(),
+                        method.name.as_str(),
+                        method.descriptor.as_str(),
+                    ));
+                }
+                if !has_reportable_sink
+                    && !matches_suspend_function_shape(&method.descriptor)
+                    && method.calls.iter().any(is_run_blocking_call)
+                {
+                    has_reportable_sink = true;
+                }
+            }
+        }
+        if roots.is_empty() || !has_reportable_sink {
+            return Ok(Vec::new());
+        }
+
         let mut class_index: BTreeMap<&str, &Class> = BTreeMap::new();
         let mut declared_methods: BTreeSet<MethodKey> = BTreeSet::new();
         for class in context.analysis_target_classes() {
@@ -55,7 +78,6 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
         }
 
         let mut successors: BTreeMap<MethodKey, BTreeSet<MethodKey>> = BTreeMap::new();
-        let mut roots: Vec<MethodKey> = Vec::new();
         for class in context.analysis_target_classes() {
             for method in &class.methods {
                 let from = (
@@ -63,9 +85,6 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
                     method.name.as_str(),
                     method.descriptor.as_str(),
                 );
-                if is_coroutine_root(class, method) {
-                    roots.push(from);
-                }
                 for call in &method.calls {
                     if let Some(target) =
                         resolve_call_target(&class_index, &declared_methods, call)
@@ -76,11 +95,11 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
             }
         }
 
-        let best_chains = shortest_chains(&roots, &successors);
+        let parents = shortest_chain_parents(&roots, &successors);
 
         let mut findings = Vec::new();
         for class in context.analysis_target_classes() {
-            let artifact_uri = context.class_artifact_uri(class);
+            let mut artifact_uri: Option<Option<String>> = None;
             for method in &class.methods {
                 if matches_suspend_function_shape(&method.descriptor) {
                     continue;
@@ -90,21 +109,25 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
                     method.name.as_str(),
                     method.descriptor.as_str(),
                 );
-                let Some(chain) = best_chains.get(&key) else {
+                if !parents.contains_key(&key) {
                     continue;
-                };
+                }
+                let mut chain: Option<Vec<String>> = None;
                 for call in &method.calls {
                     if !is_run_blocking_call(call) {
                         continue;
                     }
+                    let frames = chain.get_or_insert_with(|| chain_frames(key, &parents));
                     findings.push(RuleFinding {
                         class_name: class.name.clone(),
                         method_name: method.name.clone(),
                         method_descriptor: method.descriptor.clone(),
-                        artifact_uri: artifact_uri.clone(),
+                        artifact_uri: artifact_uri
+                            .get_or_insert_with(|| context.class_artifact_uri(class))
+                            .clone(),
                         line: method.line_for_offset(call.offset),
                         offset: call.offset,
-                        message: build_message(chain),
+                        message: build_message(frames),
                     });
                 }
             }
@@ -154,7 +177,9 @@ fn is_run_blocking_call(call: &CallSite) -> bool {
 }
 
 fn matches_suspend_function_shape(descriptor: &str) -> bool {
-    descriptor.ends_with(SUSPEND_SHAPE_SUFFIX)
+    descriptor
+        .strip_suffix(SUSPEND_SHAPE_SUFFIX)
+        .is_some_and(|prefix| !prefix.ends_with('['))
 }
 
 fn is_coroutine_root(class: &Class, method: &Method) -> bool {
@@ -169,20 +194,49 @@ fn is_coroutine_root(class: &Class, method: &Method) -> bool {
         && class.super_name.as_deref() == Some(SUSPEND_LAMBDA_SUPER)
 }
 
-/// Resolves a call edge to the exact named target, falling back through the
-/// superclass chain within analysis target classes. Edges never expand to
-/// overriding implementations in subclasses.
+/// Resolves a call edge to the exact named target within analysis target
+/// classes, following JVM resolution order. The owner class is probed first,
+/// then its superclass chain, then superinterfaces breadth first, so inherited
+/// concrete methods and interface default methods both resolve. Edges never
+/// expand to overriding implementations in subclasses.
 fn resolve_call_target<'a>(
     class_index: &BTreeMap<&'a str, &'a Class>,
     declared_methods: &BTreeSet<MethodKey<'a>>,
     call: &'a CallSite,
 ) -> Option<MethodKey<'a>> {
+    let owner: &'a Class = class_index.get(call.owner.as_str()).copied()?;
+    let probe = (
+        owner.name.as_str(),
+        call.name.as_str(),
+        call.descriptor.as_str(),
+    );
+    if let Some(found) = declared_methods.get(&probe) {
+        return Some(*found);
+    }
+    resolve_inherited_call_target(class_index, declared_methods, call, owner)
+}
+
+/// Walks the superclass chain and then the superinterfaces of the call owner,
+/// returning the nearest inherited declaration of the called method. Abstract
+/// declarations resolve like any other declaration and act as dead ends,
+/// which keeps the no-override stance.
+fn resolve_inherited_call_target<'a>(
+    class_index: &BTreeMap<&'a str, &'a Class>,
+    declared_methods: &BTreeSet<MethodKey<'a>>,
+    call: &'a CallSite,
+    owner: &'a Class,
+) -> Option<MethodKey<'a>> {
     let mut seen: BTreeSet<&str> = BTreeSet::new();
-    let mut current: &'a Class = class_index.get(call.owner.as_str()).copied()?;
-    loop {
-        if !seen.insert(current.name.as_str()) {
-            return None;
+    seen.insert(owner.name.as_str());
+    let mut interfaces: VecDeque<&str> = owner.interfaces.iter().map(String::as_str).collect();
+    let mut cursor = owner.super_name.as_deref();
+    while let Some(class_name) = cursor {
+        if !seen.insert(class_name) {
+            break;
         }
+        let Some(current) = class_index.get(class_name).copied() else {
+            break;
+        };
         let probe = (
             current.name.as_str(),
             call.name.as_str(),
@@ -191,59 +245,95 @@ fn resolve_call_target<'a>(
         if let Some(found) = declared_methods.get(&probe) {
             return Some(*found);
         }
-        let super_name = current.super_name.as_deref()?;
-        current = class_index.get(super_name).copied()?;
+        interfaces.extend(current.interfaces.iter().map(String::as_str));
+        cursor = current.super_name.as_deref();
     }
-}
-
-/// Multi-source BFS from the root set. For every reachable method it keeps the
-/// shortest chain of rendered frames, breaking ties by the lexicographically
-/// smallest frame sequence.
-fn shortest_chains<'a>(
-    roots: &[MethodKey<'a>],
-    successors: &BTreeMap<MethodKey<'a>, BTreeSet<MethodKey<'a>>>,
-) -> BTreeMap<MethodKey<'a>, Vec<String>> {
-    let mut best: BTreeMap<MethodKey, Vec<String>> = BTreeMap::new();
-    let mut current: Vec<MethodKey> = Vec::new();
-    for root in roots {
-        if best.contains_key(root) {
+    while let Some(interface_name) = interfaces.pop_front() {
+        if !seen.insert(interface_name) {
             continue;
         }
-        best.insert(*root, vec![render_frame(*root)]);
+        let Some(current) = class_index.get(interface_name).copied() else {
+            continue;
+        };
+        let probe = (
+            current.name.as_str(),
+            call.name.as_str(),
+            call.descriptor.as_str(),
+        );
+        if let Some(found) = declared_methods.get(&probe) {
+            return Some(*found);
+        }
+        interfaces.extend(current.interfaces.iter().map(String::as_str));
+    }
+    None
+}
+
+/// Multi-source BFS from the root set. It records one parent pointer per
+/// reachable method, with roots mapped to `None`, so every reachable method
+/// has a shortest chain back to a root. When two same-level parents discover a
+/// method, the parent whose materialized frame chain is lexicographically
+/// smaller wins, which selects the lexicographically smallest frame sequence
+/// among equally short chains.
+fn shortest_chain_parents<'a>(
+    roots: &[MethodKey<'a>],
+    successors: &BTreeMap<MethodKey<'a>, BTreeSet<MethodKey<'a>>>,
+) -> BTreeMap<MethodKey<'a>, Option<MethodKey<'a>>> {
+    let mut parents: BTreeMap<MethodKey, Option<MethodKey>> = BTreeMap::new();
+    let mut current: Vec<MethodKey> = Vec::new();
+    for root in roots {
+        if parents.contains_key(root) {
+            continue;
+        }
+        parents.insert(*root, None);
         current.push(*root);
     }
     while !current.is_empty() {
-        let mut next: BTreeMap<MethodKey, Vec<String>> = BTreeMap::new();
+        let mut next: BTreeMap<MethodKey, MethodKey> = BTreeMap::new();
         for from in &current {
             let Some(targets) = successors.get(from) else {
                 continue;
             };
-            let prefix = best
-                .get(from)
-                .expect("visited method must have a chain")
-                .clone();
             for target in targets {
-                if best.contains_key(target) {
+                if parents.contains_key(target) {
                     continue;
                 }
-                let mut candidate = prefix.clone();
-                candidate.push(render_frame(*target));
                 match next.entry(*target) {
                     Entry::Vacant(entry) => {
-                        entry.insert(candidate);
+                        entry.insert(*from);
                     }
                     Entry::Occupied(mut entry) => {
-                        if candidate < *entry.get() {
-                            entry.insert(candidate);
+                        if chain_frames(*from, &parents) < chain_frames(*entry.get(), &parents) {
+                            entry.insert(*from);
                         }
                     }
                 }
             }
         }
         current = next.keys().copied().collect();
-        best.extend(next);
+        for (target, parent) in next {
+            parents.insert(target, Some(parent));
+        }
     }
-    best
+    parents
+}
+
+/// Materializes the root-to-method frame chain for a reachable method by
+/// walking parent pointers. Every parent sits one BFS level closer to a root,
+/// so the walk terminates at a parentless root.
+fn chain_frames<'a>(
+    key: MethodKey<'a>,
+    parents: &BTreeMap<MethodKey<'a>, Option<MethodKey<'a>>>,
+) -> Vec<String> {
+    let mut frames = Vec::new();
+    let mut cursor = Some(key);
+    while let Some(current) = cursor {
+        frames.push(render_frame(current));
+        cursor = *parents
+            .get(&current)
+            .expect("chain member must have a parent entry");
+    }
+    frames.reverse();
+    frames
 }
 
 fn render_frame(key: MethodKey) -> String {
@@ -280,7 +370,7 @@ mod tests {
     use crate::ir::{
         CallKind, CallSite, Class, ControlFlowGraph, Method, MethodAccess, MethodNullness,
     };
-    use crate::test_harness::{JvmTestHarness, Language, SourceFile};
+    use crate::test_harness::{CompileOutput, JvmTestHarness, Language, SourceFile};
 
     const RULE_ID: &str = "RUN_BLOCKING_REACHABLE_FROM_COROUTINE";
     const RUN_BLOCKING_DESCRIPTOR: &str =
@@ -334,14 +424,21 @@ fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit): Job {
         ]
     }
 
+    /// Compiles the kotlinx.coroutines stubs into a classpath entry. The
+    /// returned compile output owns the compiled directory, so it must stay
+    /// alive while the classpath is in use.
+    fn compile_stub_classpath(harness: &JvmTestHarness) -> CompileOutput {
+        harness
+            .compile(Language::Kotlin, &coroutines_stub_sources(), &[])
+            .expect("compile coroutine stubs")
+    }
+
     /// Compiles the kotlinx.coroutines stubs into a separate classpath entry and
     /// analyzes the given source as the only analysis target, mirroring real
     /// projects where kotlinx.coroutines is a dependency jar.
     fn analyze_with_stub_classpath(path: &str, contents: &str) -> EngineOutput {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        let stubs = harness
-            .compile(Language::Kotlin, &coroutines_stub_sources(), &[])
-            .expect("compile coroutine stubs");
+        let stubs = compile_stub_classpath(&harness);
         let classpath = vec![stubs.classes_dir().to_path_buf()];
         let sources = vec![SourceFile {
             path: path.to_string(),
@@ -395,11 +492,21 @@ fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit): Job {
         referenced_classes: Vec<&str>,
         methods: Vec<Method>,
     ) -> Class {
+        ir_class_with_interfaces(name, super_name, Vec::new(), referenced_classes, methods)
+    }
+
+    fn ir_class_with_interfaces(
+        name: &str,
+        super_name: Option<&str>,
+        interfaces: Vec<&str>,
+        referenced_classes: Vec<&str>,
+        methods: Vec<Method>,
+    ) -> Class {
         Class {
             name: name.to_string(),
             source_file: None,
             super_name: super_name.map(ToOwned::to_owned),
-            interfaces: Vec::new(),
+            interfaces: interfaces.into_iter().map(ToOwned::to_owned).collect(),
             type_parameters: Vec::new(),
             referenced_classes: referenced_classes
                 .into_iter()
@@ -490,6 +597,74 @@ fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit): Job {
     }
 
     #[test]
+    fn resolves_call_edges_through_interface_default_method() {
+        let classes = vec![
+            ir_class(
+                "com/example/ClassA",
+                Some("java/lang/Object"),
+                Vec::new(),
+                vec![ir_method(
+                    "methodX",
+                    "(Lkotlin/coroutines/Continuation;)Ljava/lang/Object;",
+                    vec![ir_call("com/example/ClassImpl", "methodY", "()V", 0)],
+                )],
+            ),
+            ir_class_with_interfaces(
+                "com/example/ClassImpl",
+                Some("java/lang/Object"),
+                vec!["com/example/InterfaceBase"],
+                Vec::new(),
+                Vec::new(),
+            ),
+            ir_class(
+                "com/example/InterfaceBase",
+                Some("java/lang/Object"),
+                vec!["kotlinx/coroutines/BuildersKt"],
+                vec![ir_method(
+                    "methodY",
+                    "()V",
+                    vec![ir_call(
+                        "kotlinx/coroutines/BuildersKt",
+                        "runBlocking",
+                        RUN_BLOCKING_DESCRIPTOR,
+                        4,
+                    )],
+                )],
+            ),
+        ];
+        let context = build_context(classes, &[]);
+
+        let results = RunBlockingReachableFromCoroutineRule
+            .run(&context)
+            .expect("run rule");
+        let messages: Vec<_> = results
+            .iter()
+            .filter_map(|result| result.message.text.clone())
+            .collect();
+        assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
+        assert_eq!(
+            messages[0],
+            expected_message("com.example.ClassA.methodX -> com.example.InterfaceBase.methodY")
+        );
+    }
+
+    #[test]
+    fn suspend_shape_requires_continuation_last_parameter() {
+        assert!(matches_suspend_function_shape(
+            "(Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"
+        ));
+        assert!(matches_suspend_function_shape(
+            "(ILkotlin/coroutines/Continuation;)Ljava/lang/Object;"
+        ));
+        assert!(!matches_suspend_function_shape(
+            "([Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"
+        ));
+        assert!(!matches_suspend_function_shape(
+            "(I[[Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"
+        ));
+    }
+
+    #[test]
     fn does_not_expand_edges_to_overriding_subclass() {
         let classes = vec![
             ir_class(
@@ -538,9 +713,7 @@ fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit): Job {
     #[test]
     fn reports_suspend_chain_through_plain_helper() {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        let stubs = harness
-            .compile(Language::Kotlin, &coroutines_stub_sources(), &[])
-            .expect("compile coroutine stubs");
+        let stubs = compile_stub_classpath(&harness);
         let classpath = vec![stubs.classes_dir().to_path_buf()];
         let sources = vec![SourceFile {
             path: "com/example/FileOne.kt".to_string(),
