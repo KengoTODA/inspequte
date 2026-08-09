@@ -7,18 +7,18 @@ DATASET_VERSION_GUAVA="33.6.0-jre"
 DATASET_VERSION_SONARQUBE="26.6.0.123539"
 
 # renovate: datasource=github-releases depName=spotbugs/spotbugs
-TOOL_VERSION_SPOTBUGS="4.10.2"
+TOOL_VERSION_SPOTBUGS="4.10.3"
 # renovate: datasource=github-releases depName=pmd/pmd
 TOOL_VERSION_PMD="7.14.0"
 # renovate: datasource=github-releases depName=typetools/checker-framework
 TOOL_VERSION_CHECKER_FRAMEWORK="3.52.0"
 # renovate: datasource=maven depName=com.uber.nullaway:nullaway
-TOOL_VERSION_NULLAWAY="0.13.7"
+TOOL_VERSION_NULLAWAY="0.13.8"
 # renovate: datasource=maven depName=com.google.errorprone:error_prone_core
 TOOL_VERSION_ERROR_PRONE="2.50.0"
 
 # renovate: datasource=maven depName=org.jspecify:jspecify
-GUAVA_VERSION_JSPECIFY="1.0.0"
+GUAVA_VERSION_JSPECIFY="1.0.1"
 # renovate: datasource=maven depName=com.google.errorprone:error_prone_annotations
 GUAVA_VERSION_ERROR_PRONE_ANNOTATIONS="2.50.0"
 # renovate: datasource=maven depName=com.google.j2objc:j2objc-annotations

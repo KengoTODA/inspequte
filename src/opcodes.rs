@@ -56,6 +56,7 @@ pub(crate) const ARETURN: u8 = 0xb0;
 pub(crate) const RETURN: u8 = 0xb1;
 pub(crate) const ARRAYLENGTH: u8 = 0xbe;
 pub(crate) const ATHROW: u8 = 0xbf;
+pub(crate) const CHECKCAST: u8 = 0xc0;
 pub(crate) const MONITORENTER: u8 = 0xc2;
 pub(crate) const MONITOREXIT: u8 = 0xc3;
 pub(crate) const ALOAD: u8 = 0x19;
