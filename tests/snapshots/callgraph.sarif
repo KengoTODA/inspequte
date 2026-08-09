@@ -336,6 +336,13 @@
               }
             },
             {
+              "id": "RUN_BLOCKING_IN_SUSPEND_FUNCTION",
+              "name": "runBlocking in suspend function",
+              "shortDescription": {
+                "text": "runBlocking inside a suspend function blocks the calling thread and defeats asynchronous execution"
+              }
+            },
+            {
               "id": "RUN_BLOCKING_REACHABLE_FROM_COROUTINE",
               "name": "runBlocking reachable from coroutine",
               "shortDescription": {
