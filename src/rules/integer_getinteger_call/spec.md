@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Integer.getInteger call'
+description: 'Integer.getInteger reads system properties, not numeric input strings'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'INTEGER_GETINTEGER_CALL'
+---
+
 # INTEGER_GETINTEGER_CALL
 
 ## Summary

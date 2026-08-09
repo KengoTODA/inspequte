@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'File.deleteOnExit call'
+description: 'File.deleteOnExit can accumulate pending deletions in long-lived processes'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'DELETE_ON_EXIT_CALL'
+---
+
 # DELETE_ON_EXIT_CALL
 
 ## Summary

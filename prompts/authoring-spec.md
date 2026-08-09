@@ -20,7 +20,8 @@ Use the following skill to write one rule spec:
 ## Execution steps
 1. Use `inspequte-rule-spec`.
 2. Create `src/rules/<RULE_ID>/spec.md`.
-3. Use this exact heading order:
+3. Start the file with the exact OKF v0.2 frontmatter profile from the skill.
+4. Use this exact heading order after the frontmatter:
    - `## Summary`
    - `## Motivation`
    - `## What it detects`
@@ -29,8 +30,8 @@ Use the following skill to write one rule spec:
    - `## Output`
    - `## Performance considerations`
    - `## Acceptance criteria`
-4. Keep findings/messages intuitive and actionable.
-5. State annotation policy explicitly:
+5. Keep findings/messages intuitive and actionable.
+6. State annotation policy explicitly:
    - `@Suppress`-style suppression unsupported
    - JSpecify-only for annotation-driven semantics
 

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Log4j2 unknown array'
+description: 'Log4j2 varargs calls with unknown argument arrays'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOG4J2_UNKNOWN_ARRAY'
+---
+
 # LOG4J2_UNKNOWN_ARRAY
 
 ## Summary

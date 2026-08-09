@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J preformatted message'
+description: 'SLF4J messages should use placeholders instead of manual formatting'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_MANUALLY_PROVIDED_MESSAGE'
+---
+
 # SLF4J_MANUALLY_PROVIDED_MESSAGE
 
 ## Summary

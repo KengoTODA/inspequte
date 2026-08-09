@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Boolean.getBoolean call'
+description: 'Boolean.getBoolean reads system properties, not text booleans'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'BOOLEAN_GETBOOLEAN_CALL'
+---
+
 # BOOLEAN_GETBOOLEAN_CALL
 
 ## Summary

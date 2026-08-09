@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Future.get without timeout'
+description: 'Timeout-free Future.get calls can block indefinitely'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'FUTURE_GET_WITHOUT_TIMEOUT'
+---
+
 # FUTURE_GET_WITHOUT_TIMEOUT
 
 ## Summary

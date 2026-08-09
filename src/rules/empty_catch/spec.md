@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Empty catch block'
+description: 'Catch blocks with no meaningful instructions'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'EMPTY_CATCH'
+---
+
 # EMPTY_CATCH
 
 ## Summary

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Record array field'
+description: 'Records should not use array-typed components'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'RECORD_ARRAY_FIELD'
+---
+
 # RECORD_ARRAY_FIELD
 
 ## Summary
