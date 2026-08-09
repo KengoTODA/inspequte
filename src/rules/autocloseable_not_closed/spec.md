@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'AutoCloseable not closed'
+description: 'Locally created AutoCloseable instances should be closed on every exit path'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'AUTOCLOSEABLE_NOT_CLOSED'
+---
+
 # AUTOCLOSEABLE_NOT_CLOSED
 
 ## Summary

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J placeholder-only format'
+description: 'SLF4J format strings should include descriptive text'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_SIGN_ONLY_FORMAT'
+---
+
 # SLF4J_SIGN_ONLY_FORMAT
 
 ## Summary

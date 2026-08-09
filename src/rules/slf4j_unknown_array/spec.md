@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J unknown array'
+description: 'SLF4J varargs calls with unknown argument arrays'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_UNKNOWN_ARRAY'
+---
+
 # SLF4J_UNKNOWN_ARRAY
 
 ## Summary

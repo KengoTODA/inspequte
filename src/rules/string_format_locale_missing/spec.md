@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'String/Formatter formatting without explicit locale'
+description: 'String.format(...) and Formatter usage without Locale can vary by runtime locale'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'STRING_FORMAT_LOCALE_MISSING'
+---
+
 # STRING_FORMAT_LOCALE_MISSING
 
 ## Summary

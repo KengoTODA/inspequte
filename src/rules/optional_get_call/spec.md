@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Optional direct getter call'
+description: 'Optional.get/getAs* can throw when empty'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'OPTIONAL_GET_CALL'
+---
+
 # OPTIONAL_GET_CALL
 
 ## Summary

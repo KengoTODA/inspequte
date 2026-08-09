@@ -1,7 +1,16 @@
+---
+type: 'Static Analysis Rule'
+title: 'Future wait while holding lock'
+description: 'Blocking Future waits should not happen while a lock is still held'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'FUTURE_WAIT_WHILE_HOLDING_LOCK'
+---
+
 # future_wait_while_holding_lock
 
 ## Summary
-- Rule ID: `future_wait_while_holding_lock`
+- Rule ID: `FUTURE_WAIT_WHILE_HOLDING_LOCK`
 - Name: Future wait while holding lock
 - Description: Reports blocking `Future.get(...)` and `CompletableFuture.join()` calls that occur while the current method still definitely holds an intrinsic monitor or a `Lock`-based lock.
 - Rationale for users: Waiting for a future while a lock is held can deadlock, stall other threads, and make critical sections much longer than intended.

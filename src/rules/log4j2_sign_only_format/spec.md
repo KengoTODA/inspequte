@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Log4j2 placeholder-only format'
+description: 'Log4j2 format strings should include descriptive text'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOG4J2_SIGN_ONLY_FORMAT'
+---
+
 # LOG4J2_SIGN_ONLY_FORMAT
 
 ## Summary

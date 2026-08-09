@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.0.0...inspequte-v1.0.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **deps:** resolve cargo audit findings ([86f9ebf](https://github.com/KengoTODA/inspequte/commit/86f9ebf22d6f11dd14eabe19ccd792105ec30008))
+
 ## [1.0.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v0.27.4...inspequte-v1.0.0) (2026-06-07)
 
 

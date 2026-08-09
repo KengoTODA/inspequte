@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Prefer EnumSet for enum collections'
+description: 'Using EnumSet for enum types provides better performance than general collections'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'PREFER_ENUMSET'
+---
+
 # PREFER_ENUMSET
 
 ## Summary

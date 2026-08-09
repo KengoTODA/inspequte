@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Lock acquired without guaranteed release'
+description: 'Lock.lock() must be followed by unlock() on every reachable exit path'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOCK_NOT_RELEASED_ON_EXCEPTION_PATH'
+---
+
 # LOCK_NOT_RELEASED_ON_EXCEPTION_PATH
 
 ## Summary

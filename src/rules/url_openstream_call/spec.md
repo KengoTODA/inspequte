@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'URL.openStream call'
+description: 'URL.openStream can hide timeout and connection configuration'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'URL_OPENSTREAM_CALL'
+---
+
 # URL_OPENSTREAM_CALL
 
 ## Summary
