@@ -18,7 +18,7 @@ TOOL_VERSION_NULLAWAY="0.13.8"
 TOOL_VERSION_ERROR_PRONE="2.50.0"
 
 # renovate: datasource=maven depName=org.jspecify:jspecify
-GUAVA_VERSION_JSPECIFY="1.0.0"
+GUAVA_VERSION_JSPECIFY="1.0.1"
 # renovate: datasource=maven depName=com.google.errorprone:error_prone_annotations
 GUAVA_VERSION_ERROR_PRONE_ANNOTATIONS="2.50.0"
 # renovate: datasource=maven depName=com.google.j2objc:j2objc-annotations
