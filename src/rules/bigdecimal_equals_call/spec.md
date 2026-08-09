@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'BigDecimal equals call'
+description: 'BigDecimal.equals compares value and scale instead of numeric equality'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'BIGDECIMAL_EQUALS_CALL'
+---
+
 # BIGDECIMAL_EQUALS_CALL
 
 ## Summary

@@ -1,5 +1,14 @@
+---
+type: 'Static Analysis Rule'
+title: 'Return in finally'
+description: 'Return statements in finally blocks override exceptions or prior returns'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'RETURN_IN_FINALLY'
+---
+
 ## Summary
-- Rule ID: `return_in_finally`
+- Rule ID: `RETURN_IN_FINALLY`
 - Name: Return in finally
 - Description: Reports `return` statements inside `finally` blocks because they can override exceptions or earlier returns and hide failures.
 - Annotation policy: `@Suppress`/`@SuppressWarnings` are not supported; only JSpecify annotations are recognized for any annotation-driven semantics, and non-JSpecify annotations do not change behavior.

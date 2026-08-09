@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Log4j2 format should be const'
+description: 'Log4j2 format strings should be compile-time constants'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'LOG4J2_FORMAT_SHOULD_BE_CONST'
+---
+
 # LOG4J2_FORMAT_SHOULD_BE_CONST
 
 ## Summary

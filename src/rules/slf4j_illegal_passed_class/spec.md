@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J illegal passed class'
+description: 'LoggerFactory.getLogger should be called with the caller class'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_ILLEGAL_PASSED_CLASS'
+---
+
 # SLF4J_ILLEGAL_PASSED_CLASS
 
 ## Summary

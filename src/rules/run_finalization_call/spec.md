@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Explicit finalization trigger call'
+description: 'System/Runtime runFinalization calls are unpredictable'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'RUN_FINALIZATION_CALL'
+---
+
 # RUN_FINALIZATION_CALL
 
 ## Summary

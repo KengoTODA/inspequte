@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'String intern call'
+description: 'String.intern can increase global pool pressure and contention'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'STRING_INTERN_CALL'
+---
+
 # STRING_INTERN_CALL
 
 ## Summary

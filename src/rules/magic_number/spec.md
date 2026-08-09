@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Magic number'
+description: 'Numeric literals used directly in method bodies reduce readability and maintainability; extract them into named constants'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'MAGIC_NUMBER'
+---
+
 # MAGIC_NUMBER
 
 ## Summary

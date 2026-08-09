@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Array equals'
+description: 'Array comparisons using == or equals()'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'ARRAY_EQUALS'
+---
+
 # ARRAY_EQUALS
 
 ## Summary

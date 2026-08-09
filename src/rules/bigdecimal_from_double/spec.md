@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'BigDecimal from double'
+description: 'BigDecimal constructors with double can introduce precision surprises'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'BIGDECIMAL_FROM_DOUBLE'
+---
+
 ## Summary
 - Rule ID: `BIGDECIMAL_FROM_DOUBLE`
 - Name: BigDecimal from double

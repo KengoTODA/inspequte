@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Thread.run direct call'
+description: 'Direct Thread.run() calls execute synchronously on the current thread'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'THREAD_RUN_DIRECT_CALL'
+---
+
 # THREAD_RUN_DIRECT_CALL
 
 ## Summary

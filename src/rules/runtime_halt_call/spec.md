@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Runtime.halt call'
+description: 'Direct Runtime.halt(int) calls bypass graceful JVM shutdown'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'RUNTIME_HALT_CALL'
+---
+
 # RUNTIME_HALT_CALL
 
 ## Summary

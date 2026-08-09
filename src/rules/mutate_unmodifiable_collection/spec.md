@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Mutation on unmodifiable collection'
+description: 'Mutation calls on known JDK unmodifiable collection values'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'MUTATE_UNMODIFIABLE_COLLECTION'
+---
+
 # MUTATE_UNMODIFIABLE_COLLECTION
 
 ## Summary
