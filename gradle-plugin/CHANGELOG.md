@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.6.0...gradle-plugin-v0.6.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **deps:** update gradle-plugin dependencies ([798ccb7](https://github.com/KengoTODA/inspequte/commit/798ccb742f94f0b74acd270bef1ea802ce58941d))
+
 ## [0.6.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.5.2...gradle-plugin-v0.6.0) (2026-03-01)
 
 
