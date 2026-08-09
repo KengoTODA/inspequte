@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'ObjectInputStream deserialization call'
+description: 'readObject/readUnshared are high-risk Java deserialization entry points'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'DESERIALIZATION_READ_OBJECT_CALL'
+---
+
 # DESERIALIZATION_READ_OBJECT_CALL
 
 ## Summary

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J logger should be final'
+description: 'SLF4J Logger fields should be final'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_LOGGER_SHOULD_BE_FINAL'
+---
+
 # SLF4J_LOGGER_SHOULD_BE_FINAL
 
 ## Summary

@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Unused lambda parameter'
+description: 'Reports lambda parameters that are never referenced in the lambda body'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'UNUSED_LAMBDA_PARAMETERS'
+---
+
 # UNUSED_LAMBDA_PARAMETERS
 
 ## Summary

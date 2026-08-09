@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'compareTo integer subtraction overflow'
+description: 'compareTo using integer subtraction can overflow for extreme values'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'COMPARETO_OVERFLOW'
+---
+
 # COMPARETO_OVERFLOW
 
 ## Summary

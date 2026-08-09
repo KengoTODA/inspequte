@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Non-atomic update on volatile field'
+description: 'Read-modify-write updates on volatile fields can lose concurrent updates'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'VOLATILE_INCREMENT_NON_ATOMIC'
+---
+
 ## Summary
 - Rule ID: `VOLATILE_INCREMENT_NON_ATOMIC`
 - Name: Non-atomic update on volatile field

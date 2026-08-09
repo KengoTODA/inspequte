@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'String case conversion without explicit locale'
+description: 'String.toLowerCase()/toUpperCase() calls without Locale argument'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'STRING_CASE_WITHOUT_LOCALE'
+---
+
 # STRING_CASE_WITHOUT_LOCALE
 
 ## Summary

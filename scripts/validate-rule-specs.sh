@@ -3,4 +3,4 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-exec python3 "$repo_root/scripts/rule_specs.py" generate
+exec python3 "$repo_root/scripts/rule_specs.py" validate

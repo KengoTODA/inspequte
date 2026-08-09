@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'URL equals call'
+description: 'URL.equals may trigger host resolution and surprising equality semantics'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'URL_EQUALS_CALL'
+---
+
 # URL_EQUALS_CALL
 
 ## Summary

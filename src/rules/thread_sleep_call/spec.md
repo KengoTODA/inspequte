@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'Thread.sleep call'
+description: 'Thread.sleep introduces timing-coupled blocking'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'THREAD_SLEEP_CALL'
+---
+
 # THREAD_SLEEP_CALL
 
 ## Summary

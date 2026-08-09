@@ -1,3 +1,12 @@
+---
+type: 'Static Analysis Rule'
+title: 'SLF4J placeholder mismatch'
+description: 'SLF4J placeholder count does not match arguments'
+tags: ['jvm', 'static-analysis']
+status: 'stable'
+rule_id: 'SLF4J_PLACEHOLDER_MISMATCH'
+---
+
 # SLF4J_PLACEHOLDER_MISMATCH
 
 ## Summary
