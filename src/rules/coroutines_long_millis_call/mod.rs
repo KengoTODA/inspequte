@@ -751,4 +751,196 @@ public class ClassA {
             "message must name debounce and the Java method: {messages:?}"
         );
     }
+
+    #[test]
+    fn coroutines_long_millis_call_ignores_selector_overload_on_the_same_owner() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        // Kept out of the shared stub so the Java call-site test does not need
+        // kotlin.jvm.functions.Function1 on its javac classpath.
+        let sources = vec![
+            SourceFile {
+                path: "kotlinx/coroutines/flow/Flow.kt".to_string(),
+                contents: r#"
+package kotlinx.coroutines.flow
+
+interface Flow<out T>
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "kotlinx/coroutines/flow/Operators.kt".to_string(),
+                contents: r#"
+@file:JvmName("FlowKt")
+
+package kotlinx.coroutines.flow
+
+import kotlin.time.Duration
+
+fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> = this
+
+fun <T> Flow<T>.debounce(timeout: Duration): Flow<T> = this
+
+fun <T> Flow<T>.debounce(timeoutMillis: (T) -> Long): Flow<T> = this
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/FileEleven.kt".to_string(),
+                contents: r#"
+package com.example
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.debounce
+
+fun functionOne(varOne: Flow<Int>): Flow<Int> = varOne.debounce { 200L }
+"#
+                .to_string(),
+            },
+        ];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = rule_messages(&output);
+        assert!(
+            messages.is_empty(),
+            "did not expect findings for the selector overload, which shares the owner and name but not the descriptor: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn coroutines_long_millis_call_does_not_borrow_availability_from_a_longer_function_name() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![
+            SourceFile {
+                path: "kotlinx/coroutines/CoroutineScope.kt".to_string(),
+                contents: r#"
+package kotlinx.coroutines
+
+interface CoroutineScope
+"#
+                .to_string(),
+            },
+            // Only withTimeoutOrNull has a Duration counterpart. Because both
+            // functions share one descriptor, a prefix check without the dash
+            // would treat withTimeout as available too.
+            SourceFile {
+                path: "kotlinx/coroutines/Timeout.kt".to_string(),
+                contents: r#"
+@file:JvmName("TimeoutKt")
+
+package kotlinx.coroutines
+
+import kotlin.time.Duration
+
+suspend fun <T> withTimeout(timeMillis: Long, block: suspend CoroutineScope.() -> T): T =
+    TODO()
+
+suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: suspend CoroutineScope.() -> T): T? =
+    null
+
+suspend fun <T> withTimeoutOrNull(timeout: Duration, block: suspend CoroutineScope.() -> T): T? =
+    null
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/FileTwelve.kt".to_string(),
+                contents: r#"
+package com.example
+
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+
+suspend fun functionOne(): String {
+    val varOne = withTimeout(1_000) { "a" }
+    val varTwo = withTimeoutOrNull(1_000) { "b" } ?: ""
+    return varOne + varTwo
+}
+"#
+                .to_string(),
+            },
+        ];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = rule_messages(&output);
+        assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
+        assert!(
+            messages[0].contains("Call to withTimeoutOrNull in"),
+            "expected the only finding to name withTimeoutOrNull: {messages:?}"
+        );
+        assert!(
+            !messages[0].contains("Call to withTimeout in"),
+            "withTimeout has no Duration counterpart and must not be reported: {messages:?}"
+        );
+    }
+
+    #[test]
+    fn coroutines_long_millis_call_gates_availability_per_owner() {
+        let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
+        let sources = vec![
+            // DelayKt ships a Duration counterpart, FlowKt does not.
+            SourceFile {
+                path: "kotlinx/coroutines/Delay.kt".to_string(),
+                contents: r#"
+@file:JvmName("DelayKt")
+
+package kotlinx.coroutines
+
+import kotlin.time.Duration
+
+suspend fun delay(timeMillis: Long) {}
+
+suspend fun delay(duration: Duration) {}
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "kotlinx/coroutines/flow/Flow.kt".to_string(),
+                contents: r#"
+package kotlinx.coroutines.flow
+
+interface Flow<out T>
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "kotlinx/coroutines/flow/Operators.kt".to_string(),
+                contents: r#"
+@file:JvmName("FlowKt")
+
+package kotlinx.coroutines.flow
+
+fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> = this
+
+fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> = this
+"#
+                .to_string(),
+            },
+            SourceFile {
+                path: "com/example/FileThirteen.kt".to_string(),
+                contents: r#"
+package com.example
+
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.sample
+
+suspend fun functionOne() {
+    delay(500)
+}
+
+fun functionTwo(varOne: Flow<Int>): Flow<Int> = varOne.debounce(200).sample(200)
+"#
+                .to_string(),
+            },
+        ];
+
+        let output = compile_and_analyze(&harness, Language::Kotlin, &sources, &[]);
+        let messages = rule_messages(&output);
+        assert_eq!(messages.len(), 1, "expected one finding, got {messages:?}");
+        assert!(
+            messages[0].contains("Call to delay in"),
+            "expected the only finding to name delay: {messages:?}"
+        );
+    }
 }

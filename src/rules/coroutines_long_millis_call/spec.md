@@ -123,6 +123,23 @@ fun functionOne() {
 ```
 No finding. The call's owner class is not `kotlinx/coroutines/DelayKt`.
 
+### TN: same owner and name but a different descriptor (not reported)
+```kotlin
+package com.example
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.debounce
+
+fun functionOne(varOne: Flow<Int>): Flow<Int> = varOne.debounce { 200L }
+```
+No finding. The selector overload compiles to `debounce` on `FlowKt` with descriptor `(Lkotlinx/coroutines/flow/Flow;Lkotlin/jvm/functions/Function1;)Lkotlinx/coroutines/flow/Flow;`, which is not the descriptor in the table. Owner and name both match, so the descriptor is the only thing separating this call from a true positive.
+
+### TN: availability is not borrowed from a longer function name (not reported)
+The `withTimeout` and `withTimeoutOrNull` call sites from the TP example, analyzed against a `TimeoutKt` that declares `withTimeout(Long)`, `withTimeoutOrNull(Long)`, and `withTimeoutOrNull(Duration)`, but no `withTimeout(Duration)`. One finding, naming `withTimeoutOrNull` only. The two functions share a single descriptor, so the trailing dash is what stops the mangled `withTimeoutOrNull` method from marking `withTimeout` as available.
+
+### Edge: availability is decided per target, not once per run (partial reporting)
+A `DelayKt` that declares both `delay(Long)` and `delay(Duration)`, together with a `FlowKt` that declares only the Long variants of `debounce` and `sample`. A file calling `delay(500)`, `debounce(200)`, and `sample(200)` produces exactly one finding, naming `delay`.
+
 ### Edge: multiple matching calls in one method (one finding each)
 ```kotlin
 package com.example
