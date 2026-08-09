@@ -91,6 +91,13 @@
               }
             },
             {
+              "id": "COROUTINE_CONTEXT_WITH_JOB",
+              "name": "Coroutine context with Job",
+              "shortDescription": {
+                "text": "Coroutine builder and withContext calls that pass a CoroutineContext containing a Job element break structured concurrency"
+              }
+            },
+            {
               "id": "COROUTINES_LONG_MILLIS_CALL",
               "name": "Coroutines call with raw Long milliseconds",
               "shortDescription": {
