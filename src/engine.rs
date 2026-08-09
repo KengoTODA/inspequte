@@ -852,6 +852,35 @@ mod tests {
     }
 
     #[test]
+    fn build_context_detects_kotlinx_coroutines_from_super_and_interface_references() {
+        let classes = vec![Class {
+            name: "com/example/ClassA".to_string(),
+            source_file: None,
+            super_name: Some("java/lang/Object".to_string()),
+            interfaces: vec!["kotlinx/coroutines/CoroutineScope".to_string()],
+            type_parameters: Vec::new(),
+            referenced_classes: Vec::new(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+            annotation_defaults: Vec::new(),
+            artifact_index: 0,
+            is_record: false,
+        }];
+        let artifacts = vec![
+            Artifact::builder()
+                .location(
+                    ArtifactLocation::builder()
+                        .uri("file:///tmp/app.jar".to_string())
+                        .build(),
+                )
+                .build(),
+        ];
+
+        let context = build_context(classes, &artifacts);
+        assert!(context.has_kotlinx_coroutines());
+    }
+
+    #[test]
     fn class_artifact_uri_uses_source_file_name_for_class_artifact() {
         let classes = vec![Class {
             name: "com/example/ClassA".to_string(),
