@@ -91,6 +91,13 @@
               }
             },
             {
+              "id": "COROUTINES_LONG_MILLIS_CALL",
+              "name": "Coroutines call with raw Long milliseconds",
+              "shortDescription": {
+                "text": "kotlinx.coroutines time-based calls that pass a raw Long milliseconds value should use the kotlin.time.Duration overload when it is available on the classpath"
+              }
+            },
+            {
               "id": "COROUTINE_CONTEXT_WITH_JOB",
               "name": "Coroutine context with Job",
               "shortDescription": {
