@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.0.1...inspequte-v1.1.0) (2026-08-10)
+
+
+### Features
+
+* **rule:** add COROUTINES_LONG_MILLIS_CALL rule ([#288](https://github.com/KengoTODA/inspequte/issues/288)) ([1c663b9](https://github.com/KengoTODA/inspequte/commit/1c663b967505c765c42c5ad4245a99fce2894175))
+* **rule:** add RUN_BLOCKING_IN_SUSPEND_FUNCTION rule ([#290](https://github.com/KengoTODA/inspequte/issues/290)) ([aa3a893](https://github.com/KengoTODA/inspequte/commit/aa3a8933d6c6cd795a229d0a8730d5d59d326426))
+* **rule:** add RUN_BLOCKING_REACHABLE_FROM_COROUTINE rule ([281ee1e](https://github.com/KengoTODA/inspequte/commit/281ee1ebe28e47e2a8f0f0421cf70d49cd2542c2))
+* **rules:** add coroutine_context_with_job rule ([2950d28](https://github.com/KengoTODA/inspequte/commit/2950d28e9b1d094952a9da41e6649886f003b69e))
+
 ## [1.0.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.0.0...inspequte-v1.0.1) (2026-08-09)
 
 
