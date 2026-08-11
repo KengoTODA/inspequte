@@ -1496,6 +1496,53 @@ mod tests {
     }
 
     #[test]
+    fn sarif_evidence_validates_against_official_schema() {
+        use crate::rules::{
+            EvidenceLimits, EvidenceStep, ResultEvidence, method_location_with_line, result_message,
+        };
+
+        let origin = EvidenceStep::new(
+            method_location_with_line("ClassA", "methodX", "()V", None, None),
+            "Evidence starts here.",
+            ["enter", "function"],
+            Some(0),
+        );
+        let primary = method_location_with_line("ClassA", "methodY", "()V", None, None);
+        let terminal = EvidenceStep::new(
+            primary.clone(),
+            "Evidence reaches the reported location.",
+            ["danger", "exit"],
+            Some(0),
+        );
+        let evidence = ResultEvidence::new(
+            "Evidence path.",
+            "thread-a",
+            vec![origin.clone()],
+            vec![origin, terminal],
+        )
+        .to_sarif(EvidenceLimits::default());
+        let result = SarifResult::builder()
+            .message(result_message("Finding with ordered evidence."))
+            .locations(vec![primary])
+            .related_locations(evidence.related_locations)
+            .code_flows(evidence.code_flows)
+            .build();
+        let invocation = Invocation::builder().execution_successful(true).build();
+        let sarif = build_sarif(None, Vec::new(), invocation, Vec::new(), vec![result], None);
+
+        validate_sarif(&sarif).expect("validate evidence against official OASIS schema");
+        let value = serde_json::to_value(&sarif).expect("serialize evidence SARIF");
+        assert_eq!(
+            value["runs"][0]["results"][0]["relatedLocations"][0]["id"],
+            0
+        );
+        assert_eq!(
+            value["runs"][0]["results"][0]["codeFlows"][0]["threadFlows"][0]["locations"][1]["executionOrder"],
+            1
+        );
+    }
+
+    #[test]
     fn sarif_schema_validation_reports_invalid_property_path() {
         let invocation = Invocation::builder().execution_successful(true).build();
         let sarif = build_sarif(None, Vec::new(), invocation, Vec::new(), Vec::new(), None);

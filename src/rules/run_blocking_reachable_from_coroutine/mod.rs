@@ -6,7 +6,10 @@ use serde_sarif::sarif::Result as SarifResult;
 
 use crate::engine::AnalysisContext;
 use crate::ir::{CallSite, Class, Method};
-use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
+use crate::rules::{
+    EvidenceLimits, EvidenceStep, ResultEvidence, Rule, RuleMetadata, method_location_with_line,
+    result_message,
+};
 
 const BUILDERS_CLASS: &str = "kotlinx/coroutines/BuildersKt";
 const SUSPEND_SHAPE_SUFFIX: &str = "Lkotlin/coroutines/Continuation;)Ljava/lang/Object;";
@@ -86,8 +89,7 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
                     method.descriptor.as_str(),
                 );
                 for call in &method.calls {
-                    if let Some(target) =
-                        resolve_call_target(&class_index, &declared_methods, call)
+                    if let Some(target) = resolve_call_target(&class_index, &declared_methods, call)
                     {
                         successors.entry(from).or_default().insert(target);
                     }
@@ -112,12 +114,13 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
                 if !parents.contains_key(&key) {
                     continue;
                 }
-                let mut chain: Option<Vec<String>> = None;
+                let mut chain: Option<Vec<MethodKey>> = None;
                 for call in &method.calls {
                     if !is_run_blocking_call(call) {
                         continue;
                     }
-                    let frames = chain.get_or_insert_with(|| chain_frames(key, &parents));
+                    let chain = chain.get_or_insert_with(|| chain_method_keys(key, &parents));
+                    let frames: Vec<_> = chain.iter().copied().map(render_frame).collect();
                     findings.push(RuleFinding {
                         class_name: class.name.clone(),
                         method_name: method.name.clone(),
@@ -127,7 +130,8 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
                             .clone(),
                         line: method.line_for_offset(call.offset),
                         offset: call.offset,
-                        message: build_message(frames),
+                        message: build_message(&frames),
+                        call_chain: materialize_call_chain(chain, &class_index, context),
                     });
                 }
             }
@@ -151,9 +155,31 @@ impl Rule for RunBlockingReachableFromCoroutineRule {
                     finding.artifact_uri.as_deref(),
                     finding.line,
                 );
+                let related_locations: Vec<_> = finding
+                    .call_chain
+                    .iter()
+                    .enumerate()
+                    .map(|(index, frame)| frame.evidence_step(index))
+                    .collect();
+                let mut witness = related_locations.clone();
+                witness.push(EvidenceStep::new(
+                    location.clone(),
+                    "runBlocking is invoked here.",
+                    ["call", "danger"],
+                    Some(finding.call_chain.len() as i64),
+                ));
+                let evidence = ResultEvidence::new(
+                    "Coroutine call chain leading to runBlocking.",
+                    "coroutine-call-chain",
+                    related_locations,
+                    witness,
+                )
+                .to_sarif(EvidenceLimits::default());
                 SarifResult::builder()
                     .message(result_message(finding.message))
                     .locations(vec![location])
+                    .related_locations(evidence.related_locations)
+                    .code_flows(evidence.code_flows)
                     .build()
             })
             .collect())
@@ -169,6 +195,73 @@ struct RuleFinding {
     line: Option<u32>,
     offset: u32,
     message: String,
+    call_chain: Vec<CallChainFrame>,
+}
+
+/// Owned method metadata for one frame in the selected coroutine call chain.
+#[derive(Clone, Debug)]
+struct CallChainFrame {
+    class_name: String,
+    method_name: String,
+    method_descriptor: String,
+    artifact_uri: Option<String>,
+    line: Option<u32>,
+}
+
+impl CallChainFrame {
+    fn evidence_step(&self, nesting_level: usize) -> EvidenceStep {
+        let display_name = format!(
+            "{}.{}{}",
+            self.class_name.replace('/', "."),
+            self.method_name,
+            self.method_descriptor
+        );
+        let message = if nesting_level == 0 {
+            format!("Coroutine execution enters {display_name}.")
+        } else {
+            format!("The selected call chain reaches {display_name}.")
+        };
+        EvidenceStep::new(
+            method_location_with_line(
+                &self.class_name,
+                &self.method_name,
+                &self.method_descriptor,
+                self.artifact_uri.as_deref(),
+                self.line,
+            ),
+            message,
+            ["enter", "function"],
+            Some(nesting_level as i64),
+        )
+    }
+}
+
+fn materialize_call_chain(
+    chain: &[MethodKey],
+    class_index: &BTreeMap<&str, &Class>,
+    context: &AnalysisContext,
+) -> Vec<CallChainFrame> {
+    chain
+        .iter()
+        .filter_map(|(class_name, method_name, descriptor)| {
+            let class = class_index.get(class_name).copied()?;
+            let method = class
+                .methods
+                .iter()
+                .find(|method| method.name == *method_name && method.descriptor == *descriptor)?;
+            Some(CallChainFrame {
+                class_name: (*class_name).to_string(),
+                method_name: (*method_name).to_string(),
+                method_descriptor: (*descriptor).to_string(),
+                artifact_uri: context.class_artifact_uri(class),
+                line: method
+                    .line_numbers
+                    .iter()
+                    .min_by_key(|entry| entry.start_pc)
+                    .map(|entry| entry.line),
+            })
+        })
+        .collect()
 }
 
 fn is_run_blocking_call(call: &CallSite) -> bool {
@@ -324,10 +417,20 @@ fn chain_frames<'a>(
     key: MethodKey<'a>,
     parents: &BTreeMap<MethodKey<'a>, Option<MethodKey<'a>>>,
 ) -> Vec<String> {
+    chain_method_keys(key, parents)
+        .into_iter()
+        .map(render_frame)
+        .collect()
+}
+
+fn chain_method_keys<'a>(
+    key: MethodKey<'a>,
+    parents: &BTreeMap<MethodKey<'a>, Option<MethodKey<'a>>>,
+) -> Vec<MethodKey<'a>> {
     let mut frames = Vec::new();
     let mut cursor = Some(key);
     while let Some(current) = cursor {
-        frames.push(render_frame(current));
+        frames.push(current);
         cursor = *parents
             .get(&current)
             .expect("chain member must have a parent entry");
@@ -758,6 +861,39 @@ fun methodTwo() {
             .and_then(|physical| physical.region.as_ref())
             .and_then(|region| region.start_line);
         assert!(start_line.is_some(), "expected call site line information");
+        let related_locations = finding
+            .related_locations
+            .as_ref()
+            .expect("call-chain related locations");
+        assert_eq!(related_locations.len(), 2);
+        assert_eq!(
+            related_locations
+                .iter()
+                .map(|location| location.id)
+                .collect::<Vec<_>>(),
+            [Some(0), Some(1)]
+        );
+        let flow_locations = &finding.code_flows.as_ref().expect("call-chain code flow")[0]
+            .thread_flows[0]
+            .locations;
+        assert_eq!(flow_locations.len(), 3);
+        assert_eq!(
+            flow_locations
+                .iter()
+                .map(|location| location.execution_order)
+                .collect::<Vec<_>>(),
+            [Some(0), Some(1), Some(2)]
+        );
+        let flow_names: Vec<_> = flow_locations
+            .iter()
+            .filter_map(|step| step.location.as_ref())
+            .filter_map(|location| location.logical_locations.as_ref())
+            .filter_map(|locations| locations.first())
+            .filter_map(|location| location.name.as_deref())
+            .collect();
+        assert!(flow_names[0].contains("methodOne"));
+        assert!(flow_names[1].contains("methodTwo"));
+        assert!(flow_names[2].contains("methodTwo"));
 
         let second_output = harness
             .analyze(compiled.classes_dir(), &classpath)
@@ -766,6 +902,17 @@ fun methodTwo() {
             messages,
             rule_messages(&second_output),
             "repeated analysis must be deterministic"
+        );
+        let second_finding = second_output
+            .results
+            .iter()
+            .find(|result| result.rule_id.as_deref() == Some(RULE_ID))
+            .expect("second finding present");
+        assert_eq!(
+            serde_json::to_value(finding.code_flows.as_ref()).expect("serialize first evidence"),
+            serde_json::to_value(second_finding.code_flows.as_ref())
+                .expect("serialize second evidence"),
+            "ordered evidence must be deterministic"
         );
     }
 
@@ -1148,4 +1295,3 @@ public class ClassA {
         );
     }
 }
-

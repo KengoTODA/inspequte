@@ -15,17 +15,17 @@ GitHub Code Scanning and other SARIF viewers can render `codeFlows` and link `re
   - A deterministic ordered witness path.
   - Optional per-step messages and logical locations.
 - Serialize the structures to SARIF 2.1.0 `codeFlows`, `threadFlows`, `threadFlowLocations`, and `relatedLocations`.
-- Start with at least two representative path-sensitive or multi-location rules.
+- Start with `RUN_BLOCKING_REACHABLE_FROM_COROUTINE` and `EXCEPTION_CAUSE_NOT_PRESERVED` as representative path-sensitive or multi-location rules.
 - Prefer one minimal and actionable witness per finding instead of serializing every possible path.
 - Define deterministic witness selection when multiple equivalent paths exist.
-- Add configurable limits for path length and total evidence size so evidence cannot create unbounded output.
+- Add internally configurable limits for path length and total evidence size so evidence cannot create unbounded output. Plan 09 may later provide shared runtime budget configuration, but is not a prerequisite.
 - Preserve bytecode-level logical locations when source mapping is unavailable.
 - Ensure evidence generation composes with shared analysis budgets and future abstract-domain infrastructure.
 
 ## Test Cases
-- A representative lock-related rule links acquisition and blocking locations in execution order.
-- A representative resource or nullness rule links the origin and terminal misuse locations.
-- Related-location IDs are valid, unique within a result, and referenced correctly from messages or flows.
+- The coroutine rule links the selected coroutine root and call chain to the `runBlocking` call in execution order.
+- The exception rule links the catch-handler entry to the cause-dropping throw.
+- Related-location IDs are valid and unique within a result.
 - Witness ordering remains deterministic across repeated and parallel runs.
 - Multiple candidate witnesses produce the documented minimal deterministic path.
 - Missing source mappings fall back to useful logical or bytecode locations.
@@ -42,10 +42,14 @@ GitHub Code Scanning and other SARIF viewers can render `codeFlows` and link `re
 - A fixture or CI artifact demonstrates acceptable rendering in GitHub Code Scanning or another SARIF viewer.
 
 ## Dependencies
-- Plan 09 for shared analysis budgets and diagnostics.
-- Plan 12 for stable program-point identity and normalized locations.
 - Plan 14 for official SARIF schema validation.
 - Existing path-sensitive rule implementations from which witness information can be extracted.
+- Plan 09 is an optional future integration point for shared runtime budget configuration, not an implementation dependency.
 
 ## Complexity Estimate
 High
+
+## Post-mortem
+- Went well: Both initial rules already computed deterministic multi-point evidence, and `serde-sarif` exposed the required SARIF 2.1.0 structures without adding a dependency.
+- Tricky: Evidence had to be retained before each rule flattened its analysis into a primary location, while result-local related-location IDs had to remain clearly separate from stable finding identity.
+- Follow-up: Plan 09 can expose the internal evidence limits as shared runtime budgets; additional path-sensitive rules can adopt the same evidence model after they retain suitable witnesses.
