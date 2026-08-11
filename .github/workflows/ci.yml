@@ -66,6 +66,17 @@ jobs:
         run: bash scripts/coverage.sh
       - name: Smoke test (SpotBugs jars)
         run: bash scripts/smoke-spotbugs.sh
+      - name: Verify vendored OASIS SARIF schema
+        run: bash scripts/update-sarif-schema.sh --check
+      - name: Generate inspequte SARIF compatibility report
+        run: |
+          mkdir -p target/sarif-compatibility-input
+          target/release/inspequte \
+            --input target/sarif-compatibility-input \
+            --output target/inspequte-compatibility.sarif \
+            --automation-details-id inspequte/schema-compatibility
+        env:
+          INSPEQUTE_VALIDATE_SARIF: 1
       - name: Upload artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -113,6 +124,13 @@ jobs:
           name: cargo-audit-sarif
           path: target/audit.sarif
           if-no-files-found: warn
+      - name: Upload inspequte SARIF compatibility report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: inspequte-sarif-compatibility
+          path: target/inspequte-compatibility.sarif
+          if-no-files-found: error
   gradle-dependency-submission:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -144,7 +162,17 @@ jobs:
         with:
           name: cargo-audit-sarif
           path: target
+      - name: Download inspequte SARIF compatibility report
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: inspequte-sarif-compatibility
+          path: target
       - name: Upload SARIF to GitHub code scanning
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           sarif_file: target/audit.sarif
+      - name: Upload inspequte SARIF compatibility canary
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          sarif_file: target/inspequte-compatibility.sarif
+          category: inspequte/schema-compatibility

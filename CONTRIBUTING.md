@@ -15,7 +15,7 @@ We follow Conventional Commits 1.0.0. Examples:
 - Install Kotlin and ensure the `kotlinc` executable is available in `PATH` for Kotlin harness tests.
 
 ### Environment variables
-- `INSPEQUTE_VALIDATE_SARIF=1` validates SARIF output against the bundled schema (dev only).
+- `INSPEQUTE_VALIDATE_SARIF=1` validates runtime output against the bundled official OASIS schema. SARIF tests enable validation automatically.
 
 ### Benchmarks
 - `scripts/bench-classpath.sh <input> [repeat] [classpath...]` runs benchmark scans for a single input.
@@ -37,7 +37,7 @@ When adding or updating rules, use the local workflow skills in `.codex/skills/`
 - `inspequte-rule-impl`
 - `inspequte-rule-verify`
 
-### Validate SARIF during CI (optional)
+### Validate SARIF in custom integration jobs
 ```yaml
 - name: Run inspequte tasks with schema validation
   run: |
@@ -46,6 +46,9 @@ When adding or updating rules, use the local workflow skills in `.codex/skills/`
       --classpath lib/ \
       --output results.sarif
 ```
+
+Run `scripts/update-sarif-schema.sh --check` to verify the vendored official
+schema checksum without network access. See `docs/sarif.md` before refreshing it.
 
 ## License
 By contributing, you agree that your contributions will be licensed under AGPL-3.0.

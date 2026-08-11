@@ -27,8 +27,8 @@ use serde::Deserialize;
 use serde_json::json;
 use serde_sarif::sarif::Result as SarifResult;
 use serde_sarif::sarif::{
-    Artifact, Invocation, PropertyBag, ReportingDescriptor, Run, RunAutomationDetails, SCHEMA_URL,
-    Sarif, Tool, ToolComponent,
+    Artifact, Invocation, PropertyBag, ReportingDescriptor, Run, RunAutomationDetails, Sarif, Tool,
+    ToolComponent,
 };
 use tracing::error;
 
@@ -39,6 +39,8 @@ use crate::scan::scan_inputs;
 use crate::telemetry::{Telemetry, current_trace_id, init_logging, with_span};
 
 const DEFAULT_BASELINE_PATH: &str = ".inspequte/baseline.json";
+const SARIF_SCHEMA_URI: &str =
+    "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
 
 /// CLI arguments for inspequte execution.
 #[derive(Parser, Debug)]
@@ -870,14 +872,18 @@ fn should_validate_sarif() -> bool {
 }
 
 fn validate_sarif(sarif: &Sarif) -> Result<()> {
-    let schema = serde_json::from_str(include_str!("assets/sarif-2.1.0.json"))
-        .context("load SARIF schema")?;
-    let compiled = jsonschema::validator_for(&schema)
-        .map_err(|err| anyhow::anyhow!("compile SARIF schema: {err}"))?;
     let value = serde_json::to_value(sarif).context("serialize SARIF")?;
+    validate_sarif_value(&value)
+}
+
+fn validate_sarif_value(value: &serde_json::Value) -> Result<()> {
+    let schema = serde_json::from_str(include_str!("assets/sarif-2.1.0.json"))
+        .context("load official OASIS SARIF schema")?;
+    let compiled = jsonschema::validator_for(&schema)
+        .map_err(|err| anyhow::anyhow!("compile official OASIS SARIF schema: {err}"))?;
     let errors: Vec<String> = compiled
-        .iter_errors(&value)
-        .map(|error| error.to_string())
+        .iter_errors(value)
+        .map(|error| format!("{}: {error}", error.instance_path()))
         .collect();
     if !errors.is_empty() {
         let message = errors.join("\n");
@@ -955,7 +961,7 @@ fn build_sarif(
         };
 
         Sarif::builder()
-            .schema(SCHEMA_URL)
+            .schema(SARIF_SCHEMA_URI)
             .runs(vec![run])
             .version(json!("2.1.0"))
             .build()
@@ -1465,7 +1471,7 @@ mod tests {
         let value = serde_json::to_value(&sarif).expect("serialize SARIF");
 
         assert_eq!(value["version"], "2.1.0");
-        assert_eq!(value["$schema"], SCHEMA_URL);
+        assert_eq!(value["$schema"], SARIF_SCHEMA_URI);
         assert_eq!(value["runs"][0]["tool"]["driver"]["name"], "inspequte");
         assert_eq!(
             value["runs"][0]["tool"]["driver"]["semanticVersion"],
@@ -1486,6 +1492,26 @@ mod tests {
             true
         );
         assert!(value["runs"][0]["automationDetails"].is_null());
+        validate_sarif(&sarif).expect("validate against official OASIS schema");
+    }
+
+    #[test]
+    fn sarif_schema_validation_reports_invalid_property_path() {
+        let invocation = Invocation::builder().execution_successful(true).build();
+        let sarif = build_sarif(None, Vec::new(), invocation, Vec::new(), Vec::new(), None);
+        let mut value = serde_json::to_value(&sarif).expect("serialize SARIF");
+        value["runs"][0]
+            .as_object_mut()
+            .expect("SARIF run object")
+            .insert("resultz".to_string(), json!([]));
+
+        let error = validate_sarif_value(&value).expect_err("reject unknown SARIF property");
+        let message = error.to_string();
+        assert!(message.contains("resultz"), "unexpected error: {message}");
+        assert!(
+            message.contains("/runs/0"),
+            "missing instance path: {message}"
+        );
     }
 
     #[test]
@@ -1547,6 +1573,7 @@ mod tests {
             analysis.results,
             None,
         );
+        validate_sarif(&sarif).expect("validate snapshot SARIF against official OASIS schema");
         let mut actual_value = serde_json::to_value(&sarif).expect("serialize SARIF");
         normalize_sarif_for_snapshot(&mut actual_value);
         let actual = serde_json::to_string_pretty(&actual_value).expect("serialize SARIF");
