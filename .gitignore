@@ -18,6 +18,10 @@ target/
 # macOS
 .DS_Store
 
+# Python helper caches
+__pycache__/
+*.pyc
+
 # Gradle
 gradle-plugin/.gradle/
 gradle-plugin/build/

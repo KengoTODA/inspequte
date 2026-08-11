@@ -3,4 +3,4 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-exec python3 "${script_dir}/rule_authoring_evidence.py" prepare "$@"
+exec python3 "${script_dir}/rule_authoring_evidence.py" validate "$@"

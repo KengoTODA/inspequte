@@ -36,9 +36,14 @@ Recommended sequence:
    scripts/prepare-verify-input.sh <rule-id> [base-ref]
    cargo build > verify-input/reports/cargo-build.txt 2>&1
    cargo test > verify-input/reports/cargo-test.txt 2>&1
-   cargo audit --format sarif > verify-input/reports/cargo-audit.sarif
+   cargo audit --format sarif > verify-input/reports/cargo-audit.sarif \
+     2> verify-input/reports/cargo-audit.stderr.txt
+   # Record the three exit codes in verify-input/reports/command-status.txt.
+   scripts/create-verify-manifest.sh
+   scripts/validate-verify-input.sh
    ```
-5. Verify: run `inspequte-rule-verify` using `verify-input/` only (no plan/log context).
+5. Verify: after evidence validation succeeds, run `inspequte-rule-verify` using
+   `verify-input/` only (no plan/log context).
 
 When a rule implementation was marked No-Go on GitHub Actions, run
 `inspequte-rule-no-go-resume` to:

@@ -359,13 +359,9 @@ jobs:
             cargo install cargo-audit --locked
           fi
 
-          cargo audit --format sarif > verify-input/reports/cargo-audit.sarif
+          cargo audit --format sarif > verify-input/reports/cargo-audit.sarif \
+            2> verify-input/reports/cargo-audit.stderr.txt
           audit_exit=$?
-          if [[ ${audit_exit} -ne 0 ]]; then
-            cat > verify-input/reports/cargo-audit.sarif <<'SARIF'
-          {"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0","runs":[{"tool":{"driver":{"name":"cargo-audit"}},"results":[{"level":"error","message":{"text":"cargo audit failed in workflow"}}]}]}
-          SARIF
-          fi
           set -e
 
           cat > verify-input/reports/command-status.txt <<EOF
@@ -373,6 +369,9 @@ jobs:
           cargo test exit code: ${test_exit}
           cargo audit exit code: ${audit_exit}
           EOF
+
+          scripts/create-verify-manifest.sh
+          scripts/validate-verify-input.sh
 
       - name: Capture cumulative patch (phase3)
         shell: bash

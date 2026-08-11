@@ -50,6 +50,7 @@ description: Implement an inspequte rule from spec.md, including tests and minim
 12. Optional verify handoff safety check (recommended when preparing CI verify):
    - Run `scripts/prepare-verify-input.sh <rule-id> [base-ref]`.
    - Confirm `verify-input/changed-files.txt` includes the rule implementation file and tests; otherwise stop and regenerate inputs.
+   - After build, test, and audit reports plus `reports/command-status.txt` exist, run `scripts/create-verify-manifest.sh` and `scripts/validate-verify-input.sh`.
 13. Update docs only when externally visible behavior changed.
 
 ## Template Snippets
