@@ -48,3 +48,8 @@ A dedicated compatibility lane provides early warning without forcing the entire
 
 ## Complexity Estimate
 Medium
+
+## Post-mortem
+- The current `jclassfile` release accepts the numeric class-file version without a maximum, so major version 70 required neither a dependency update nor a compatibility shim.
+- Making the class-file header assertion portable was the trickiest detail: BSD `od` can emit a leading blank line, so the script explicitly selects the first row containing both bytes.
+- The Java 26 GitHub Actions job is the authoritative compiler-level evidence; future lanes should continue to fail closed when a new constant-pool entry, opcode, or required attribute exceeds parser support.

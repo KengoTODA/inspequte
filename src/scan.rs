@@ -2990,7 +2990,7 @@ mod tests {
     /// stable regardless of which JVM spec attributes jclassfile adds later.
     #[test]
     fn parse_class_bytes_falls_back_on_unknown_attribute() {
-        let data = build_class_with_unknown_attribute();
+        let data = build_class_with_unknown_attribute(65);
         let parsed = parse_class_bytes(&data).expect("should fall back to minimal parser");
         assert_eq!(parsed.name, "com/example/FakeClass");
         assert_eq!(parsed.super_name.as_deref(), Some("java/lang/Object"));
@@ -2998,17 +2998,26 @@ mod tests {
         assert!(parsed.methods.is_empty());
     }
 
+    #[test]
+    fn parse_java_26_class_bytes_falls_back_on_unknown_attribute() {
+        let data = build_class_with_unknown_attribute(70);
+        let parsed = parse_class_bytes(&data).expect("parse Java 26 class-file version");
+        assert_eq!(parsed.name, "com/example/FakeClass");
+        assert_eq!(parsed.super_name.as_deref(), Some("java/lang/Object"));
+        assert!(parsed.methods.is_empty());
+    }
+
     /// Build a minimal valid class file that contains a fictitious class-level
     /// attribute (`InspequteTestOnlyAttribute`).  jclassfile will fail with
     /// "unmatched attribute", causing `parse_class_bytes` to fall back to the
     /// minimal parser.
-    fn build_class_with_unknown_attribute() -> Vec<u8> {
+    fn build_class_with_unknown_attribute(major_version: u16) -> Vec<u8> {
         let mut b = Vec::new();
         // magic
         b.extend_from_slice(&[0xCA, 0xFE, 0xBA, 0xBE]);
-        // minor_version, major_version (65 = Java 21)
+        // minor_version, caller-selected major_version
         b.extend_from_slice(&0u16.to_be_bytes());
-        b.extend_from_slice(&65u16.to_be_bytes());
+        b.extend_from_slice(&major_version.to_be_bytes());
         // constant_pool_count = 6 (entries #1..#5)
         b.extend_from_slice(&6u16.to_be_bytes());
         // #1 Utf8 "com/example/FakeClass"

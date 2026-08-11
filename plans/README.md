@@ -97,10 +97,10 @@ Each plan file should document:
     - Complexity: **High**
     - Status: **Planning**
 
-16. **[16-java-26-compatibility-lane.md](16-java-26-compatibility-lane.md)**
+16. **[16-java-26-compatibility-lane.done.md](16-java-26-compatibility-lane.done.md)**
     - Add a Java 26 class-file compatibility lane while retaining Java 21
     - Complexity: **Medium**
-    - Status: **Planning**
+    - Status: **Done**
 
 ## Plan Status
 
@@ -112,7 +112,6 @@ Open cross-cutting work in this directory:
 - `12-stable-finding-identities.md`
 - `13-sarif-code-flows-and-related-locations.md`
 - `15-bounded-rule-authoring-loop.md`
-- `16-java-26-compatibility-lane.md`
 
 Implementation priority is determined by:
 - User requests and feedback
