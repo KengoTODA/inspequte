@@ -202,7 +202,7 @@ You can override a task's automation details id from CLI:
 ```json
 {
   "version": "2.1.0",
-  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
   "runs": [
     {
       "tool": {
@@ -216,6 +216,9 @@ You can override a task's automation details id from CLI:
   ]
 }
 ```
+
+See [SARIF compatibility](docs/sarif.md) for the normative OASIS schema,
+validation policy, GitHub Code Scanning canary, and schema refresh procedure.
 
 ## CI integration (GitHub Actions)
 Use the Gradle plugin in CI and install the CLI from GitHub Releases:

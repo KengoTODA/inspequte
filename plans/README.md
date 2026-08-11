@@ -42,10 +42,77 @@ Each plan file should document:
    - Complexity: **Low**
    - Status: **Done**
 
+5. **[05-worklist-analysis-engine.done.md](05-worklist-analysis-engine.done.md)**
+   - Provide a shared deterministic worklist analysis engine
+   - Complexity: **High**
+   - Status: **Done**
+
+6. **[06-shared-stack-machine-abstraction.done.md](06-shared-stack-machine-abstraction.done.md)**
+   - Share JVM stack-machine analysis infrastructure across rules
+   - Complexity: **High**
+   - Status: **Done**
+
+7. **[07-table-driven-opcode-semantics.done.md](07-table-driven-opcode-semantics.done.md)**
+   - Centralize opcode semantics in deterministic tables
+   - Complexity: **Medium-High**
+   - Status: **Done**
+
+8. **[08-abstract-domain-traits.md](08-abstract-domain-traits.md)**
+   - Define reusable trait-based abstract domains
+   - Complexity: **Medium-High**
+   - Status: **Planning**
+
+9. **[09-analysis-safety-budgeting.md](09-analysis-safety-budgeting.md)**
+   - Standardize analysis budgets and diagnostics
+   - Complexity: **Medium**
+   - Status: **Planning**
+
+10. **[10-oss-fp-hunting-skill.done.md](10-oss-fp-hunting-skill.done.md)**
+    - Reproducibly hunt false positives in pinned OSS fixtures
+    - Complexity: **High**
+    - Status: **Done**
+
+11. **[11-agent-facing-sarif-remediation-contract.md](11-agent-facing-sarif-remediation-contract.md)**
+    - Enrich SARIF rule descriptors into an agent-facing remediation contract
+    - Complexity: **Medium-High**
+    - Status: **Planning**
+
+12. **[12-stable-finding-identities.md](12-stable-finding-identities.md)**
+    - Introduce versioned semantic identities for findings and baselines
+    - Complexity: **High**
+    - Status: **Planning**
+
+13. **[13-sarif-code-flows-and-related-locations.md](13-sarif-code-flows-and-related-locations.md)**
+    - Emit concise witness paths and related locations for multi-step findings
+    - Complexity: **High**
+    - Status: **Planning**
+
+14. **[14-official-oasis-sarif-schema.done.md](14-official-oasis-sarif-schema.done.md)**
+    - Adopt the official OASIS SARIF 2.1.0 Errata 01 schema as normative
+    - Complexity: **Medium**
+    - Status: **Done**
+
+15. **[15-bounded-rule-authoring-loop.md](15-bounded-rule-authoring-loop.md)**
+    - Close rule authoring into a bounded, evidence-driven improvement loop
+    - Complexity: **High**
+    - Status: **Planning**
+
+16. **[16-java-26-compatibility-lane.md](16-java-26-compatibility-lane.md)**
+    - Add a Java 26 class-file compatibility lane while retaining Java 21
+    - Complexity: **Medium**
+    - Status: **Planning**
+
 ## Plan Status
 
 Open cross-cutting work in this directory:
 - `02-java-stdlib-nullness-database.md`
+- `08-abstract-domain-traits.md`
+- `09-analysis-safety-budgeting.md`
+- `11-agent-facing-sarif-remediation-contract.md`
+- `12-stable-finding-identities.md`
+- `13-sarif-code-flows-and-related-locations.md`
+- `15-bounded-rule-authoring-loop.md`
+- `16-java-26-compatibility-lane.md`
 
 Implementation priority is determined by:
 - User requests and feedback

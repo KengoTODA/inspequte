@@ -9,6 +9,7 @@ fn run_inspequte(args: &[&str], stdin: Option<&str>) -> std::process::Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_inspequte"));
     command
         .args(args)
+        .env("INSPEQUTE_VALIDATE_SARIF", "1")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     if stdin.is_some() {
@@ -40,6 +41,10 @@ fn json_stdin_scan_produces_sarif_output() {
     let stdout = String::from_utf8(output.stdout).expect("stdout");
     let value: Value = serde_json::from_str(&stdout).expect("valid sarif JSON");
     assert_eq!(value["version"], "2.1.0");
+    assert_eq!(
+        value["$schema"],
+        "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
+    );
 }
 
 #[test]
