@@ -97,3 +97,19 @@ fn verification_result_schema_requires_none_for_go() {
 
     assert_invalid(VERIFICATION_RESULT_SCHEMA, &instance);
 }
+
+#[test]
+fn verification_result_schema_requires_evidence_for_no_go() {
+    let instance = json!({
+        "schemaVersion": 1,
+        "recommendation": "no_go",
+        "reason": "implementation_defect",
+        "implementationRetryable": true,
+        "attempt": 1,
+        "summary": "No evidence was provided.",
+        "evidenceManifestSha256": "a".repeat(64),
+        "findings": []
+    });
+
+    assert_invalid(VERIFICATION_RESULT_SCHEMA, &instance);
+}

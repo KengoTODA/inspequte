@@ -3,6 +3,11 @@
 The rule-authoring workflow uses versioned JSON contracts so evidence validation,
 semantic verification, and workflow routing do not depend on parsing prose.
 
+The normative files are `verify-input/manifest.json` and
+`verify-input/verify-result.json`. Both must validate against their schemas under
+`schemas/rule-authoring/`. `verify-report.md` is generated from the structured
+result by `scripts/finalize-verify-result.sh` and is not an input to routing.
+
 ## Verification reasons
 
 `verification-result.json` uses the following closed reason taxonomy:

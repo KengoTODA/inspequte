@@ -92,7 +92,9 @@ jobs:
       - name: Build
         run: cargo build --release
       - name: Test rule-authoring evidence contracts
-        run: python3 tests/test_rule_authoring_evidence.py
+        run: |
+          python3 tests/test_rule_authoring_evidence.py
+          python3 tests/test_rule_authoring_verification.py
       - name: Test and compute coverage
         run: bash scripts/coverage.sh
       - name: Smoke test (SpotBugs jars)

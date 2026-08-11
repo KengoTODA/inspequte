@@ -119,6 +119,9 @@
         },
         "implementationRetryable": {
           "const": true
+        },
+        "findings": {
+          "minItems": 1
         }
       }
     },
@@ -137,6 +140,9 @@
         },
         "implementationRetryable": {
           "const": false
+        },
+        "findings": {
+          "minItems": 1
         }
       }
     }

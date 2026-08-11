@@ -19,9 +19,12 @@
   - `verify-input/spec.md`
   - `verify-input/diff.patch`
   - `verify-input/reports/*`
+  - `verify-input/manifest.json`
   - `verify-input/changes/*` (if present)
   - `verify-input/changed-files.txt` (if present)
 - Follow the isolation policy in the skill: for verification, do not read `src/rules/<rule-id>/plan.md` or discussion logs.
+- Write the normative decision to `verify-input/verify-result.json`; the
+  Markdown report is generated from that JSON.
 
 ## Constraints and tooling
 - Use Java 21 for harness tests via `JAVA_HOME`.

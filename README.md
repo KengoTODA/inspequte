@@ -43,7 +43,9 @@ Recommended sequence:
    scripts/validate-verify-input.sh
    ```
 5. Verify: after evidence validation succeeds, run `inspequte-rule-verify` using
-   `verify-input/` only (no plan/log context).
+   `verify-input/` only (no plan/log context). The verifier writes
+   `verify-result.json` and runs `scripts/finalize-verify-result.sh` to generate
+   the human-readable `verify-report.md`.
 
 When a rule implementation was marked No-Go on GitHub Actions, run
 `inspequte-rule-no-go-resume` to:

@@ -75,7 +75,6 @@ jobs:
           Before finishing, write machine-readable metadata to `target/opus-workflow/output/final-status.env`:
           RULE_ID=<snake_case_id>
           RULE_IDEA=<short sentence>
-          RECOMMENDATION=<Go|No-Go>
 
           Final response format (strict):
           rule-id: <snake_case_id>
@@ -102,6 +101,9 @@ jobs:
         env:
           BASE_REF: ${{ env.BASE_REF }}
 
+      - name: Validate structured verification result
+        run: scripts/finalize-verify-result.sh
+
       - name: Extract metadata
         id: meta
         shell: bash
@@ -115,22 +117,24 @@ jobs:
 
           source target/opus-workflow/output/final-status.env
 
-          if [[ -z "${RULE_ID:-}" || -z "${RULE_IDEA:-}" || -z "${RECOMMENDATION:-}" ]]; then
+          if [[ -z "${RULE_ID:-}" || -z "${RULE_IDEA:-}" ]]; then
             echo "Missing metadata values in final-status.env" >&2
             exit 1
           fi
 
-          if [[ "${RECOMMENDATION}" != "Go" && "${RECOMMENDATION}" != "No-Go" ]]; then
-            echo "Invalid recommendation: ${RECOMMENDATION}" >&2
-            exit 1
-          fi
+          raw_recommendation="$(jq -er '.recommendation' verify-input/verify-result.json)"
+          case "${raw_recommendation}" in
+            go) recommendation="Go" ;;
+            no_go) recommendation="No-Go" ;;
+            *) echo "Invalid recommendation: ${raw_recommendation}" >&2; exit 1 ;;
+          esac
 
           {
             echo "rule_id=${RULE_ID}"
             echo "rule_idea<<EOF"
             echo "${RULE_IDEA}"
             echo "EOF"
-            echo "recommendation=${RECOMMENDATION}"
+            echo "recommendation=${recommendation}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Capture cumulative patch
