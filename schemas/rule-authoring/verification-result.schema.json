@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/KengoTODA/inspequte/schemas/rule-authoring/verification-result.schema.json",
+  "title": "inspequte rule-authoring verification result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "recommendation",
+    "reason",
+    "implementationRetryable",
+    "attempt",
+    "summary",
+    "evidenceManifestSha256",
+    "findings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": ["go", "no_go"]
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "none",
+        "implementation_defect",
+        "test_defect",
+        "spec_ambiguity",
+        "suspected_false_positive",
+        "stale_or_missing_evidence",
+        "infrastructure_failure"
+      ]
+    },
+    "implementationRetryable": {
+      "type": "boolean"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidenceManifestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["category", "message", "evidence"],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "spec_compliance",
+              "false_positive_risk",
+              "determinism_stability",
+              "performance_regression"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "detail"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "pattern": "^(spec\\.md|diff\\.patch|changed-files\\.txt|deleted-files\\.txt|changes/|reports/)"
+                },
+                "detail": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "recommendation": {
+          "const": "go"
+        },
+        "reason": {
+          "const": "none"
+        },
+        "implementationRetryable": {
+          "const": false
+        }
+      }
+    },
+    {
+      "properties": {
+        "recommendation": {
+          "const": "no_go"
+        },
+        "reason": {
+          "enum": [
+            "implementation_defect",
+            "test_defect"
+          ]
+        },
+        "implementationRetryable": {
+          "const": true
+        }
+      }
+    },
+    {
+      "properties": {
+        "recommendation": {
+          "const": "no_go"
+        },
+        "reason": {
+          "enum": [
+            "spec_ambiguity",
+            "suspected_false_positive",
+            "stale_or_missing_evidence",
+            "infrastructure_failure"
+          ]
+        },
+        "implementationRetryable": {
+          "const": false
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
