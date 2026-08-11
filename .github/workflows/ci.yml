@@ -99,7 +99,22 @@ jobs:
         run: bash scripts/update-sarif-schema.sh --check
       - name: Generate inspequte SARIF compatibility report
         run: |
-          mkdir -p target/sarif-compatibility-input
+          # Generate a finding with codeFlows and relatedLocations so the GitHub
+          # Code Scanning canary verifies evidence ingestion, not only empty SARIF.
+          mkdir -p target/sarif-compatibility-source target/sarif-compatibility-input
+          cat > target/sarif-compatibility-source/ClassA.java <<'JAVA'
+          public class ClassA {
+              public void methodX() {
+                  try {
+                      throw new Exception("one");
+                  } catch (Exception varOne) {
+                      throw new RuntimeException("two");
+                  }
+              }
+          }
+          JAVA
+          javac -d target/sarif-compatibility-input \
+            target/sarif-compatibility-source/ClassA.java
           target/release/inspequte \
             --input target/sarif-compatibility-input \
             --output target/inspequte-compatibility.sarif \

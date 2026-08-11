@@ -42,6 +42,17 @@ GitHub Code Scanning supports a subset of SARIF 2.1.0. The unit and integration 
 
 Consumer-specific behavior must not weaken OASIS schema validation. When GitHub ignores an otherwise valid field, retain standards-conforming output and document any presentation limitation.
 
+## Finding evidence
+
+Rules whose findings depend on multiple program points can attach two complementary forms of evidence:
+
+- `relatedLocations` names the other locations that explain the finding. Its numeric `id` values are deterministic and unique only within that result; they are not stable finding identities.
+- `codeFlows[].threadFlows[].locations` records one minimal, deterministic witness in execution order. Every step includes an `executionOrder`, a short message, and logical method information even when no source line is available.
+
+Evidence is currently emitted for coroutine call chains reaching `runBlocking` and for catch handlers that throw a replacement exception without retaining the original cause. Output limits bound related locations and flow length without suppressing the finding; when a flow is shortened, inspequte retains its endpoints and reports the omitted step count.
+
+The CI compatibility report deliberately triggers an evidence-bearing finding. It is validated against the official schema and uploaded to GitHub Code Scanning as the rendering and ingestion canary.
+
 ## Future SARIF versions
 
 SARIF 2.2 is not a production output target. It may be monitored, but inspequte must not emit a newer version until it is finalized, the Rust serialization layer supports it, and required consumers such as GitHub Code Scanning can ingest it.

@@ -18,7 +18,10 @@ use crate::descriptor::{ReturnKind, method_param_count, method_return_kind};
 use crate::engine::AnalysisContext;
 use crate::ir::{CallKind, CallSite, Instruction, InstructionKind, Method};
 use crate::opcodes;
-use crate::rules::{Rule, RuleMetadata, method_location_with_line, result_message};
+use crate::rules::{
+    EvidenceLimits, EvidenceStep, ResultEvidence, Rule, RuleMetadata, method_location_with_line,
+    result_message,
+};
 
 const MAX_TRACKED_STACK_DEPTH: usize = 24;
 const MAX_TRACKED_ALLOCATIONS: usize = 4;
@@ -77,10 +80,38 @@ impl Rule for ExceptionCauseNotPreservedRule {
                                     artifact_uri.as_deref(),
                                     line,
                                 );
+                                let handler_location = method_location_with_line(
+                                    &class.name,
+                                    &method.name,
+                                    &method.descriptor,
+                                    artifact_uri.as_deref(),
+                                    method.line_for_offset(handler_pc),
+                                );
+                                let handler_step = EvidenceStep::new(
+                                    handler_location,
+                                    "The catch handler receives the original exception here.",
+                                    ["handler", "enter"],
+                                    Some(0),
+                                );
+                                let throw_step = EvidenceStep::new(
+                                    location.clone(),
+                                    "A new exception is thrown without preserving the original cause.",
+                                    ["danger", "exit"],
+                                    Some(0),
+                                );
+                                let evidence = ResultEvidence::new(
+                                    "Catch-handler path that discards the original exception cause.",
+                                    "exception-handler",
+                                    vec![handler_step.clone()],
+                                    vec![handler_step, throw_step],
+                                )
+                                .to_sarif(EvidenceLimits::default());
                                 class_results.push(
                                     SarifResult::builder()
                                         .message(message)
                                         .locations(vec![location])
+                                        .related_locations(evidence.related_locations)
+                                        .code_flows(evidence.code_flows)
                                         .build(),
                                 );
                             }
@@ -499,13 +530,18 @@ fn is_return_opcode(opcode: u8) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::EngineOutput;
     use crate::test_harness::{JvmTestHarness, Language, SourceFile};
 
-    fn analyze_sources(sources: Vec<SourceFile>) -> Vec<String> {
+    fn analyze_output(sources: Vec<SourceFile>) -> EngineOutput {
         let harness = JvmTestHarness::new().expect("JAVA_HOME must be set for harness tests");
-        let output = harness
+        harness
             .compile_and_analyze(Language::Java, &sources, &[])
-            .expect("run harness analysis");
+            .expect("run harness analysis")
+    }
+
+    fn analyze_sources(sources: Vec<SourceFile>) -> Vec<String> {
+        let output = analyze_output(sources);
         output
             .results
             .iter()
@@ -538,8 +574,52 @@ public class ClassA {
             .to_string(),
         }];
 
-        let messages = analyze_sources(sources);
+        let output = analyze_output(sources);
+        let messages: Vec<_> = output
+            .results
+            .iter()
+            .filter(|result| result.rule_id.as_deref() == Some("EXCEPTION_CAUSE_NOT_PRESERVED"))
+            .filter_map(|result| result.message.text.clone())
+            .collect();
         assert!(messages.iter().any(|msg| msg.contains("original cause")));
+        let finding = output
+            .results
+            .iter()
+            .find(|result| result.rule_id.as_deref() == Some("EXCEPTION_CAUSE_NOT_PRESERVED"))
+            .expect("finding present");
+        let related_locations = finding
+            .related_locations
+            .as_ref()
+            .expect("catch handler related location");
+        assert_eq!(related_locations.len(), 1);
+        assert_eq!(related_locations[0].id, Some(0));
+        assert!(
+            related_locations[0]
+                .message
+                .as_ref()
+                .and_then(|message| message.text.as_deref())
+                .is_some_and(|message| message.contains("original exception"))
+        );
+        let flow_locations = &finding
+            .code_flows
+            .as_ref()
+            .expect("catch handler code flow")[0]
+            .thread_flows[0]
+            .locations;
+        assert_eq!(flow_locations.len(), 2);
+        assert_eq!(flow_locations[0].execution_order, Some(0));
+        assert_eq!(flow_locations[1].execution_order, Some(1));
+        assert_eq!(
+            flow_locations[0]
+                .location
+                .as_ref()
+                .and_then(|location| location.logical_locations.as_ref()),
+            flow_locations[1]
+                .location
+                .as_ref()
+                .and_then(|location| location.logical_locations.as_ref()),
+            "handler and throw evidence must refer to the reported method"
+        );
     }
 
     #[test]
