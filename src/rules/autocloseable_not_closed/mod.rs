@@ -41,6 +41,7 @@ impl Rule for UnmanagedAutocloseableRule {
             .all_classes()
             .map(|class| (class.name.clone(), class))
             .collect::<BTreeMap<_, _>>();
+        let autocloseable_types = collect_autocloseable_types(context, &class_map);
 
         for class in context.analysis_target_classes() {
             let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
@@ -67,8 +68,13 @@ impl Rule for UnmanagedAutocloseableRule {
                         if method.bytecode.is_empty() || method.cfg.blocks.is_empty() {
                             continue;
                         }
+                        if !method_may_create_autocloseable(method, &autocloseable_types) {
+                            continue;
+                        }
 
-                        for creation_offset in analyze_closeable_lifecycle(method, &class_map)? {
+                        for creation_offset in
+                            analyze_closeable_lifecycle(method, &autocloseable_types)?
+                        {
                             let cls_name = &class.name;
                             let met_name = &method.name;
                             let met_descriptor = &method.descriptor;
@@ -148,7 +154,7 @@ impl WorklistState for ExecutionState {
 /// Dataflow callbacks for local AutoCloseable lifecycle analysis.
 struct CloseableLifecycleSemantics<'a> {
     entry_block: u32,
-    class_map: &'a BTreeMap<String, &'a Class>,
+    autocloseable_types: &'a BTreeSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -217,7 +223,9 @@ impl WorklistSemantics for CloseableLifecycleSemantics<'_> {
                 }
             }
             _ => match &instruction.kind {
-                InstructionKind::Invoke(call) => handle_invoke(call, state, self.class_map)?,
+                InstructionKind::Invoke(call) => {
+                    handle_invoke(call, state, self.autocloseable_types)?
+                }
                 InstructionKind::InvokeDynamic { descriptor, .. } => {
                     handle_invoke_dynamic(descriptor, state)?
                 }
@@ -259,7 +267,7 @@ impl WorklistSemantics for CloseableLifecycleSemantics<'_> {
 
 fn analyze_closeable_lifecycle(
     method: &Method,
-    class_map: &BTreeMap<String, &Class>,
+    autocloseable_types: &BTreeSet<String>,
 ) -> Result<Vec<u32>> {
     let entry_block = method
         .cfg
@@ -270,7 +278,7 @@ fn analyze_closeable_lifecycle(
         .unwrap_or(0);
     let semantics = CloseableLifecycleSemantics {
         entry_block,
-        class_map,
+        autocloseable_types,
     };
     let findings = analyze_method(method, &semantics)?;
     Ok(findings
@@ -322,7 +330,7 @@ impl SemanticsHooks<Value> for CloseableSemanticsHook {
 fn handle_invoke(
     call: &CallSite,
     state: &mut ExecutionState,
-    class_map: &BTreeMap<String, &Class>,
+    autocloseable_types: &BTreeSet<String>,
 ) -> Result<()> {
     let summary = method_descriptor_summary(&call.descriptor)?;
     let mut args = Vec::with_capacity(summary.param_count);
@@ -340,7 +348,7 @@ fn handle_invoke(
         let is_excluded = is_excluded_noop_type(&call.owner);
         if let Some(Value::Symbol(symbol)) = receiver
             && !is_excluded
-            && is_autocloseable_constructor(call, class_map)
+            && autocloseable_types.contains(&call.owner)
         {
             // Tracked AutoCloseable: wrapper delegation escapes inner args.
             state.active_closeables.insert(symbol);
@@ -390,7 +398,7 @@ fn handle_invoke(
     if summary.return_kind == ReturnKind::Reference {
         if let Ok(Some(return_class)) = method_return_class_name(&call.descriptor) {
             if !is_excluded_noop_type(&return_class)
-                && is_autocloseable_type(&return_class, class_map)
+                && autocloseable_types.contains(&return_class)
             {
                 let symbol = call.offset;
                 state.active_closeables.insert(symbol);
@@ -466,8 +474,52 @@ fn is_close_call(call: &CallSite) -> bool {
     call.name == "close" && call.descriptor == "()V"
 }
 
-fn is_autocloseable_constructor(call: &CallSite, class_map: &BTreeMap<String, &Class>) -> bool {
-    call.name == "<init>" && is_autocloseable_type(&call.owner, class_map)
+fn collect_autocloseable_types(
+    context: &AnalysisContext,
+    class_map: &BTreeMap<String, &Class>,
+) -> BTreeSet<String> {
+    let candidates = context
+        .analysis_target_classes()
+        .iter()
+        .flat_map(|class| &class.methods)
+        .flat_map(|method| &method.calls)
+        .filter_map(|call| {
+            if call.name == "<init>" {
+                Some(call.owner.clone())
+            } else {
+                method_return_class_name(&call.descriptor).ok().flatten()
+            }
+        })
+        .filter(|name| !is_excluded_noop_type(name))
+        .collect::<BTreeSet<_>>();
+
+    candidates
+        .into_iter()
+        .filter(|name| is_autocloseable_type(name, class_map))
+        .collect()
+}
+
+fn method_may_create_autocloseable(
+    method: &Method,
+    autocloseable_types: &BTreeSet<String>,
+) -> bool {
+    method.calls.iter().any(|call| {
+        if call.name == "<init>"
+            && !is_excluded_noop_type(&call.owner)
+            && autocloseable_types.contains(&call.owner)
+        {
+            return true;
+        }
+
+        match method_return_class_name(&call.descriptor) {
+            Ok(Some(return_class)) => {
+                !is_excluded_noop_type(&return_class)
+                    && autocloseable_types.contains(&return_class)
+            }
+            Ok(None) => false,
+            Err(_) => true,
+        }
+    })
 }
 
 fn is_autocloseable_type(name: &str, class_map: &BTreeMap<String, &Class>) -> bool {
