@@ -24,7 +24,7 @@ result by `scripts/finalize-verify-result.sh` and is not an input to routing.
 
 Only `implementation_defect` and `test_defect` may set
 `implementationRetryable` to `true`. A `go` result must use reason `none` and
-must set `implementationRetryable` to `false`.
+must set `implementationRetryable` to `false` with an empty `findings` array.
 
 ## Terminal states
 

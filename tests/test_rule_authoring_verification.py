@@ -88,6 +88,18 @@ class RuleAuthoringVerificationTest(unittest.TestCase):
         with self.assertRaisesRegex(verification.VerificationResultError, "go requires"):
             verification.validate_result(self.verify_root, result)
 
+    def test_go_with_findings_is_rejected(self) -> None:
+        """A passing recommendation cannot retain verification findings."""
+        result = self.no_go_result()
+        result["recommendation"] = "go"
+        result["reason"] = "none"
+        result["implementationRetryable"] = False
+
+        with self.assertRaisesRegex(
+            verification.VerificationResultError, "go requires no findings"
+        ):
+            verification.validate_result(self.verify_root, result)
+
     def test_result_bound_to_another_manifest_is_rejected(self) -> None:
         """A result cannot be reused for a different evidence manifest."""
         result = self.no_go_result()

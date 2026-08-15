@@ -136,6 +136,8 @@ def validate_result(verify_root: Path, raw_result: Any) -> dict[str, Any]:
     if result["recommendation"] == "go":
         if result["reason"] != "none" or result["implementationRetryable"]:
             raise VerificationResultError("go requires reason none and no implementation retry")
+        if result["findings"]:
+            raise VerificationResultError("go requires no findings")
     else:
         if result["reason"] == "none":
             raise VerificationResultError("no_go requires a concrete reason")

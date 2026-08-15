@@ -103,6 +103,9 @@
         },
         "implementationRetryable": {
           "const": false
+        },
+        "findings": {
+          "maxItems": 0
         }
       }
     },

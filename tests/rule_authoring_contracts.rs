@@ -99,6 +99,29 @@ fn verification_result_schema_requires_none_for_go() {
 }
 
 #[test]
+fn verification_result_schema_rejects_findings_for_go() {
+    let instance = json!({
+        "schemaVersion": 1,
+        "recommendation": "go",
+        "reason": "none",
+        "implementationRetryable": false,
+        "attempt": 1,
+        "summary": "Contradictory result.",
+        "evidenceManifestSha256": "a".repeat(64),
+        "findings": [{
+            "category": "spec_compliance",
+            "message": "A required case is not implemented.",
+            "evidence": [{
+                "path": "diff.patch",
+                "detail": "The relevant match arm is absent."
+            }]
+        }]
+    });
+
+    assert_invalid(VERIFICATION_RESULT_SCHEMA, &instance);
+}
+
+#[test]
 fn verification_result_schema_requires_evidence_for_no_go() {
     let instance = json!({
         "schemaVersion": 1,
