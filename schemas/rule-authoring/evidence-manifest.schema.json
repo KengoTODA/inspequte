@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/KengoTODA/inspequte/schemas/rule-authoring/evidence-manifest.schema.json",
+  "title": "inspequte rule-authoring evidence manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "ruleId",
+    "attempt",
+    "createdAt",
+    "source",
+    "changedFiles",
+    "reports",
+    "tools"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "ruleId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseCommitSha",
+        "headCommitSha",
+        "treeSha",
+        "diffSha256",
+        "specSha256"
+      ],
+      "properties": {
+        "baseCommitSha": {
+          "$ref": "#/$defs/gitObjectId"
+        },
+        "headCommitSha": {
+          "$ref": "#/$defs/gitObjectId"
+        },
+        "treeSha": {
+          "$ref": "#/$defs/gitObjectId"
+        },
+        "diffSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "specSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "status", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["added", "copied", "deleted", "modified", "renamed", "type_changed"]
+          },
+          "sha256": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/sha256"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "reports": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "path", "exitCode", "sha256"],
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^reports/"
+          },
+          "exitCode": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "gitObjectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -28,10 +28,14 @@ Use stage-specific prompts in isolated subagents to reduce context mixing:
      - `scripts/prepare-verify-input.sh <RULE_ID> [<BASE_REF_OR_EMPTY>]`
      - `cargo build > verify-input/reports/cargo-build.txt 2>&1`
      - `cargo test > verify-input/reports/cargo-test.txt 2>&1`
-     - `cargo audit --format sarif > verify-input/reports/cargo-audit.sarif`
+     - `cargo audit --format sarif > verify-input/reports/cargo-audit.sarif 2> verify-input/reports/cargo-audit.stderr.txt`
+     - Record all three exit codes in `verify-input/reports/command-status.txt`.
+     - `scripts/create-verify-manifest.sh`
+     - `scripts/validate-verify-input.sh`
    - Launch `verify` subagent with `prompts/authoring-verify.md` using only `verify-input/`.
    - If recommendation is `Go`, stop looping.
-   - If recommendation is `No-Go`, feed `verify-input/verify-report.md` findings into the next `impl` iteration.
+   - If recommendation is `No-Go`, feed the structured
+     `verify-input/verify-result.json` findings into the next `impl` iteration.
 5. If still `No-Go` after 3 iterations, stop and surface blockers clearly.
 6. Regenerate deterministic rule docs:
    - `scripts/generate-rule-docs.sh`

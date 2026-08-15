@@ -359,13 +359,9 @@ jobs:
             cargo install cargo-audit --locked
           fi
 
-          cargo audit --format sarif > verify-input/reports/cargo-audit.sarif
+          cargo audit --format sarif > verify-input/reports/cargo-audit.sarif \
+            2> verify-input/reports/cargo-audit.stderr.txt
           audit_exit=$?
-          if [[ ${audit_exit} -ne 0 ]]; then
-            cat > verify-input/reports/cargo-audit.sarif <<'SARIF'
-          {"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0","runs":[{"tool":{"driver":{"name":"cargo-audit"}},"results":[{"level":"error","message":{"text":"cargo audit failed in workflow"}}]}]}
-          SARIF
-          fi
           set -e
 
           cat > verify-input/reports/command-status.txt <<EOF
@@ -373,6 +369,9 @@ jobs:
           cargo test exit code: ${test_exit}
           cargo audit exit code: ${audit_exit}
           EOF
+
+          scripts/create-verify-manifest.sh
+          scripts/validate-verify-input.sh
 
       - name: Capture cumulative patch (phase3)
         shell: bash
@@ -493,6 +492,7 @@ jobs:
       rule_id: ${{ needs.phase3_impl.outputs.rule_id }}
       rule_idea: ${{ needs.phase3_impl.outputs.rule_idea }}
       recommendation: ${{ steps.verify_gate.outputs.recommendation }}
+      reason: ${{ steps.verify_gate.outputs.reason }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -533,6 +533,9 @@ jobs:
             mkdir -p verify-input/reports
           fi
 
+      - name: Validate restored evidence
+        run: scripts/validate-verify-input.sh
+
       - name: Write phase-4 prompt (verify only)
         env:
           RULE_ID: ${{ needs.phase3_impl.outputs.rule_id }}
@@ -549,12 +552,15 @@ jobs:
 
           Phase scope:
           1. Verify using only files under \`verify-input/\`.
-          2. Write report to \`verify-input/verify-report.md\`.
-          3. Do not modify implementation in this phase.
+          2. Write the normative result to \`verify-input/verify-result.json\`.
+          3. Run \`scripts/finalize-verify-result.sh\` to validate the result and
+             generate \`verify-input/verify-report.md\`.
+          4. Do not modify implementation in this phase.
 
           Final response format (strict):
-          recommendation: <Go|No-Go>
+          result-path: verify-input/verify-result.json
           report-path: verify-input/verify-report.md
+          finalization: succeeded
           EOF
 
       - name: Phase 4 - Verify from Spec and verify-input
@@ -573,17 +579,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          recommendation="No-Go"
-          report_path="verify-input/verify-report.md"
-          if [[ -f "${report_path}" ]]; then
-            parsed="$(awk '/^## Recommendation \(Go\/No-Go\)/ {getline; gsub(/\r/, ""); print; exit}' "${report_path}" | xargs || true)"
-            if [[ "${parsed}" == "Go" || "${parsed}" == "No-Go" ]]; then
-              recommendation="${parsed}"
-            fi
-          fi
+          scripts/finalize-verify-result.sh
+          result_path="verify-input/verify-result.json"
+          raw_recommendation="$(jq -er '.recommendation' "${result_path}")"
+          reason="$(jq -er '.reason' "${result_path}")"
+          case "${raw_recommendation}" in
+            go) recommendation="Go" ;;
+            no_go) recommendation="No-Go" ;;
+            *) echo "Invalid recommendation: ${raw_recommendation}" >&2; exit 1 ;;
+          esac
 
           {
             echo "recommendation=${recommendation}"
+            echo "reason=${reason}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Capture cumulative patch (phase4)
@@ -614,6 +622,7 @@ jobs:
             echo "- rule-id: \`${{ needs.phase3_impl.outputs.rule_id || 'unknown' }}\`"
             echo "- pr-number: \`${{ needs.pr_open.outputs.pr_number || 'unknown' }}\`"
             echo "- recommendation: \`${{ steps.verify_gate.outputs.recommendation || 'unknown' }}\`"
+            echo "- reason: \`${{ steps.verify_gate.outputs.reason || 'unknown' }}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
   pr_finalize:
@@ -652,33 +661,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          report_path="target/codex-workflow/from-phase4/verify-input/verify-report.md"
+          result_path="target/codex-workflow/from-phase4/verify-input/verify-result.json"
           reason=""
-          if [[ -f "${report_path}" ]]; then
-            reason="$(awk '
-              /^## Recommendation \(Go\/No-Go\)/ {exit}
-              /^## / {in_section=1; next}
-              in_section == 1 {
-                line=$0
-                gsub(/\r/, "", line)
-                if (line ~ /^[[:space:]]*$/) next
-                sub(/^[[:space:]]*[-*][[:space:]]*/, "", line)
-                if (line ~ /^No findings/ || line ~ /^None\.?$/) next
-                print line
-                exit
-              }
-            ' "${report_path}" | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//')"
+          if [[ -f "${result_path}" ]]; then
+            reason="$(jq -r '.summary // empty' "${result_path}" | tr '\r\n' ' ')"
           fi
 
           if [[ -z "${reason}" ]]; then
-            reason="Verification returned No-Go. Inspect verify-input/verify-report.md for details."
+            reason="Verification returned No-Go. Inspect verify-input/verify-result.json for details."
           fi
 
-          {
-            echo "reason<<EOF"
-            echo "${reason}"
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
+          echo "reason=${reason}" >> "${GITHUB_OUTPUT}"
 
       - name: Record No-Go history on default branch
         if: needs.phase4_verify.outputs.recommendation == 'No-Go'
