@@ -41,6 +41,7 @@ impl Rule for ExecutorServiceNotShutdownRule {
             .all_classes()
             .map(|class| (class.name.clone(), class))
             .collect::<BTreeMap<_, _>>();
+        let executor_service_types = collect_executor_service_types(context, &class_map);
 
         for class in context.analysis_target_classes() {
             let mut attributes = vec![KeyValue::new("inspequte.class", class.name.clone())];
@@ -55,8 +56,13 @@ impl Rule for ExecutorServiceNotShutdownRule {
                         if method.bytecode.is_empty() || method.cfg.blocks.is_empty() {
                             continue;
                         }
+                        if !method_may_create_executor(method, &executor_service_types) {
+                            continue;
+                        }
 
-                        for creation_offset in analyze_executor_lifecycle(method, &class_map)? {
+                        for creation_offset in
+                            analyze_executor_lifecycle(method, &executor_service_types)?
+                        {
                             let message = result_message(format!(
                                 "ExecutorService created in {}.{}{} may exit without shutdown(); call shutdown(), shutdownNow(), or close() before the method returns.",
                                 class.name, method.name, method.descriptor
@@ -133,7 +139,7 @@ impl WorklistState for ExecutionState {
 /// Dataflow callbacks for local executor lifecycle analysis.
 struct ExecutorLifecycleSemantics<'a> {
     entry_block: u32,
-    class_map: &'a BTreeMap<String, &'a Class>,
+    executor_service_types: &'a BTreeSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -202,7 +208,9 @@ impl WorklistSemantics for ExecutorLifecycleSemantics<'_> {
                 }
             }
             _ => match &instruction.kind {
-                InstructionKind::Invoke(call) => handle_invoke(call, state, self.class_map)?,
+                InstructionKind::Invoke(call) => {
+                    handle_invoke(call, state, self.executor_service_types)?
+                }
                 InstructionKind::InvokeDynamic { descriptor, .. } => {
                     handle_invoke_dynamic(descriptor, state)?
                 }
@@ -244,7 +252,7 @@ impl WorklistSemantics for ExecutorLifecycleSemantics<'_> {
 
 fn analyze_executor_lifecycle(
     method: &Method,
-    class_map: &BTreeMap<String, &Class>,
+    executor_service_types: &BTreeSet<String>,
 ) -> Result<Vec<u32>> {
     let entry_block = method
         .cfg
@@ -255,7 +263,7 @@ fn analyze_executor_lifecycle(
         .unwrap_or(0);
     let semantics = ExecutorLifecycleSemantics {
         entry_block,
-        class_map,
+        executor_service_types,
     };
     let findings = analyze_method(method, &semantics)?;
     Ok(findings
@@ -307,7 +315,7 @@ impl SemanticsHooks<Value> for ExecutorSemanticsHook {
 fn handle_invoke(
     call: &CallSite,
     state: &mut ExecutionState,
-    class_map: &BTreeMap<String, &Class>,
+    executor_service_types: &BTreeSet<String>,
 ) -> Result<()> {
     let param_count = method_param_count(&call.descriptor)?;
     let mut args = Vec::with_capacity(param_count);
@@ -323,7 +331,7 @@ fn handle_invoke(
 
     if call.name == "<init>" {
         if let Some(Value::Symbol(symbol)) = receiver {
-            if is_executor_constructor(call, class_map) {
+            if is_executor_constructor(call, executor_service_types) {
                 state.active_executors.insert(symbol);
             } else {
                 state.machine.rewrite_values(|value| {
@@ -438,52 +446,90 @@ fn is_executor_factory_call(call: &CallSite) -> bool {
 
     matches!(
         (call.name.as_str(), call.descriptor.as_str()),
-        ("newCachedThreadPool", "()Ljava/util/concurrent/ExecutorService;")
-            | (
-                "newCachedThreadPool",
-                "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
-            )
-            | ("newFixedThreadPool", "(I)Ljava/util/concurrent/ExecutorService;")
-            | (
-                "newFixedThreadPool",
-                "(ILjava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
-            )
-            | ("newSingleThreadExecutor", "()Ljava/util/concurrent/ExecutorService;")
-            | (
-                "newSingleThreadExecutor",
-                "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
-            )
-            | (
-                "newSingleThreadScheduledExecutor",
-                "()Ljava/util/concurrent/ScheduledExecutorService;"
-            )
-            | (
-                "newSingleThreadScheduledExecutor",
-                "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ScheduledExecutorService;"
-            )
-            | (
-                "newScheduledThreadPool",
-                "(I)Ljava/util/concurrent/ScheduledExecutorService;"
-            )
-            | (
-                "newScheduledThreadPool",
-                "(ILjava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ScheduledExecutorService;"
-            )
-            | ("newWorkStealingPool", "()Ljava/util/concurrent/ExecutorService;")
-            | ("newWorkStealingPool", "(I)Ljava/util/concurrent/ExecutorService;")
-            | (
-                "newThreadPerTaskExecutor",
-                "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
-            )
-            | (
-                "newVirtualThreadPerTaskExecutor",
-                "()Ljava/util/concurrent/ExecutorService;"
-            )
+        (
+            "newCachedThreadPool",
+            "()Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newCachedThreadPool",
+            "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newFixedThreadPool",
+            "(I)Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newFixedThreadPool",
+            "(ILjava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newSingleThreadExecutor",
+            "()Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newSingleThreadExecutor",
+            "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newSingleThreadScheduledExecutor",
+            "()Ljava/util/concurrent/ScheduledExecutorService;"
+        ) | (
+            "newSingleThreadScheduledExecutor",
+            "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ScheduledExecutorService;"
+        ) | (
+            "newScheduledThreadPool",
+            "(I)Ljava/util/concurrent/ScheduledExecutorService;"
+        ) | (
+            "newScheduledThreadPool",
+            "(ILjava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ScheduledExecutorService;"
+        ) | (
+            "newWorkStealingPool",
+            "()Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newWorkStealingPool",
+            "(I)Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newThreadPerTaskExecutor",
+            "(Ljava/util/concurrent/ThreadFactory;)Ljava/util/concurrent/ExecutorService;"
+        ) | (
+            "newVirtualThreadPerTaskExecutor",
+            "()Ljava/util/concurrent/ExecutorService;"
+        )
     )
 }
 
-fn is_executor_constructor(call: &CallSite, class_map: &BTreeMap<String, &Class>) -> bool {
-    call.name == "<init>" && is_executor_service_type(&call.owner, class_map)
+fn method_may_create_executor(method: &Method, executor_service_types: &BTreeSet<String>) -> bool {
+    method.calls.iter().any(|call| {
+        is_executor_factory_call(call) || is_executor_constructor(call, executor_service_types)
+    })
+}
+
+fn is_executor_constructor(call: &CallSite, executor_service_types: &BTreeSet<String>) -> bool {
+    call.name == "<init>" && executor_service_types.contains(&call.owner)
+}
+
+fn collect_executor_service_types(
+    context: &AnalysisContext,
+    class_map: &BTreeMap<String, &Class>,
+) -> BTreeSet<String> {
+    let constructor_owners = context
+        .analysis_target_classes()
+        .iter()
+        .flat_map(|class| &class.methods)
+        .flat_map(|method| &method.calls)
+        .filter(|call| call.name == "<init>")
+        .map(|call| call.owner.clone())
+        .collect::<BTreeSet<_>>();
+    let mut types = constructor_owners
+        .into_iter()
+        .filter(|name| is_executor_service_type(name, class_map))
+        .collect::<BTreeSet<_>>();
+    types.extend(
+        [
+            "java/util/concurrent/ExecutorService",
+            "java/util/concurrent/ScheduledExecutorService",
+            "java/util/concurrent/AbstractExecutorService",
+            "java/util/concurrent/ThreadPoolExecutor",
+            "java/util/concurrent/ScheduledThreadPoolExecutor",
+            "java/util/concurrent/ForkJoinPool",
+        ]
+        .map(str::to_string),
+    );
+    types
 }
 
 fn is_executor_service_type(name: &str, class_map: &BTreeMap<String, &Class>) -> bool {
@@ -538,9 +584,7 @@ mod tests {
         output
             .results
             .iter()
-            .filter(|result| {
-                result.rule_id.as_deref() == Some("EXECUTOR_SERVICE_NOT_SHUTDOWN")
-            })
+            .filter(|result| result.rule_id.as_deref() == Some("EXECUTOR_SERVICE_NOT_SHUTDOWN"))
             .filter_map(|result| result.message.text.clone())
             .collect()
     }
