@@ -113,3 +113,28 @@ fn verification_result_schema_requires_evidence_for_no_go() {
 
     assert_invalid(VERIFICATION_RESULT_SCHEMA, &instance);
 }
+
+#[test]
+fn verification_result_schema_rejects_non_file_evidence_paths() {
+    for path in ["changes/", "reports/", "spec.md.extra"] {
+        let instance = json!({
+            "schemaVersion": 1,
+            "recommendation": "no_go",
+            "reason": "implementation_defect",
+            "implementationRetryable": true,
+            "attempt": 1,
+            "summary": "The evidence path is not a file.",
+            "evidenceManifestSha256": "a".repeat(64),
+            "findings": [{
+                "category": "spec_compliance",
+                "message": "A required case is not implemented.",
+                "evidence": [{
+                    "path": path,
+                    "detail": "This path must identify a file."
+                }]
+            }]
+        });
+
+        assert_invalid(VERIFICATION_RESULT_SCHEMA, &instance);
+    }
+}

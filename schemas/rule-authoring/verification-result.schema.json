@@ -79,7 +79,7 @@
               "properties": {
                 "path": {
                   "type": "string",
-                  "pattern": "^(spec\\.md|diff\\.patch|changed-files\\.txt|deleted-files\\.txt|changes/|reports/)"
+                  "pattern": "^(spec\\.md|diff\\.patch|changed-files\\.txt|deleted-files\\.txt|changes/.+|reports/.+)$"
                 },
                 "detail": {
                   "type": "string",

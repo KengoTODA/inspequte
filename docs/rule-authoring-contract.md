@@ -10,7 +10,7 @@ result by `scripts/finalize-verify-result.sh` and is not an input to routing.
 
 ## Verification reasons
 
-`verification-result.json` uses the following closed reason taxonomy:
+`verify-result.json` uses the following closed reason taxonomy:
 
 | Reason | Meaning | Route |
 | --- | --- | --- |
