@@ -86,9 +86,9 @@ download_with_retry() {
 ensure_unzip() {
   local zip_path="$1"
   local extract_root="$2"
-  local marker_dir="$3"
+  local marker_file="$3"
 
-  if [[ -d "${marker_dir}" ]]; then
+  if [[ -f "${marker_file}" ]]; then
     return 0
   fi
 
@@ -206,20 +206,20 @@ mkdir -p "${cache_dir}" "${tools_dir}" "${config_dir}" "${cmd_dir}" "${result_di
 spotbugs_zip="${cache_dir}/spotbugs-${TOOL_VERSION_SPOTBUGS}.zip"
 spotbugs_url="https://github.com/spotbugs/spotbugs/releases/download/${TOOL_VERSION_SPOTBUGS}/spotbugs-${TOOL_VERSION_SPOTBUGS}.zip"
 download_with_retry "${spotbugs_url}" "${spotbugs_zip}"
-ensure_unzip "${spotbugs_zip}" "${tools_dir}" "${tools_dir}/spotbugs-${TOOL_VERSION_SPOTBUGS}"
 spotbugs_home="${tools_dir}/spotbugs-${TOOL_VERSION_SPOTBUGS}"
+ensure_unzip "${spotbugs_zip}" "${tools_dir}" "${spotbugs_home}/lib/spotbugs.jar"
 
 pmd_zip="${cache_dir}/pmd-dist-${TOOL_VERSION_PMD}-bin.zip"
 pmd_url="https://github.com/pmd/pmd/releases/download/pmd_releases/${TOOL_VERSION_PMD}/pmd-dist-${TOOL_VERSION_PMD}-bin.zip"
 download_with_retry "${pmd_url}" "${pmd_zip}"
-ensure_unzip "${pmd_zip}" "${tools_dir}" "${tools_dir}/pmd-bin-${TOOL_VERSION_PMD}"
 pmd_home="${tools_dir}/pmd-bin-${TOOL_VERSION_PMD}"
+ensure_unzip "${pmd_zip}" "${tools_dir}" "${pmd_home}/bin/pmd"
 
 checker_zip="${cache_dir}/checker-framework-${TOOL_VERSION_CHECKER_FRAMEWORK}.zip"
 checker_url="https://github.com/typetools/checker-framework/releases/download/checker-framework-${TOOL_VERSION_CHECKER_FRAMEWORK}/checker-framework-${TOOL_VERSION_CHECKER_FRAMEWORK}.zip"
 download_with_retry "${checker_url}" "${checker_zip}"
-ensure_unzip "${checker_zip}" "${tools_dir}" "${tools_dir}/checker-framework-${TOOL_VERSION_CHECKER_FRAMEWORK}"
 checker_home="${tools_dir}/checker-framework-${TOOL_VERSION_CHECKER_FRAMEWORK}"
+ensure_unzip "${checker_zip}" "${tools_dir}" "${checker_home}/checker/bin/javac"
 
 chmod +x "${checker_home}/checker/bin/javac"
 chmod +x "${pmd_home}/bin/pmd"
@@ -273,11 +273,11 @@ if [[ "${run_guava}" == "true" ]]; then
   guava_sources_url="https://repo1.maven.org/maven2/com/google/guava/guava/${DATASET_VERSION_GUAVA}/guava-${DATASET_VERSION_GUAVA}-sources.jar"
   download_with_retry "${guava_sources_url}" "${guava_sources_jar}"
 
-  guava_sources_root="${guava_dir}/sources"
-  if [[ ! -d "${guava_sources_root}" ]]; then
-    mkdir -p "${guava_sources_root}"
-    unzip -q "${guava_sources_jar}" -d "${guava_sources_root}"
-  fi
+  guava_sources_root="${guava_dir}/sources-${DATASET_VERSION_GUAVA}"
+  ensure_unzip \
+    "${guava_sources_jar}" \
+    "${guava_sources_root}" \
+    "${guava_sources_root}/com/google/common/base/Strings.java"
 
   jspecify_jar="${cache_dir}/jspecify-${GUAVA_VERSION_JSPECIFY}.jar"
   download_with_retry \
@@ -466,25 +466,25 @@ if [[ "${run_sonarqube}" == "true" ]]; then
   sonar_bin_url="https://repo1.maven.org/maven2/org/sonarsource/sonarqube/sonar-application/${DATASET_VERSION_SONARQUBE}/sonar-application-${DATASET_VERSION_SONARQUBE}.zip"
   download_with_retry "${sonar_bin_url}" "${sonar_bin_zip}"
   sonar_bin_root="${sonarqube_dir}/binary"
-  if [[ ! -d "${sonar_bin_root}" ]]; then
-    mkdir -p "${sonar_bin_root}"
-    unzip -q "${sonar_bin_zip}" -d "${sonar_bin_root}"
-  fi
+  ensure_unzip \
+    "${sonar_bin_zip}" \
+    "${sonar_bin_root}" \
+    "${sonar_bin_root}/sonarqube-${DATASET_VERSION_SONARQUBE}/lib/sonar-application-${DATASET_VERSION_SONARQUBE}.jar"
 
   sonar_src_zip="${cache_dir}/sonarqube-${DATASET_VERSION_SONARQUBE}-sources.zip"
   sonar_src_url="https://github.com/SonarSource/sonarqube/archive/refs/tags/${DATASET_VERSION_SONARQUBE}.zip"
   download_with_retry "${sonar_src_url}" "${sonar_src_zip}"
   sonar_src_root="${sonarqube_dir}/source"
-  if [[ ! -d "${sonar_src_root}" ]]; then
-    mkdir -p "${sonar_src_root}"
-    unzip -q "${sonar_src_zip}" -d "${sonar_src_root}"
-  fi
+  ensure_unzip \
+    "${sonar_src_zip}" \
+    "${sonar_src_root}" \
+    "${sonar_src_root}/sonarqube-${DATASET_VERSION_SONARQUBE}/README.md"
 
-  sonar_src_extract_dir="$(find "${sonar_src_root}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  [[ -n "${sonar_src_extract_dir}" ]] || fail "failed to locate extracted sonarqube source directory"
+  sonar_src_extract_dir="${sonar_src_root}/sonarqube-${DATASET_VERSION_SONARQUBE}"
+  [[ -d "${sonar_src_extract_dir}" ]] || fail "failed to locate extracted sonarqube source directory"
 
-  sonar_bin_extract_dir="$(find "${sonar_bin_root}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  [[ -n "${sonar_bin_extract_dir}" ]] || fail "failed to locate extracted sonar application directory"
+  sonar_bin_extract_dir="${sonar_bin_root}/sonarqube-${DATASET_VERSION_SONARQUBE}"
+  [[ -d "${sonar_bin_extract_dir}" ]] || fail "failed to locate extracted sonar application directory"
 
   sonar_input_list="${sonarqube_dir}/inputs.txt"
   {
