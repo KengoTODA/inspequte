@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.2.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.1.0...inspequte-v1.2.0) (2026-08-16)
+
+
+### Features
+
+* **authoring:** add evidence-bound verification contracts ([da280df](https://github.com/KengoTODA/inspequte/commit/da280dfcc1cf662f0f1e8e0a71aa05153ef82429))
+* **authoring:** bind verification evidence to source ([0424911](https://github.com/KengoTODA/inspequte/commit/0424911fa04621db819c8989d63af55e1271db49))
+* **authoring:** define verification contracts ([baa4ad8](https://github.com/KengoTODA/inspequte/commit/baa4ad80b42864d829f7fb465e1ee3e3140c0857))
+* **authoring:** structure verification results ([aa024d8](https://github.com/KengoTODA/inspequte/commit/aa024d8ee36ab5e5bf55b1b8e759c809a8647128))
+* **sarif:** emit code flows and related locations ([3af68a6](https://github.com/KengoTODA/inspequte/commit/3af68a6ee871c3c3600abbde6c9a9b8ac6e657f0))
+
+
+### Bug Fixes
+
+* **authoring:** align verification contract paths ([f5685ca](https://github.com/KengoTODA/inspequte/commit/f5685cacffcb7f165ef2a778b1ce921909bd484a))
+* **authoring:** reject findings for go results ([6a110a1](https://github.com/KengoTODA/inspequte/commit/6a110a1f6a0c6dab97a02796ee68c8a711274eb4))
+* **ci:** restore missing SpotBugs jar ([aa33541](https://github.com/KengoTODA/inspequte/commit/aa3354175d240d7def3615214923b20909151a6d))
+* **ci:** restore missing SpotBugs jar ([53650da](https://github.com/KengoTODA/inspequte/commit/53650da63971a7740311d99c1e03c527d1383dbf))
+* **ci:** restore nullness benchmark archives ([f0b1db8](https://github.com/KengoTODA/inspequte/commit/f0b1db8c4bdf5d253fbf2712ccaacf80468adf8a))
+* **ci:** restore nullness benchmark archives ([9b716be](https://github.com/KengoTODA/inspequte/commit/9b716beda21087d706dd4b5b436edbfeac9e1065))
+* **deps:** resolve dependency audit warnings ([4ef329f](https://github.com/KengoTODA/inspequte/commit/4ef329fc28f3e90f746c0db11f4770ae1c42911d))
+* **deps:** resolve dependency audit warnings ([981cb76](https://github.com/KengoTODA/inspequte/commit/981cb7659af6d56b31916306fb5e9ea610563818))
+* **deps:** update rust crate jsonschema to 0.49.0 ([8c0ceec](https://github.com/KengoTODA/inspequte/commit/8c0ceecce8281659540000dc536dd38ceee51ad8))
+* **sarif:** align output with official OASIS schema ([7fe3f35](https://github.com/KengoTODA/inspequte/commit/7fe3f35b3bd37626974932fb055d29d0b0480647))
+
+
+### Performance Improvements
+
+* optimize AutoCloseable lifecycle analysis ([b2d87a4](https://github.com/KengoTODA/inspequte/commit/b2d87a4b7b00b88b6c9b8e3dbfcf6377a601efdc))
+* optimize AUTOCLOSEABLE_NOT_CLOSED analysis ([9087086](https://github.com/KengoTODA/inspequte/commit/90870868b40cb3f93aa8839df1d39320ecd59650))
+* **rules:** optimize executor shutdown analysis ([#327](https://github.com/KengoTODA/inspequte/issues/327)) ([d09dce9](https://github.com/KengoTODA/inspequte/commit/d09dce9c2ee25e9c47bf3d07717b4b21be8ae2f9))
+
 ## [1.2.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.1.0...inspequte-v1.2.0) (2026-08-15)
 
 
