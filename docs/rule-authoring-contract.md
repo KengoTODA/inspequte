@@ -8,6 +8,39 @@ The normative files are `verify-input/manifest.json` and
 `schemas/rule-authoring/`. `verify-report.md` is generated from the structured
 result by `scripts/finalize-verify-result.sh` and is not an input to routing.
 
+## Authoring and verification flow
+
+The workflow routes the structured verification reason while keeping
+implementation attempts and infrastructure retries as separate bounded budgets.
+
+```mermaid
+flowchart TD
+    implement["Implement rule and tests<br/>(implementation attempt 1-3)"]
+    evidence["Prepare source-bound evidence"]
+    evidenceValid{"Evidence contract valid?"}
+    verify["Run independent semantic verification"]
+    result{"verify-result.json reason"}
+    attemptsLeft{"Implementation attempts left?"}
+    infrastructureRetriesLeft{"Infrastructure retries left?"}
+    go(["go"])
+    needsHuman(["needs_human"])
+    retryExhausted(["retry_exhausted"])
+    infrastructureFailed(["infrastructure_failed"])
+
+    implement --> evidence --> evidenceValid
+    evidenceValid -- "Yes" --> verify --> result
+    evidenceValid -- "No: stale or missing" --> evidence
+    result -- "none" --> go
+    result -- "implementation_defect or test_defect" --> attemptsLeft
+    attemptsLeft -- "Yes" --> implement
+    attemptsLeft -- "No" --> retryExhausted
+    result -- "spec_ambiguity or suspected_false_positive" --> needsHuman
+    result -- "stale_or_missing_evidence" --> evidence
+    result -- "infrastructure_failure" --> infrastructureRetriesLeft
+    infrastructureRetriesLeft -- "Yes" --> evidence
+    infrastructureRetriesLeft -- "No" --> infrastructureFailed
+```
+
 ## Verification reasons
 
 `verify-result.json` uses the following closed reason taxonomy:
