@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-09T11:11:42Z",
+  "generated_at_utc": "2026-08-16T03:01:54Z",
   "dataset": "all",
   "benchmark": {
     "warmup": 1,
@@ -7,9 +7,9 @@
   },
   "environment": {
     "os": "Linux",
-    "kernel": "6.17.0-1010-azure",
-    "cpu": "AMD EPYC 7763 64-Core Processor",
-    "java": "openjdk version \"21.0.10\" 2026-01-20 LTS"
+    "kernel": "6.17.0-1022-azure",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "java": "openjdk version \"21.0.12\" 2026-07-21 LTS"
   },
   "datasets": {
     "guava": {
@@ -18,16 +18,16 @@
       "source_source": "maven-central"
     },
     "sonarqube": {
-      "version": "26.4.0.121862",
+      "version": "26.8.0.126808",
       "binary_source": "maven-central",
       "source_source": "github-tags"
     }
   },
   "tools": {
-    "spotbugs": "4.9.8",
+    "spotbugs": "4.10.3",
     "pmd": "7.14.0",
     "checker_framework": "3.52.0",
-    "nullaway": "0.13.4",
-    "error_prone": "2.49.0"
+    "nullaway": "0.13.8",
+    "error_prone": "2.50.0"
   }
 }
