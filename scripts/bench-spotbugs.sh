@@ -6,6 +6,7 @@ spotbugs_version="4.10.3"
 smoke_root="target/smoketest"
 spotbugs_dir="${smoke_root}/spotbugs-${spotbugs_version}"
 lib_dir="${spotbugs_dir}/lib"
+jar_path="${lib_dir}/spotbugs.jar"
 
 repeat="1"
 if [ "$#" -ge 1 ]; then
@@ -18,11 +19,11 @@ if [ "$#" -ge 1 ]; then
   esac
 fi
 
-if [ ! -d "${lib_dir}" ]; then
+if [ ! -f "${jar_path}" ]; then
   mkdir -p "${smoke_root}"
   zip_file="${smoke_root}/spotbugs-${spotbugs_version}.zip"
   curl -L -o "${zip_file}" "https://github.com/spotbugs/spotbugs/releases/download/${spotbugs_version}/spotbugs-${spotbugs_version}.zip"
-  unzip -q "${zip_file}" -d "${smoke_root}"
+  unzip -qo "${zip_file}" -d "${smoke_root}"
 fi
 
 if [ ! -d "${lib_dir}" ]; then
@@ -30,7 +31,6 @@ if [ ! -d "${lib_dir}" ]; then
   exit 1
 fi
 
-jar_path="${lib_dir}/spotbugs.jar"
 if [ ! -f "${jar_path}" ]; then
   echo "missing SpotBugs jar: ${jar_path}" >&2
   exit 1
