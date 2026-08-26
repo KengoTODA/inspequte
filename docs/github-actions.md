@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Install inspequte
-        uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
+        uses: KengoTODA/setup-inspequte@c18ec2ad0423af57c89d5de7bc3d4e4bf28747f5
       - name: Setup Java
         uses: actions/setup-java@v5.7.0
         with:
@@ -68,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Install inspequte
-        uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
+        uses: KengoTODA/setup-inspequte@c18ec2ad0423af57c89d5de7bc3d4e4bf28747f5
       - name: Run inspequte
         run: |
           inspequte \
