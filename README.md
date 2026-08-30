@@ -247,7 +247,7 @@ Use the Gradle plugin in CI and install the CLI from GitHub Releases:
 - name: Run inspequte tasks
   run: ./gradlew check --no-daemon
 - name: Upload SARIF to GitHub Code Scanning (optional)
-  uses: github/codeql-action/upload-sarif@v4.37.7
+  uses: github/codeql-action/upload-sarif@v4.37.9
   with:
     sarif_file: results.sarif
 ```
