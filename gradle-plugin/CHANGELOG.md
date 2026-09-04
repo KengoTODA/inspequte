@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.2](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.6.1...gradle-plugin-v0.6.2) (2026-09-04)
+
+
+### Bug Fixes
+
+* **deps:** update dependency org.junit:junit-bom to v6.1.3 ([ddca548](https://github.com/KengoTODA/inspequte/commit/ddca5480949e9d86def6c3108204e3866ca2bd2f))
+* **deps:** update dependency org.junit:junit-bom to v6.1.3 ([90bb4ac](https://github.com/KengoTODA/inspequte/commit/90bb4ac896200cbc6961c7c7ec073c4971867edb))
+
 ## [0.6.1](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.6.0...gradle-plugin-v0.6.1) (2026-08-09)
 
 
