@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.2.0...inspequte-v1.2.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate jsonschema to 0.52.0 ([592d393](https://github.com/KengoTODA/inspequte/commit/592d393b8333dd9e8dd2f31fc347b528a92f90ca))
+* **deps:** update rust crate jsonschema to 0.52.0 ([62a420b](https://github.com/KengoTODA/inspequte/commit/62a420babe0745c460dadbbbbd6a142bddc51e21))
+* resolve GHSA-q83h-524g-xf6h ([2019e85](https://github.com/KengoTODA/inspequte/commit/2019e85586e0ddbbc2c8c2b3f51f8e44e4c85b18))
+
 ## [1.2.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.1.0...inspequte-v1.2.0) (2026-08-16)
 
 
