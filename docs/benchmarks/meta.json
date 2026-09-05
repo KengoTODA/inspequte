@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-16T03:01:54Z",
+  "generated_at_utc": "2026-09-05T03:35:14Z",
   "dataset": "all",
   "benchmark": {
     "warmup": 1,
@@ -8,12 +8,12 @@
   "environment": {
     "os": "Linux",
     "kernel": "6.17.0-1022-azure",
-    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
-    "java": "openjdk version \"21.0.12\" 2026-07-21 LTS"
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "java": "openjdk version \"21.0.12.1\" 2026-08-18 LTS"
   },
   "datasets": {
     "guava": {
-      "version": "33.6.0-jre",
+      "version": "33.7.1-jre",
       "binary_source": "maven-central",
       "source_source": "maven-central"
     },
@@ -24,10 +24,10 @@
     }
   },
   "tools": {
-    "spotbugs": "4.10.3",
+    "spotbugs": "4.10.4",
     "pmd": "7.14.0",
     "checker_framework": "3.52.0",
-    "nullaway": "0.13.8",
+    "nullaway": "0.14.1",
     "error_prone": "2.50.0"
   }
 }
