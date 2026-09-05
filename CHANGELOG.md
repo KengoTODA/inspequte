@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.2.1...inspequte-v1.2.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate jsonschema to 0.52.0 ([c557229](https://github.com/KengoTODA/inspequte/commit/c5572293115570c7b50ceb0b4f1b8d25a2674173))
+
 ## [1.2.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.2.0...inspequte-v1.2.1) (2026-09-04)
 
 
