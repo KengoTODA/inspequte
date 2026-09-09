@@ -1,9 +1,14 @@
 ---
 name: inspequte-rule-spec
-description: Author or refine an inspequte rule spec from a rule idea, optional plan.md, and target rule-id. Use when writing src/rules/<rule-id>/spec.md from a fixed template while avoiding implementation details.
+description: Author or refine an inspequte rule behavior contract with the required metadata, examples, and acceptance criteria. Use within end-to-end authoring or for a standalone spec request.
 ---
 
 # inspequte rule spec
+
+Use this guidance within the single-author flow in `prompts/authoring-rule.md`.
+Do not spawn a new author for this activity. When the user requests only this
+standalone task, keep its output scope; end-to-end authoring may continue to other
+activities in the same context.
 
 ## Inputs
 - Target `rule-id`.
@@ -46,12 +51,11 @@ Use this exact section order:
 7. `## Performance considerations`
 8. `## Acceptance criteria`
 
-## Minimal Context Loading
+## Relevant Context
 1. Read `src/rules/AGENTS.md`.
 2. Read existing `src/rules/<rule-id>/spec.md` if present.
 3. Read `src/rules/<rule-id>/plan.md` if present.
-4. Read at most one related rule spec for style alignment.
-5. Do not perform repo-wide scans.
+4. Read related specs for style and relevant source, helpers, and tests for feasibility. Follow dependencies as needed; there is no fixed file-count limit.
 
 ## Guardrails
 - Treat `spec.md` as a behavior contract, not a design doc.

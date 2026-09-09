@@ -1,9 +1,14 @@
 ---
 name: inspequte-rule-impl
-description: Implement an inspequte rule from spec.md, including tests and minimal docs updates. Use when coding src/rules/<rule-id>/mod.rs and related tests while treating spec.md as immutable unless explicitly asked to change it.
+description: Implement an inspequte rule from its spec, including behavior tests and required documentation, while preserving approved detection behavior.
 ---
 
 # inspequte rule implementation
+
+Use this guidance within the single-author flow in `prompts/authoring-rule.md`.
+Do not spawn a new author for this activity. When the user requests only this
+standalone task, keep its output scope; end-to-end authoring may continue to other
+activities in the same context.
 
 ## Inputs
 - `src/rules/<rule-id>/spec.md` only, as the rule contract.
@@ -15,17 +20,14 @@ description: Implement an inspequte rule from spec.md, including tests and minim
 - Minimal docs updates only when behavior or coverage changed.
 - `spec.md` must remain unchanged unless explicitly instructed otherwise.
 
-## Minimal Context Loading
+## Relevant Context
 1. Read `src/rules/<rule-id>/spec.md`.
 2. Read only relevant implementation files (target rule module, shared helpers, targeted tests).
-3. Avoid repository-wide scans beyond what is required for compile/test fixes.
+3. Follow dependencies and search more broadly when needed for correctness, feasibility, or reuse.
 
 ## Workflow
 1. Map each acceptance criterion in `spec.md` to code and test tasks.
-2. Create an acceptance checklist in your notes and keep it updated while implementing:
-   - criterion text
-   - implementation location
-   - test that proves it
+2. Ensure acceptance criteria have implementation and test coverage. Persist a concise mapping only when it helps review or handoff; no running reasoning log is required.
 3. Implement or update rule metadata with unique `id`, clear `name`, and short `description`.
 4. Ensure user-facing findings are intuitive and actionable: explain what is wrong and what to change.
 5. Keep rule wiring correct:
@@ -39,13 +41,13 @@ description: Implement an inspequte rule from spec.md, including tests and minim
    - Assert findings by filtering SARIF results with `rule_id`.
    - Cover report and non-report paths (TP/TN/edge, including FP/FN control).
    - Use generic Java names (`ClassA`, `ClassB`, `MethodX`, `varOne`) unless validating real JDK/library APIs.
-7. If adding a brand-new rule module, declare it in `src/rules/mod.rs`.
+7. Rule modules are auto-discovered by `build.rs`; do not manually declare them in `src/rules/mod.rs`.
 8. If the registered rule set changes, update snapshot expectations (`INSPEQUTE_UPDATE_SNAPSHOTS=1 cargo test sarif_callgraph_snapshot`).
 9. Keep output deterministic (stable ordering and IDs; no hash-order dependence).
-10. Run `cargo fmt`, then `cargo build`, `cargo test`, and `cargo audit --format sarif`.
+10. Run `cargo fmt` before validation and focused behavior tests during implementation. The handoff collector owns full build/test/audit evidence; see `docs/development-validation.md`.
 11. Run a completeness gate before finalizing:
    - `git diff --name-only` must include rule implementation (`src/rules/<rule-id>/mod.rs`) and tests.
-   - If a new rule is added, diff must include rule registration updates in `src/rules/mod.rs`.
+   - New rules require `crate::register_rule!(...)` in their module, not changes to the shared module registry.
    - If diff only contains registration/docs/prompt changes, treat the implementation as incomplete and continue.
 12. Optional verify handoff safety check (recommended when preparing CI verify):
    - Run `scripts/prepare-verify-input.sh <rule-id> [base-ref]`.
@@ -106,7 +108,7 @@ assert!(messages.iter().any(|msg| msg.contains("expected")));
 
 ## Guardrails
 - Do not edit `src/rules/<rule-id>/spec.md` by default.
-- Any desired behavior change requires a separate spec change request.
+- Changes to approved detection behavior require explicit authorization; present the proposed spec change and its rationale when needed.
 - Keep implementation aligned with deterministic and low-noise principles in `src/rules/AGENTS.md`.
 - Do not implement annotation-based suppression via `@Suppress` or `@SuppressWarnings`.
 - For annotation-driven semantics, support JSpecify only and treat non-JSpecify annotations as unsupported unless the spec explicitly changes.
@@ -120,7 +122,7 @@ assert!(messages.iter().any(|msg| msg.contains("expected")));
 - Code and tests implement all acceptance criteria from `spec.md`.
 - Acceptance checklist items are all mapped to concrete tests.
 - `cargo fmt` has been run.
-- `cargo build`, `cargo test`, and `cargo audit --format sarif` pass, or failures are reported with concrete evidence.
+- Relevant development checks pass or failures are reported with evidence. Full acceptance checks are collected once at handoff, per `docs/development-validation.md`.
 - Final diff includes real rule implementation and tests (not only rule registration/doc updates).
 - `spec.md` is unchanged unless explicitly requested.
 

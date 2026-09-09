@@ -1,5 +1,9 @@
 # inspequte Rule Implementation Prompt (spec -> impl)
 
+This prompt scopes a standalone task when explicitly requested. For end-to-end
+rule work, use `prompts/authoring-rule.md`; its author keeps context across
+activities and uses the relevant skill without adopting standalone phase limits.
+
 You are Codex working in this repository root (`.`).
 Use the following skill to implement one rule:
 
@@ -11,7 +15,7 @@ Use the following skill to implement one rule:
 
 ## Non-negotiable rules
 - `spec.md` is the contract. Do not change it for implementation convenience.
-- Read only the minimum required files (avoid unnecessary repo-wide scanning).
+- Start with relevant files and follow dependencies as needed to make a sound decision.
 - Implement only what is required by `spec.md`.
 
 ## Execution steps

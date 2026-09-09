@@ -1,5 +1,9 @@
 # inspequte Rule Spec Prompt (plan -> spec)
 
+This prompt scopes a standalone task when explicitly requested. For end-to-end
+rule work, use `prompts/authoring-rule.md`; its author keeps context across
+activities and uses the relevant skill without adopting standalone phase limits.
+
 You are Codex working in this repository root (`.`).
 Use the following skill to write one rule spec:
 
@@ -8,12 +12,12 @@ Use the following skill to write one rule spec:
 ## Inputs
 - `rule-id`: `<RULE_ID>`
 - `rule idea`: `<RULE_IDEA_SHORT_TEXT>`
-- `plan-path`: `src/rules/<RULE_ID>/plan.md` (optional but recommended)
+- `plan-path`: `src/rules/<RULE_ID>/plan.md` (optional)
 
 ## Non-negotiable rules
 - `spec.md` is a behavior contract.
 - Keep scope contractual; avoid implementation details.
-- Read only the minimum required files (avoid unnecessary repo-wide scanning).
+- Start with relevant files and follow dependencies as needed to make a sound decision.
 - Create or update only `src/rules/<RULE_ID>/spec.md` in this phase.
 - Do not implement or verify in this phase.
 

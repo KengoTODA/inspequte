@@ -4,7 +4,7 @@ You are generating exactly one new static-analysis rule idea for inspequte.
 
 ## Required references
 - Read `prompts/references/no-go-history.md` if the file exists.
-- Treat past `No-Go` entries as rejected directions unless your idea is materially different.
+- Exclude directions explicitly marked `disposition: design_rejected` unless materially different. Implementation or evidence failures are retry candidates, not rejected designs. Treat implemented entries as existing rules. For legacy entries, use explicit human design decisions and current code; do not infer design rejection from No-Go alone.
 - Avoid duplicate or near-duplicate proposals by both `rule-id` and semantic intent.
 
 ## Goal

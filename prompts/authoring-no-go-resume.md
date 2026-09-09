@@ -10,7 +10,7 @@ Use the following skill to resume one rule implementation that failed as `No-Go`
 
 ## Non-negotiable rules
 - Derive `rule-id` from the source PR (head branch name or changed `src/rules/<rule-id>/` path).
-- Import `spec.md` and `plan.done.md`/`plan.md` from the source PR as-is.
+- Import `spec.md` and any existing `plan.done.md`/`plan.md` from the source PR as-is; a plan is optional.
 - Fix missing implementation/tests based on the No-Go reason.
 - Update `prompts/references/no-go-history.md` for this rule with implemented status and remediation notes.
 

@@ -89,6 +89,7 @@ def evidence_path(verify_root: Path, value: Any, label: str) -> str:
         raise VerificationResultError(f"{label} must remain inside verify-input")
     if path_text not in ALLOWED_ROOT_FILES and not (
         path_text.startswith("changes/") or path_text.startswith("reports/")
+        or path_text.startswith("source/")
     ):
         raise VerificationResultError(f"{label} is not an allowed evidence path")
     resolved_root = verify_root.resolve()
