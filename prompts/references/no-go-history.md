@@ -17,7 +17,7 @@ Record failures without treating every No-Go as a rejected design.
 
 ### mutate_unmodifiable_collection
 - disposition: implemented
-- resolution-note: current repository contains implementation, tests, and spec; original failure retained below.
+- actions: confirmed that the current repository contains implementation, tests, and spec; original failure retained below.
 - rule-id: `mutate_unmodifiable_collection`
 - rule idea: Detect attempts to mutate collections that are known to be unmodifiable because they were created by JDK unmodifiable factories in the same method.
 - no-go reason: build and test failures from missing opcode constants; no implementation/tests in verify-input to validate spec requirements
