@@ -1,9 +1,14 @@
 ---
 name: inspequte-rule-plan
-description: Draft or update a rule plan for inspequte from a short idea and target rule-id. Use when the task is to create or refine src/rules/<rule-id>/plan.md, including risks, without creating spec.md.
+description: Draft or refine an optional inspequte rule plan when design complexity, risks, or handoff needs justify durable notes. For a standalone plan request, leave the spec unchanged.
 ---
 
 # inspequte rule plan
+
+Use this guidance within the single-author flow in `prompts/authoring-rule.md`.
+Do not spawn a new author for this activity. When the user requests only this
+standalone task, keep its output scope; end-to-end authoring may continue to other
+activities in the same context.
 
 ## Inputs
 - Rule idea text (short problem statement).
@@ -13,13 +18,12 @@ description: Draft or update a rule plan for inspequte from a short idea and tar
 ## Outputs
 - Create or update `src/rules/<rule-id>/plan.md`.
 - Include a short risk checklist section in `plan.md`.
-- Do not create or modify `spec.md`.
+- For a standalone plan request, do not create or modify `spec.md`.
 
-## Minimal Context Loading
+## Relevant Context
 1. Read `src/rules/AGENTS.md`.
 2. Read `src/rules/<rule-id>/plan.md` if it exists.
-3. Read only one or two related rule specs if needed for scope calibration.
-4. Do not scan the whole repository.
+3. Read related specs and source as needed to assess scope and feasibility. Follow dependencies when they affect the decision.
 
 ## Workflow
 1. Confirm target path: `src/rules/<rule-id>/plan.md`.
@@ -34,4 +38,4 @@ description: Draft or update a rule plan for inspequte from a short idea and tar
 - `plan.md` exists at the target rule directory.
 - Plan describes scope and non-goals clearly.
 - Risks are listed as a short checklist.
-- `spec.md` is untouched.
+- For a standalone plan request, `spec.md` is untouched.

@@ -119,7 +119,7 @@ False positives erode trust and reduce tool adoption.
 - Triggering on common idioms without filtering.
 - Analyzing generated/vendor/testdata code by default.
 - Emitting vague or non-actionable messages.
-- Skipping suppression strategy discussion.
+- Violating the annotation policy below.
 
 ---
 
@@ -129,7 +129,7 @@ False positives erode trust and reduce tool adoption.
 Rules must have predictable and bounded computational behavior.
 
 If a rule may be expensive, it must:
-- Document expected complexity in `plan.md`
+- Document expected complexity in `spec.md`; use optional design notes for implementation rationale
 - Reuse shared analysis artifacts safely
 - Avoid redundant computation
 
@@ -144,31 +144,16 @@ Performance cliffs make the tool unusable in large codebases.
 
 ---
 
-# 6. Verify Isolation
+# 6. Independent Verification
 
-## Principle
-Verification must be based on explicit file inputs only.
-Verification MUST only use spec + diff + reports.
-
-Verify must use:
-- `spec.md`
-- `git diff` (or patch)
-- Standardized test/e2e reports
-
-No other inputs are allowed for verify decisions.
-
-Verify must NOT use:
-- `plan.md`
-- Implementation discussion logs
-- Prior conversation context
-
-## Why
-Verify must evaluate contract compliance, not implementation intent.
-
-## Avoid
-- Using design rationale to relax spec requirements.
-- Inferring intended behavior from comments.
-- Accepting deviations because "the implementation makes sense".
+Review contract compliance independently of author intent. Do not use implementation
+chat logs or plans to excuse deviations. The contract, diff, and source-bound test
+reports are primary evidence. Read relevant unchanged code, callers, helpers, and
+tests from the exact `treeSha` recorded in the evidence manifest as needed.
+Use `python3 scripts/rule_authoring_evidence.py context <repo-relative-path> ...`
+to materialize and cite those files under `verify-input/source/`. Their bytes are
+validated against that Git tree before finalization. Do not consult a moving HEAD
+or other checkout as semantic evidence. See `docs/rule-authoring-contract.md`.
 
 ---
 
@@ -215,7 +200,7 @@ A rule is complete when:
 - `spec.md` exists and is complete.
 - Unit tests cover TP, TN, and edge cases.
 - Findings are deterministic and normalized.
-- Representative E2E run stays within accepted thresholds.
+- For detection changes, pinned representative E2E stays within thresholds defined in the spec; see `docs/development-validation.md`.
 - Documentation can be generated from `spec.md`.
 
 ---
@@ -234,3 +219,14 @@ src/rules/<rule-id>/
 ```
 
 No cross-rule hidden dependencies are allowed.
+
+## Implementation and tests
+
+`build.rs` auto-discovers rule modules. Add `src/rules/<rule-id>/mod.rs` with
+`#[derive(Default)]` and `crate::register_rule!(...)`. Do not manually register
+modules in `src/rules/mod.rs` or update rule-count assertions.
+Keep harness tests in the rule module, using `JvmTestHarness` and Java 21.
+Use generic fixture names (such as `ClassA`, `varOne`) distinct from issue examples
+to prevent accidental name-based matching; retain real JDK/library API names.
+Prefer local stubs over downloaded JARs. Test TP, TN, and meaningful edge cases.
+Refresh snapshots intentionally when registered metadata or output changes.

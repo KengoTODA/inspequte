@@ -90,3 +90,28 @@ The initial implementation is attempt 1, and no more than three implementation
 attempts are allowed. Regenerating stale evidence does not consume an
 implementation attempt. Both budgets must be bounded by the workflow before a
 repair loop is enabled.
+
+## Source context for independent review
+
+Reviewers may inspect relevant unchanged helpers, callers, tests, and configuration
+from the manifest's `treeSha`. They must not use author conversations or plans as
+justification for accepting a contract deviation. Operational instructions and
+schemas may be read to run the review tooling.
+
+After validating evidence, materialize needed repository-relative files with:
+
+```sh
+python3 scripts/rule_authoring_evidence.py context src/rules/mod.rs src/engine.rs
+```
+
+Cite `source/<repo-relative-path>` in result evidence. The context command reads
+Git blobs from the recorded tree, not live working files. Finalization validates
+all materialized context byte-for-byte against that tree. Additional context does
+not change the manifest identity: its content is already bound by `treeSha`.
+A standalone JSON schema check does not prove provenance; consumers must run
+`scripts/finalize-verify-result.sh`, including evidence validation.
+
+Development checks and full handoff checks have separate owners; see
+`development-validation.md`. The author retains context across design and
+implementation; independent verification remains separate. Legacy GitHub authoring workflows are slated
+for removal and are not updated by this documentation revision.

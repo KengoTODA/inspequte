@@ -85,6 +85,32 @@ class RuleAuthoringEvidenceTest(unittest.TestCase):
         )
         self.assertEqual(self.git_status(), "?? src/rules/class_a_rule/mod.rs")
 
+    def test_unchanged_context_is_bound_to_tree(self) -> None:
+        """Unchanged files can be cited, but modifying their copy is rejected."""
+        evidence.prepare(self.repo_root, "class_a_rule", "", 1)
+        self.write_reports()
+        evidence.create_manifest(self.repo_root)
+        relative = "src/rules/class_a_rule/spec.md"
+        evidence.materialize_context(self.repo_root, [relative])
+        copied = self.repo_root / "verify-input/source" / relative
+        self.assertEqual(copied.read_text(), "# Contract\n")
+        evidence.validate(self.repo_root)
+        copied.write_text("# Different contract\n")
+        with self.assertRaisesRegex(evidence.EvidenceError, "source context differs"):
+            evidence.validate(self.repo_root)
+
+    def test_context_rejects_escape_missing_and_symlink(self) -> None:
+        """Context extraction rejects non-source paths and unsafe destinations."""
+        evidence.prepare(self.repo_root, "class_a_rule", "", 1)
+        self.write_reports()
+        evidence.create_manifest(self.repo_root)
+        for relative in ("../outside", "/tmp/outside", "missing.rs"):
+            with self.subTest(relative=relative), self.assertRaises(evidence.EvidenceError):
+                evidence.materialize_context(self.repo_root, [relative])
+        (self.repo_root / "verify-input/source").symlink_to(self.repo_root, target_is_directory=True)
+        with self.assertRaisesRegex(evidence.EvidenceError, "symlink"):
+            evidence.materialize_context(self.repo_root, ["src/rules/class_a_rule/spec.md"])
+
     def test_tampered_report_is_rejected(self) -> None:
         """Report content changed after manifest creation is stale evidence."""
         evidence.prepare(self.repo_root, "class_a_rule", "", 1)

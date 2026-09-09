@@ -1,149 +1,33 @@
-# AI-Centered Development with Accountable Humans
+# AI-centered development with accountable humans
 
-`inspequte` is an ongoing experiment to explore how far an AI-centered development workflow can go while keeping humans accountable.
+inspequte explores AI-assisted engineering with explicit acceptance criteria and
+human accountability. Agents may exercise engineering judgment within the requested
+scope. Humans own product policy and authorization of changes to approved contracts.
 
-This is not about letting AI decide everything.  
-It is about separating judgment from judgment criteria.
+## Durable evidence
 
-The core hypothesis is:
+Keep enough information to explain and repeat an acceptance decision:
+- the behavior contract, including non-goals and meaningful examples;
+- the reviewed source identity and diff;
+- commands, environment, results, and relevant pinned evaluation fixtures;
+- material design decisions, known limitations, and unresolved follow-ups;
+- an independent structured verification result linked to its evidence.
 
-> If judgment criteria are explicitly written, version-controlled, and traceable, AI can execute the workflow and humans can remain responsible.
+Not every intermediate decision needs a file or machine-readable record. Plans are
+useful for complex work and handoffs; they are not required for every small change.
+Schema-validated data is reserved for machine consumers such as evidence validation
+and routing. Narrative design rationale should be concise and written for reviewers.
 
----
+## Responsibilities
 
-## Project Philosophy
+`AGENTS.md` defines shared constraints and entry points. Rule-specific invariants
+live in `src/rules/AGENTS.md`; each `spec.md` defines behavior. Skills describe
+specialized work, and scripts own mechanical evidence checks. See
+`development-validation.md` and `rule-authoring-contract.md` for validation policy.
 
-The project is built on three principles.
-
-### 1. Criteria Over Intuition
-
-Traditional development relies heavily on human intuition during:
-
-- planning
-- specification writing
-- implementation
-- review
-- acceptance
-
-In an AI-centered workflow, intuition must be replaced with explicit, testable criteria.
-
-Every decision must be:
-
-- documented in text
-- machine-readable
-- reproducible
-
-AI does not understand intent.  
-It executes written constraints.
-
-Therefore, the responsibility of humans shifts from:
-
-> making decisions repeatedly
-
-to:
-
-> designing and maintaining decision criteria.
-
-### 2. Full Traceability
-
-The workflow is structured so that every step produces artifacts:
-
-- planning documents
-- specifications
-- generated implementation
-- validation results
-
-Each stage references the previous one, forming a traceable chain of reasoning.
-
-If an implementation is accepted, the evidence remains.  
-If rejected, the cause is explicit.
-
-This ensures that AI execution is auditable and reversible.
-
-### 3. Mechanical End-to-End Flow
-
-The goal is to make the full process executable without human intervention:
-
-1. Planning
-2. Specification
-3. Implementation
-4. Validation
-
-If validation passes, the output is ready for final acceptance.  
-If validation fails, the implementation is routed back to the specification stage and revised.
-
-Humans intervene only at the final acceptance step.
-
-They review:
-
-- the generated feature set
-- documentation
-- validation results
-
-Then decide to accept or reject.
-
-## Verified Achievements
-
-The following have been successfully validated in controlled experiments.
-
-### End-to-End Automation
-
-From feature idea to validated implementation, the entire process can be executed mechanically when clear criteria are provided.
-
-This includes:
-
-- generating structured plans
-- deriving specifications
-- producing implementation code
-- verifying conformance against specifications
-- automatically rejecting non-conforming outputs
-
-The system is capable of iterative correction loops without manual intervention.
-
-### Specification-Driven Validation
-
-Verification is not stylistic review.  
-It is specification conformance checking.
-
-When validation fails, the system identifies mismatches and routes the implementation back for revision.
-
-This establishes a closed-loop quality control mechanism.
-
-### Human Role Redefined
-
-In this workflow, humans:
-
-- define the planning principles
-- document constraints and quality targets
-- evaluate final deliverables
-
-They do not manually supervise intermediate steps.
-
-This model preserves accountability while reducing repetitive judgment labor.
-
-### Model Capability Observations
-
-Experiments indicate that workflow reliability is strongly correlated with model capability.
-
-Higher-capability models demonstrate significantly improved:
-
-- instruction fidelity
-- multi-step reasoning consistency
-- specification adherence
-
-This suggests that the conceptual architecture is viable, and model advancement is a key enabler.
-
-## Current Scope
-
-This experiment does not claim that real-world production systems can immediately adopt this model.
-
-However, it demonstrates that:
-
-- AI-centered development is structurally feasible
-- accountability can be preserved through explicit criteria
-- end-to-end mechanical execution is achievable under controlled conditions
-
-The limiting factor is no longer automation technology.  
-It is the explicitness and quality of human-defined standards.
-
-`inspequte` continues as an exploration of a development model where humans design principles, AI executes processes, and responsibility remains transparent.
+The authoring prompt uses one author across investigation, design, specification,
+implementation, and development tests, followed by independent review. This
+reduces mandatory handoffs and lets the author retain discoveries while working.
+It is an operational choice adopted without a comparative model experiment; no
+measured quality or performance improvement is claimed. Accountability rests on
+acceptance criteria and reproducible evidence, not a prescribed reasoning sequence.

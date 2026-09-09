@@ -208,13 +208,14 @@ def prepare(repo_root: Path, rule_id: str, base_ref: str, attempt: int) -> None:
     (verify_root / "README.md").write_text(
         """# verify-input
 
-`verify-input/` is the only input directory for isolated verification.
+`verify-input/` contains source-bound evidence for independent verification.
 
 - `spec.md`: copied rule contract.
 - `diff.patch`: exact patch from the base commit to the reviewed Git tree.
 - `source.json`: source identity captured while preparing the bundle.
 - `changed-files.txt` and `deleted-files.txt`: sorted changed paths.
 - `changes/`: current snapshots of non-deleted files.
+- `source/`: optional unchanged context extracted from the recorded tree with the context command.
 - `reports/`: command outputs and `command-status.txt`.
 - `manifest.json`: generated after reports and validated before verification.
 """,
@@ -440,6 +441,56 @@ def validate_manifest_shape(manifest: Any) -> dict[str, Any]:
     return value
 
 
+def context_blob(repo_root: Path, tree_sha: str, relative_path: str) -> bytes:
+    """Read a regular source file from the reviewed tree, never a moving checkout."""
+    validate_relative_path(relative_path, "source context path")
+    if relative_path == "." or Path(relative_path).as_posix() != relative_path:
+        raise EvidenceError("source context path must be canonical")
+    entries = run_git(repo_root, "ls-tree", "-z", tree_sha, "--", relative_path)
+    records = [entry for entry in entries.split(b"\0") if entry]
+    if len(records) != 1:
+        raise EvidenceError(f"source context is not one tracked file: {relative_path}")
+    metadata, name = records[0].split(b"\t", 1)
+    mode, kind, object_id = metadata.split()
+    if name.decode() != relative_path or mode not in (b"100644", b"100755") or kind != b"blob":
+        raise EvidenceError(f"source context is not a regular file: {relative_path}")
+    return run_git(repo_root, "cat-file", "blob", object_id.decode())
+
+
+def materialize_context(repo_root: Path, paths: list[str]) -> None:
+    """Copy requested context into the review bundle with a tree-bound identity."""
+    validate(repo_root)
+    verify_root = repo_root / "verify-input"
+    manifest = load_json(verify_root / "manifest.json")
+    context_root = verify_root / "source"
+    for relative_path in paths:
+        content = context_blob(repo_root, manifest["source"]["treeSha"], relative_path)
+        destination = context_root / relative_path
+        if context_root.is_symlink() or context_root.resolve() not in destination.resolve().parents:
+            raise EvidenceError("source context destination escapes its root")
+        if destination.is_symlink() or any(parent.is_symlink() for parent in destination.parents if context_root in parent.parents):
+            raise EvidenceError("source context destination uses a symlink")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
+        print(f"Materialized source/{relative_path}")
+
+
+def validate_context(repo_root: Path, tree_sha: str) -> None:
+    """Reject modified or unbound supplemental source, including symlinks."""
+    context_root = repo_root / "verify-input" / "source"
+    if context_root.is_symlink():
+        raise EvidenceError("source context must not be a symlink")
+    for path in context_root.rglob("*"):
+        if path.is_symlink():
+            raise EvidenceError("source context must not contain symlinks")
+        if path.is_dir():
+            continue
+        relative_path = path.relative_to(context_root).as_posix()
+        expected = context_blob(repo_root, tree_sha, relative_path)
+        if path.read_bytes() != expected:
+            raise EvidenceError(f"source context differs from recorded tree: {relative_path}")
+
+
 def validate(repo_root: Path) -> None:
     """Reject stale, missing, or mismatched evidence deterministically."""
     verify_root = repo_root / "verify-input"
@@ -492,6 +543,7 @@ def validate(repo_root: Path) -> None:
         )
     if manifest["reports"] != expected_reports:
         raise EvidenceError("command report evidence does not match manifest")
+    validate_context(repo_root, source["treeSha"])
     print(f"Validated {verify_root / 'manifest.json'} against the current source state.")
 
 
@@ -516,6 +568,8 @@ def main() -> int:
         type=int,
         default=int(os.environ.get("RULE_AUTHORING_ATTEMPT", "1")),
     )
+    context_parser = subparsers.add_parser("context")
+    context_parser.add_argument("paths", nargs="+")
     subparsers.add_parser("create-manifest")
     subparsers.add_parser("validate")
     args = parser.parse_args()
@@ -524,6 +578,8 @@ def main() -> int:
     try:
         if args.command == "prepare":
             prepare(repo_root, args.rule_id, args.base_ref, args.attempt)
+        elif args.command == "context":
+            materialize_context(repo_root, args.paths)
         elif args.command == "create-manifest":
             create_manifest(repo_root)
         elif args.command == "validate":

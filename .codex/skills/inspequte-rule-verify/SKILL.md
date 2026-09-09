@@ -19,7 +19,7 @@ Optional but recommended:
 - `verify-input/changed-files.txt`
 
 ## Isolation Policy
-- Verify must only use `spec.md`, change set (`diff.patch`), and report files.
+- Use the contract, diff, reports, and relevant unchanged source from the manifest tree. Materialize source with `python3 scripts/rule_authoring_evidence.py context <repo-relative-path> ...`; cite the resulting `source/` paths.
 - Do not read `src/rules/<rule-id>/plan.md`.
 - Do not use implementation discussion logs, chat context, or author intent.
 - Do not semantically verify evidence unless `scripts/validate-verify-input.sh` succeeds before this isolated phase starts.
@@ -39,8 +39,9 @@ Optional but recommended:
   Markdown report manually.
 
 ## Minimal Context Loading
-1. Read only files under `verify-input/` while making the semantic decision.
-2. Avoid reading the broader repository unless a missing required file blocks verification.
+1. Start with validated contract, diff, and reports.
+2. Follow dependencies into the recorded source tree when needed, including unchanged helpers, callers, and tests. Do not impose a fixed file-count limit.
+3. Keep author plans and conversations out of the review; do not change implementation.
 
 ## Definition of Done
 - `verify-result.json` passes `scripts/finalize-verify-result.sh`.

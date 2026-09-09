@@ -79,6 +79,15 @@ class RuleAuthoringVerificationTest(unittest.TestCase):
         self.assertIn("## Performance and regression concerns", report)
         self.assertIn("## Recommendation (Go/No-Go)\n\nNo-Go", report)
 
+    def test_source_context_can_be_cited(self) -> None:
+        """A tree-bound source path is a supported review evidence reference."""
+        path = self.verify_root / "source/src/helper.rs"
+        path.parent.mkdir(parents=True)
+        path.write_text("// helper\n")
+        result = self.no_go_result()
+        result["findings"][0]["evidence"][0]["path"] = "source/src/helper.rs"
+        verification.validate_result(self.verify_root, result)
+
     def test_go_with_a_defect_reason_is_rejected(self) -> None:
         """Recommendation and routing reason cannot contradict one another."""
         result = self.no_go_result()

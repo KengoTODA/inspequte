@@ -1,5 +1,9 @@
 # inspequte Rule Plan Prompt (idea -> plan)
 
+This prompt scopes a standalone task when explicitly requested. For end-to-end
+rule work, use `prompts/authoring-rule.md`; its author keeps context across
+activities and uses the relevant skill without adopting standalone phase limits.
+
 You are Codex working in this repository root (`.`).
 Use the following skill to draft one rule plan:
 
@@ -10,7 +14,7 @@ Use the following skill to draft one rule plan:
 - `rule idea`: `<RULE_IDEA_SHORT_TEXT>`
 
 ## Non-negotiable rules
-- Read only the minimum required files (avoid unnecessary repo-wide scanning).
+- Start with relevant files and follow dependencies as needed to make a sound decision.
 - Create or update only `src/rules/<RULE_ID>/plan.md` in this phase.
 - Do not create or modify `spec.md` in this phase.
 

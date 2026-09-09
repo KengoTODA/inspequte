@@ -10,7 +10,7 @@ Use the following skill to verify one rule change:
 - `verify-input`: `verify-input/`
 
 ## Non-negotiable rules
-- Verify must use only files under `verify-input/`.
+- Verify uses validated `verify-input/`, including relevant unchanged source materialized from the recorded tree with the evidence context command. See `docs/rule-authoring-contract.md`.
 - Verify must not read `plan.md` or implementation discussion logs.
 - Evidence validation must have succeeded before this phase. If required verify
   files are missing, stop without inventing evidence.
