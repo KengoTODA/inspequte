@@ -125,5 +125,5 @@ tag. The verification policy deliberately checks the exact commit digest.
   exact published `.crate`; `cargo publish` packages source again. Benchmark and
   source-archive provenance also need their own policy if brought into scope.
 
-See the [implementation plan](../plans/17-slsa3-release-provenance.md) and the
+See the [implementation plan](https://github.com/KengoTODA/inspequte/blob/main/plans/17-slsa3-release-provenance.md) and the
 [GitHub CLI verification reference](https://cli.github.com/manual/gh_attestation_verify).
