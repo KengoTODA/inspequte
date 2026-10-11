@@ -1,7 +1,8 @@
 """Validate the actual Portal pre-upload hook with restored and tampered files.
 
-Run after Gradle's prepareReleaseArtifacts task. All Portal calls use
---validate-only; gh is replaced by a digest-checking stub, never real signing.
+Run after Gradle's prepareReleaseArtifacts task. The test init script retains
+the actual pre-upload verification action and removes the Portal upload action.
+gh is replaced by a digest-checking stub, never real signing.
 """
 
 import hashlib
@@ -51,6 +52,17 @@ class GradlePublicationTests(unittest.TestCase):
                 "    output.write(json.dumps(relative) + '\\n')\n"
             )
             gh.chmod(0o755)
+            init_script = work / "verify-only.gradle"
+            init_script.write_text(
+                "gradle.taskGraph.whenReady { graph ->\n"
+                "    def publish = rootProject.tasks.getByName('publishPlugins')\n"
+                "    // doFirst is the verification hook registered by the build.\n"
+                "    // Remove the Portal action, which needs real credentials\n"
+                "    // even with --validate-only in plugin-publish 2.1.1.\n"
+                "    assert publish.actions.size() > 1\n"
+                "    publish.setActions([publish.actions.first()])\n"
+                "}\n"
+            )
             env = dict(os.environ, PATH=f"{work}{os.pathsep}{os.environ['PATH']}",
                        GITHUB_REPOSITORY="KengoTODA/inspequte", GITHUB_SHA="a" * 40,
                        PUBLICATION_BUILD=str(PLUGIN / "build"),
@@ -62,7 +74,7 @@ class GradlePublicationTests(unittest.TestCase):
                 shutil.rmtree(PLUGIN / "build" / directory, ignore_errors=True)
             shutil.copytree(prepared, PLUGIN / "build", dirs_exist_ok=True)
             command = ["./gradlew", "publishPlugins", "--validate-only", "--no-daemon",
-                       "--no-configuration-cache", "-PverifyRelease"]
+                       "--no-configuration-cache", "-PverifyRelease", "--init-script", str(init_script)]
             result = subprocess.run(command, cwd=PLUGIN, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             verified = {json.loads(line) for line in log.read_text().splitlines()}
