@@ -71,7 +71,7 @@ jobs:
 
       - name: Phase 1 - Ideate + Plan
         id: codex_phase1
-        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -133,7 +133,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase1-cumulative.patch
 
       - name: Upload phase-1 artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: codex-phase1
@@ -210,7 +210,7 @@ jobs:
 
       - name: Phase 2 - Spec from Plan
         id: codex_phase2
-        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -231,7 +231,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase2-cumulative.patch
 
       - name: Upload phase-2 artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: codex-phase2
@@ -316,7 +316,7 @@ jobs:
 
       - name: Phase 3 - Implement from Spec
         id: codex_phase3
-        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -381,7 +381,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase3-cumulative.patch
 
       - name: Upload phase-3 artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: codex-phase3
@@ -565,7 +565,7 @@ jobs:
 
       - name: Phase 4 - Verify from Spec and verify-input
         id: codex_phase4
-        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           safety-strategy: drop-sudo
@@ -602,7 +602,7 @@ jobs:
           git diff --cached --binary > target/codex-workflow/output/phase4-cumulative.patch
 
       - name: Upload phase-4 artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: codex-phase4
