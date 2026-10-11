@@ -42,10 +42,32 @@ An arbitrary caller-supplied artifact or digest is not a trusted build input.
 ## Tests and success criteria
 
 Validate workflow syntax and permissions with actionlint. Exercise source/tag
-validation and verifier failure propagation without real publishing. Use Gradle
-local publication and Portal `--validate-only` to check the artifact task graph,
-and reject tampered files with a stub verifier. Validate source formatting.
+validation and verifier failure propagation without real publishing. Prepare
+Gradle publication files, restore them on a simulated publishing runner and
+exercise the actual pre-upload verification hook with a digest-checking stub.
+Remove the Portal task action in the test init script to prevent remote access.
+Validate source formatting.
 Actual OIDC attestations and publication require GitHub-hosted release jobs.
+
+## Implementation evidence and lessons
+
+Implemented in [PR #401](https://github.com/KengoTODA/inspequte/pull/401), with
+separate commits for scope, component builders, publication gates and tests/docs.
+[CI run 38139486530](https://github.com/KengoTODA/inspequte/actions/runs/38139486530)
+passed the CLI, Gradle plugin, Java 26 and release-provenance jobs on commit
+`33eaf9055b3650c737cf223ed39d9691b6e9412c`.
+The release job used Java 21.0.10 and Gradle 8.14.4, prepared the actual publication
+files successfully, and passed 10 shell-policy tests plus the restored-file and
+tampering integration test (all exit codes 0). The Docs build passed strict mode.
+Local actionlint 1.7.12, shell syntax, cargo fmt and git diff checks also passed.
+
+- Prepare only publication-attached archives: Kotlin's additional sources task
+  shares an output path with the Java sources archive and must not overwrite it.
+- Plugin Publish 2.1.1 requires real credentials even with `--validate-only`.
+  PR tests therefore retain the build's pre-upload action and remove the remote
+  Portal action; real credentials stay confined to the release environment.
+- Local Gradle wrapper downloads timed out. CI with the pinned wrapper owns the
+  Gradle validation evidence; no local Gradle success is claimed.
 
 ## Dependencies and remaining operational checks
 
