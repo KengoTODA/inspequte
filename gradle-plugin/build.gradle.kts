@@ -82,7 +82,7 @@ tasks.register("prepareReleaseArtifacts") {
     // kotlinSourcesJar task that shares the Java sourcesJar output path; running
     // every Jar task would overwrite the actual published sources archive.
     dependsOn(providers.provider {
-        extensions.getByType<PublishingExtension>().publications.withType<MavenPublication>()
+        project.extensions.getByType<PublishingExtension>().publications.withType<MavenPublication>()
             .flatMap { publication -> publication.artifacts.map { it.buildDependencies } }
     }, tasks.withType<GenerateMavenPom>(), tasks.withType<GenerateModuleMetadata>())
     val destination = layout.buildDirectory.dir("release-artifacts")
