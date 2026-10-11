@@ -123,6 +123,8 @@ jobs:
           name: cli-release-${{ matrix.target }}
           path: release
       - name: Attest final release archives
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: release/*
+          # Storage records are for OCI images, not these release files.
+          create-storage-record: false
