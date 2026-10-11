@@ -1,0 +1,70 @@
+name: Build and attest Gradle plugin release
+
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        required: true
+        type: string
+      release-sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate release source
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+          RELEASE_SHA: ${{ inputs.release-sha }}
+        run: bash scripts/validate-release-source.sh gradle "$RELEASE_TAG" "$RELEASE_SHA"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: 'temurin'
+          java-version-file: '.java-version'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+        with:
+          cache-disabled: true
+      - name: Prepare final publication files
+        working-directory: gradle-plugin
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          set -euo pipefail
+          ./gradlew clean prepareReleaseArtifacts --no-daemon --no-configuration-cache \
+            -PpluginVersion="${RELEASE_TAG#gradle-plugin-v}"
+      - name: Transfer publication files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gradle-release
+          path: gradle-plugin/build/release-artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download files from this builder
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: gradle-release
+          path: release
+      - name: Attest publication files
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: release/**/*

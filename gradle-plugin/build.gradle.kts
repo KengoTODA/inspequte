@@ -1,3 +1,9 @@
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.tasks.GenerateMavenPom
+import org.gradle.api.publish.tasks.GenerateModuleMetadata
+import org.gradle.jvm.tasks.Jar
+
 plugins {
     `java-gradle-plugin`
     alias(libs.plugins.kotlin.jvm)
@@ -51,5 +57,68 @@ tasks.withType<Test>().configureEach {
 tasks.named<JacocoReport>("jacocoTestReport") {
     reports {
         xml.required.set(true)
+    }
+}
+
+// Publication uses these exact files, including the plugin marker POM. The
+// repository layout is retained when transferring them to the publishing job.
+fun releasePublicationFiles(): Set<File> {
+    val publicationFiles = extensions.getByType<PublishingExtension>()
+        .publications.withType<MavenPublication>().flatMap { publication ->
+            publication.artifacts.map { it.file }
+        } + tasks.withType<GenerateMavenPom>().map { it.destination }
+    check(publicationFiles.isNotEmpty()) { "No release publication files were generated" }
+    publicationFiles.forEach { file ->
+        check(file.isFile) { "Missing release publication file: $file" }
+    }
+    // Marker publications have no component, so their module metadata task may
+    // be skipped. Include every metadata file that is actually generated.
+    return (publicationFiles + tasks.withType<GenerateModuleMetadata>()
+        .flatMap { it.outputs.files.files }.filter { it.isFile }).toSet()
+}
+
+tasks.register("prepareReleaseArtifacts") {
+    dependsOn(tasks.withType<Jar>(), tasks.withType<GenerateMavenPom>(),
+        tasks.withType<GenerateModuleMetadata>())
+    val destination = layout.buildDirectory.dir("release-artifacts")
+    outputs.dir(destination)
+    doLast {
+        val buildDirectory = layout.buildDirectory.get().asFile
+        delete(destination)
+        releasePublicationFiles().forEach { file ->
+            val relativePath = file.relativeTo(buildDirectory)
+            copy {
+                from(file)
+                into(destination.get().dir(relativePath.parent ?: ""))
+            }
+        }
+    }
+}
+
+val verifyRelease = providers.gradleProperty("verifyRelease").isPresent
+if (verifyRelease) {
+    // A publishing job restores the attested files. Do not regenerate them.
+    tasks.withType<Jar>().configureEach { enabled = false }
+    tasks.withType<GenerateMavenPom>().configureEach { enabled = false }
+    tasks.withType<GenerateModuleMetadata>().configureEach { enabled = false }
+}
+
+tasks.named("publishPlugins") {
+    doFirst {
+        if (verifyRelease) {
+            val repository = providers.environmentVariable("GITHUB_REPOSITORY").get()
+            val sourceSha = providers.environmentVariable("GITHUB_SHA").get()
+            releasePublicationFiles().forEach { file ->
+                val exitCode = ProcessBuilder(
+                    "gh", "attestation", "verify", file.absolutePath,
+                    "--repo", repository,
+                    "--signer-workflow", "$repository/.github/workflows/build-gradle-release.yml",
+                    "--signer-digest", sourceSha,
+                    "--source-digest", sourceSha,
+                    "--deny-self-hosted-runners"
+                ).inheritIO().start().waitFor()
+                check(exitCode == 0) { "Release attestation verification failed for $file" }
+            }
+        }
     }
 }
