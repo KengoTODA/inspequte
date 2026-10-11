@@ -38,91 +38,16 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
   build-release-binaries:
-    runs-on: ${{ matrix.os }}
     needs: release-please
     if: needs.release-please.outputs.rust_release_created == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            bin_suffix: ""
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-            bin_suffix: ""
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            bin_suffix: ""
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            bin_suffix: ""
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bin_suffix: ".exe"
+    uses: ./.github/workflows/build-cli-release.yml
     permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release-please.outputs.rust_tag_name }}
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: Build release binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
-      - name: Archive binary (unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="${{ needs.release-please.outputs.rust_tag_name }}"
-          target="${{ matrix.target }}"
-          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
-          asset_target="${target//x86_64/amd64}"
-          asset_target="${asset_target//aarch64/arm64}"
-          binary="inspequte${{ matrix.bin_suffix }}"
-          archive="inspequte-${version}-${asset_target}.tar.gz"
-
-          mkdir -p dist
-          cp "target/${target}/release/${binary}" "dist/${binary}"
-          cp "README.md" "dist/README.md"
-          cp "LICENSE" "dist/LICENSE"
-          tar -C dist -czf "${archive}" "${binary}" "README.md" "LICENSE"
-      - name: Archive binary (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = "${{ needs.release-please.outputs.rust_tag_name }}"
-          $target = "${{ matrix.target }}"
-          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
-          $assetTarget = $target -replace 'x86_64', 'amd64' -replace 'aarch64', 'arm64'
-          $binary = "inspequte${{ matrix.bin_suffix }}"
-          $archive = "inspequte-$version-$assetTarget.zip"
-
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Copy-Item "target/$target/release/$binary" "dist/$binary" -Force
-          Copy-Item "README.md" "dist/README.md" -Force
-          Copy-Item "LICENSE" "dist/LICENSE" -Force
-          Compress-Archive -Path "dist/$binary", "dist/README.md", "dist/LICENSE" -DestinationPath $archive -Force
-      - name: Upload release asset
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ needs.release-please.outputs.rust_tag_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          asset_target="${{ matrix.target }}"
-          asset_target="${asset_target//x86_64/amd64}"
-          asset_target="${asset_target//aarch64/arm64}"
-          case "${{ runner.os }}" in
-            Windows) asset="inspequte-${TAG_NAME}-${asset_target}.zip" ;;
-            *) asset="inspequte-${TAG_NAME}-${asset_target}.tar.gz" ;;
-          esac
-          gh release upload "${TAG_NAME}" "${asset}" --clobber
+      contents: read
+      id-token: write
+      attestations: write
+    with:
+      release-tag: ${{ needs.release-please.outputs.rust_tag_name }}
+      release-sha: ${{ needs.release-please.outputs.rust_sha }}
 
   benchmark-release-jaeger:
     runs-on: ubuntu-latest

@@ -1,0 +1,121 @@
+name: Build and attest CLI release
+
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        required: true
+        type: string
+      release-sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin_suffix: ""
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            bin_suffix: ""
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin_suffix: ""
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            bin_suffix: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin_suffix: ".exe"
+    permissions:
+      contents: read
+    env:
+      RELEASE_TAG: ${{ inputs.release-tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate release source
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+          RELEASE_SHA: ${{ inputs.release-sha }}
+        shell: bash
+        run: bash scripts/validate-release-source.sh cli "$RELEASE_TAG" "$RELEASE_SHA"
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Archive binary (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG}"
+          target="${{ matrix.target }}"
+          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
+          asset_target="${target//x86_64/amd64}"
+          asset_target="${asset_target//aarch64/arm64}"
+          binary="inspequte${{ matrix.bin_suffix }}"
+          archive="inspequte-${version}-${asset_target}.tar.gz"
+
+          mkdir -p dist
+          cp "target/${target}/release/${binary}" "dist/${binary}"
+          cp "README.md" "dist/README.md"
+          cp "LICENSE" "dist/LICENSE"
+          tar -C dist -czf "${archive}" "${binary}" "README.md" "LICENSE"
+      - name: Archive binary (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_TAG
+          $target = "${{ matrix.target }}"
+          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
+          $assetTarget = $target -replace 'x86_64', 'amd64' -replace 'aarch64', 'arm64'
+          $binary = "inspequte${{ matrix.bin_suffix }}"
+          $archive = "inspequte-$version-$assetTarget.zip"
+
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item "target/$target/release/$binary" "dist/$binary" -Force
+          Copy-Item "README.md" "dist/README.md" -Force
+          Copy-Item "LICENSE" "dist/LICENSE" -Force
+          Compress-Archive -Path "dist/$binary", "dist/README.md", "dist/LICENSE" -DestinationPath $archive -Force
+      - name: Transfer final release archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cli-release-${{ matrix.target }}
+          path: |
+            inspequte-*.tar.gz
+            inspequte-*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download archives from this builder
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: cli-release-*
+          merge-multiple: true
+          path: release
+      - name: Attest final release archives
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: release/*
