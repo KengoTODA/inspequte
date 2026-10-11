@@ -7,13 +7,13 @@
 ## Methodology
 - Benchmark metric: median runtime (`hyperfine` JSON `median`).
 - Parameters: `--warmup 1`, `--min-runs 5`.
-- Generated at (UTC): `2026-08-16T03:01:54Z`.
+- Generated at (UTC): `2026-10-11T08:26:51Z`.
 
 ## Datasets
-- Library: Guava `33.6.0-jre`.
+- Library: Guava `33.7.2-jre`.
   - Binary input: Maven Central JAR.
   - Source input: Maven Central source JAR.
-- Application: SonarQube `26.8.0.126808`.
+- Application: SonarQube `26.10.0.132816`.
   - Binary input: Maven Central `sonar-application` ZIP.
   - Source input: GitHub tag source archive.
 
@@ -21,32 +21,32 @@
 | Tool | Version | Nullness scope used in this page |
 | --- | --- | --- |
 | inspequte | workspace build | `NULLNESS` rule only |
-| SpotBugs | 4.10.3 | `NP_*` via include filter (`Bug code=NP`) |
+| SpotBugs | 4.10.4 | `NP_*` via include filter (`Bug code=NP`) |
 | PMD | 7.14.0 | null-related subset in `category/java/errorprone.xml` (cache=off) |
 | Checker Framework | 3.52.0 | `NullnessChecker` |
-| NullAway | 0.13.8 | Error Prone plugin (`error_prone_core 2.50.0`) |
+| NullAway | 0.14.2 | Error Prone plugin (`error_prone_core 2.50.0`) |
 
 Environment:
 - OS: `Linux`
 - Kernel: `6.17.0-1022-azure`
-- CPU: `INTEL(R) XEON(R) PLATINUM 8573C`
-- Java: `openjdk version "21.0.12" 2026-07-21 LTS`
+- CPU: `AMD EPYC 7763 64-Core Processor`
+- Java: `openjdk version "21.0.12.1" 2026-08-18 LTS`
 
 ## Results: Guava
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| inspequte | 0.293 s | 0.293 s | 0.283 s | 0.301 s |
-| nullaway | 1.225 s | 1.220 s | 1.182 s | 1.240 s |
-| checker-framework | 1.849 s | 1.842 s | 1.792 s | 1.885 s |
-| pmd | 4.690 s | 4.738 s | 4.593 s | 4.918 s |
-| spotbugs | 21.347 s | 21.076 s | 18.038 s | 22.527 s |
+| inspequte | 0.372 s | 0.373 s | 0.368 s | 0.382 s |
+| nullaway | 1.592 s | 1.593 s | 1.560 s | 1.628 s |
+| checker-framework | 2.449 s | 2.462 s | 2.435 s | 2.506 s |
+| pmd | 6.635 s | 6.639 s | 6.520 s | 6.718 s |
+| spotbugs | 29.346 s | 29.228 s | 27.615 s | 30.493 s |
 
 ## Results: SonarQube
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| pmd | 11.380 s | 11.358 s | 11.113 s | 11.550 s |
-| inspequte | 13.409 s | 13.439 s | 13.375 s | 13.552 s |
-| spotbugs | 748.348 s | 749.397 s | 747.375 s | 752.560 s |
+| pmd | 17.408 s | 17.412 s | 17.154 s | 17.667 s |
+| inspequte | 18.456 s | 18.448 s | 18.188 s | 18.736 s |
+| spotbugs | 984.985 s | 992.693 s | 950.835 s | 1036.751 s |
 
 ## Caveats and Fairness
 - Rule sets are aligned to nullness intent, not full one-to-one semantic equivalence.
