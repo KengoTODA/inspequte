@@ -106,19 +106,13 @@ if (verifyRelease) {
 tasks.named("publishPlugins") {
     doFirst {
         if (verifyRelease) {
-            val repository = providers.environmentVariable("GITHUB_REPOSITORY").get()
             val sourceSha = providers.environmentVariable("GITHUB_SHA").get()
-            releasePublicationFiles().forEach { file ->
-                val exitCode = ProcessBuilder(
-                    "gh", "attestation", "verify", file.absolutePath,
-                    "--repo", repository,
-                    "--signer-workflow", "$repository/.github/workflows/build-gradle-release.yml",
-                    "--signer-digest", sourceSha,
-                    "--source-digest", sourceSha,
-                    "--deny-self-hosted-runners"
-                ).inheritIO().start().waitFor()
-                check(exitCode == 0) { "Release attestation verification failed for $file" }
-            }
+            val command = listOf(
+                "bash", layout.projectDirectory.file("../scripts/verify-release-artifacts.sh").asFile.absolutePath,
+                "build-gradle-release.yml", sourceSha, sourceSha
+            ) + releasePublicationFiles().map { it.absolutePath }
+            val exitCode = ProcessBuilder(command).inheritIO().start().waitFor()
+            check(exitCode == 0) { "Release attestation verification failed; publication stopped" }
         }
     }
 }

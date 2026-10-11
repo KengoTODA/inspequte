@@ -14,6 +14,9 @@ standard compatibility.
 
 The name combines "inspect" and "cute". The CLI command is `inspequte`.
 
+For downloaded CLI releases and Gradle plugin publication files, see
+[release provenance verification](docs/release-provenance.md) before installation.
+
 ## Goals
 - Fast startup and analysis for CI pipelines.
 - No IDE integration required.

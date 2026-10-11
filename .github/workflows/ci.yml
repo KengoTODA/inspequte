@@ -59,8 +59,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
       - name: Build and test Gradle plugin
-        run: ./gradlew build --no-daemon
+        run: |
+          ./gradlew build prepareReleaseArtifacts --no-daemon
+          ./gradlew publishPlugins --validate-only --no-daemon
         working-directory: gradle-plugin
+      - name: Test release publication policy without uploading
+        run: |
+          python3 tests/test_release_provenance.py
+          python3 tests/test_gradle_release_publication.py
       - name: Upload reports
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
