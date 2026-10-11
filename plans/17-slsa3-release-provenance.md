@@ -79,8 +79,35 @@ Extending provenance to the exact crates.io package needs a separate publication
 design; `cargo publish` repackages source. Consumer integrations can adopt the
 documented verification policy separately.
 
+## Follow-up review against the 2026-10-11 article
+
+Reviewed the caller/build/attestation/publication flow against Songmu's article
+and the pinned action's source. Replaced the older `attest-build-provenance`
+action with `actions/attest` v4 at
+`1e69f48acb82d1966a394da916b4c1698aa569d6`. Default provenance mode and explicit
+subject paths preserve the protected artifact scope. Disable OCI storage records
+and retain the existing file-attestation permissions.
+
+The repository's `GET /repos/KengoTODA/inspequte/immutable-releases` response on
+2026-10-11 was `{"enabled":true,"enforced_by_owner":false}`. No setting change
+was necessary. All CLI asset uploads, including benchmarks, precede publication;
+the draft-first flow is compatible with immutable releases.
+
+The exact source/signer digest and reusable workflow verification policy agrees
+with the article. Gradle's official publication documentation confirms that
+modern Plugin Publish uses Maven publications for JARs and metadata. Verification
+of the actual bytes served by the Portal remains a first-release check.
+
+Documented reproducibility gaps separately: floating Rust/runner versions,
+archive metadata, and no independent rebuild/hash comparison. Bit-for-bit
+reproducibility is not established by the current attestation tests and remains
+a follow-up rather than a claimed SLSA Build L3 property.
+
 ## References
 
 - [GitHub article](https://github.blog/enterprise-software/devsecops/enhance-build-security-and-reach-slsa-level-3-with-github-artifact-attestations/)
 - [GitHub L3 guide](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/increase-security-rating)
 - [release-please-action](https://github.com/googleapis/release-please-action)
+- [Songmu's artifact attestation article](https://songmu.jp/riji/entry/2026-10-11-github-actions-artifact-attestations.html)
+- [Consolidated attestation action](https://github.com/actions/attest/tree/1e69f48acb82d1966a394da916b4c1698aa569d6)
+- [Gradle Plugin Portal publication](https://plugins.gradle.org/docs/publish-plugin)

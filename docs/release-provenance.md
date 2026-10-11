@@ -86,6 +86,9 @@ and have `id-token: write`, `attestations: write` and `contents: read`. They do 
 checkout or execute project code. CLI attesters download artifacts by exact
 target name, so callers cannot supply additional artifacts through a wildcard.
 All actions are pinned to full commit SHAs.
+The attesters use the consolidated `actions/attest` action in its default SLSA
+provenance mode. OCI storage records are disabled; file attestations do not
+require `artifact-metadata: write`.
 
 Publishers have no attestation-writing or OIDC permission (the separate crates.io
 trusted publisher retains its required OIDC permission). CLI publication verifies
@@ -101,6 +104,33 @@ workflow commit, exact source commit, and GitHub-hosted runner identity. The loc
 reusable workflow and source use the same triggering commit; provenance can have
 `refs/heads/main` as its source ref even when an artifact is named after a release
 tag. The verification policy deliberately checks the exact commit digest.
+
+## Release immutability and reproducibility
+
+Keep [GitHub release immutability](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/establish-provenance-and-integrity/prevent-release-changes)
+enabled. The repository API reported `enabled: true` on 2026-10-11. This setting
+applies to future releases and locks their tags and assets at publication.
+Upload every asset, including benchmark attachments, while the release is a
+draft. The CLI publication job waits for the benchmark upload, then verifies
+the archives before making the draft public. Do not plan asset replacement
+after publication; publish a new release when corrections are needed.
+
+[Songmu's supply-chain article](https://songmu.jp/riji/entry/2026-10-11-github-actions-artifact-attestations.html)
+also recommends reducing variation in tool versions and archive metadata.
+This pipeline does not yet guarantee byte-for-byte reproducible rebuilds:
+Rust uses the floating `stable` channel, some hosted runner labels use `latest`,
+and tar/ZIP packaging does not normalize timestamps, ownership or permissions.
+Pinning an action's implementation SHA does not pin the toolchain or runner image
+it installs. Java and Gradle versions are fixed, but identical plugin output from
+two independent clean builds has not been tested.
+
+Follow-up work should pin release toolchains, control the build environment,
+normalize archive metadata where supported, and compare hashes from two clean
+builds for every target and plugin publication file. Successful attestation
+verification proves the origin and integrity of the downloaded bytes, not that
+another build will reproduce them. The [SLSA Build L3 requirements](https://slsa.dev/spec/v1.2/build-track-basics#build-l3-hardened-builds)
+focus on isolation and protecting provenance signing from build steps;
+reproducibility is a separate property.
 
 ## Release-please limitations and operator TODOs
 
