@@ -6,13 +6,15 @@ on:
       - main
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     outputs:
       rust_release_created: ${{ steps.release.outputs.release_created }}
       rust_tag_name: ${{ steps.release.outputs.tag_name }}
@@ -38,91 +40,16 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
   build-release-binaries:
-    runs-on: ${{ matrix.os }}
     needs: release-please
     if: needs.release-please.outputs.rust_release_created == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            bin_suffix: ""
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-            bin_suffix: ""
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            bin_suffix: ""
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            bin_suffix: ""
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bin_suffix: ".exe"
+    uses: ./.github/workflows/build-cli-release.yml
     permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release-please.outputs.rust_tag_name }}
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: Build release binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
-      - name: Archive binary (unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="${{ needs.release-please.outputs.rust_tag_name }}"
-          target="${{ matrix.target }}"
-          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
-          asset_target="${target//x86_64/amd64}"
-          asset_target="${asset_target//aarch64/arm64}"
-          binary="inspequte${{ matrix.bin_suffix }}"
-          archive="inspequte-${version}-${asset_target}.tar.gz"
-
-          mkdir -p dist
-          cp "target/${target}/release/${binary}" "dist/${binary}"
-          cp "README.md" "dist/README.md"
-          cp "LICENSE" "dist/LICENSE"
-          tar -C dist -czf "${archive}" "${binary}" "README.md" "LICENSE"
-      - name: Archive binary (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = "${{ needs.release-please.outputs.rust_tag_name }}"
-          $target = "${{ matrix.target }}"
-          # Keep Rust target triples for build, but rename arch labels in release assets for maltmill compatibility.
-          $assetTarget = $target -replace 'x86_64', 'amd64' -replace 'aarch64', 'arm64'
-          $binary = "inspequte${{ matrix.bin_suffix }}"
-          $archive = "inspequte-$version-$assetTarget.zip"
-
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Copy-Item "target/$target/release/$binary" "dist/$binary" -Force
-          Copy-Item "README.md" "dist/README.md" -Force
-          Copy-Item "LICENSE" "dist/LICENSE" -Force
-          Compress-Archive -Path "dist/$binary", "dist/README.md", "dist/LICENSE" -DestinationPath $archive -Force
-      - name: Upload release asset
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ needs.release-please.outputs.rust_tag_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          asset_target="${{ matrix.target }}"
-          asset_target="${asset_target//x86_64/amd64}"
-          asset_target="${asset_target//aarch64/arm64}"
-          case "${{ runner.os }}" in
-            Windows) asset="inspequte-${TAG_NAME}-${asset_target}.zip" ;;
-            *) asset="inspequte-${TAG_NAME}-${asset_target}.tar.gz" ;;
-          esac
-          gh release upload "${TAG_NAME}" "${asset}" --clobber
+      contents: read
+      id-token: write
+      attestations: write
+    with:
+      release-tag: ${{ needs.release-please.outputs.rust_tag_name }}
+      release-sha: ${{ needs.release-please.outputs.rust_sha }}
 
   benchmark-release-jaeger:
     runs-on: ubuntu-latest
@@ -503,23 +430,38 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout
+      - name: Checkout verification policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Publish Rust draft release
+        with:
+          persist-credentials: false
+      - name: Download final CLI archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: cli-release-*
+          merge-multiple: true
+          path: release
+      - name: Verify, upload and publish Rust draft release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ needs.release-please.outputs.rust_tag_name }}
+          RELEASE_SHA: ${{ needs.release-please.outputs.rust_sha }}
         shell: bash
         run: |
           set -euo pipefail
-
-          is_draft="$(gh release view "${TAG_NAME}" --json isDraft --jq '.isDraft')"
-          if [[ "${is_draft}" != "true" ]]; then
-            echo "Release ${TAG_NAME} is expected to be draft, but got isDraft=${is_draft}."
+          is_draft="$(gh release view "$TAG_NAME" --json isDraft --jq '.isDraft')"
+          if [[ "$is_draft" != "true" ]]; then
+            echo "Release $TAG_NAME must be a draft before uploading archives."
             exit 1
           fi
 
-          gh release edit "${TAG_NAME}" --draft=false
+          bash scripts/verify-cli-release.sh release "$TAG_NAME" "$RELEASE_SHA"
+          gh release upload "$TAG_NAME" release/*.tar.gz release/*.zip --clobber
+
+          # Verify the bytes served to consumers before making the draft public.
+          mkdir published
+          gh release download "$TAG_NAME" --dir published --pattern '*.tar.gz' --pattern '*.zip'
+          bash scripts/verify-cli-release.sh published "$TAG_NAME" "$RELEASE_SHA"
+          gh release edit "$TAG_NAME" --draft=false
 
   publish-crates:
     runs-on: ubuntu-latest
@@ -534,6 +476,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.rust_sha }}
+          persist-credentials: false
       - name: Install Rust
         uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -545,46 +490,57 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
         run: cargo publish --locked
 
+  build-gradle-plugin:
+    needs: release-please
+    if: needs.release-please.outputs.gradle_plugin_release_created == 'true'
+    uses: ./.github/workflows/build-gradle-release.yml
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    with:
+      release-tag: ${{ needs.release-please.outputs.gradle_plugin_tag_name }}
+      release-sha: ${{ needs.release-please.outputs.gradle_plugin_sha }}
+
   publish-gradle-plugin:
     runs-on: ubuntu-latest
     environment: release
     needs:
       - release-please
+      - build-gradle-plugin
     if: needs.release-please.outputs.gradle_plugin_release_created == 'true'
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release-please.outputs.gradle_plugin_tag_name }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: 'temurin'
           java-version-file: '.java-version'
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+        with:
+          cache-disabled: true
+      - name: Restore attested publication files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: gradle-release
+          path: gradle-plugin/build
       - name: Publish plugin to Gradle Plugin Portal
         env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-please.outputs.gradle_plugin_tag_name }}
           GRADLE_PUBLISH_KEY: ${{ vars.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
         run: |
           set -euo pipefail
-          tag_name="${{ needs.release-please.outputs.gradle_plugin_tag_name }}"
-          plugin_version="${tag_name#gradle-plugin-v}"
-          if [[ "${plugin_version}" == "${tag_name}" ]]; then
-            plugin_version="${tag_name#v}"
-          fi
-          if [[ -z "${plugin_version}" || "${plugin_version}" == "${tag_name}" ]]; then
-            echo "Failed to derive plugin version from tag_name=${tag_name}"
-            exit 1
-          fi
-
-          ./gradlew publishPlugins --no-daemon \
-            -PpluginVersion="${plugin_version}" \
-            -Pgradle.publish.key="${GRADLE_PUBLISH_KEY}" \
-            -Pgradle.publish.secret="${GRADLE_PUBLISH_SECRET}"
+          ./gradlew publishPlugins --no-daemon --no-configuration-cache \
+            -PverifyRelease \
+            -PpluginVersion="${RELEASE_TAG#gradle-plugin-v}"
         working-directory: gradle-plugin
       - name: Upload reports
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -593,3 +549,25 @@ jobs:
           name: gradle-plugin-reports
           path: gradle-plugin/build/reports
           if-no-files-found: warn
+
+  publish-gradle-github-release:
+    runs-on: ubuntu-latest
+    needs:
+      - release-please
+      - publish-gradle-plugin
+    if: needs.release-please.outputs.gradle_plugin_release_created == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Publish Gradle plugin draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ needs.release-please.outputs.gradle_plugin_tag_name }}
+        run: |
+          set -euo pipefail
+          is_draft="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')"
+          if [[ "$is_draft" != "true" ]]; then
+            echo "Release $TAG_NAME must be a draft before publication."
+            exit 1
+          fi
+          gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

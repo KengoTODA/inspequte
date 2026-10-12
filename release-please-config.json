@@ -8,6 +8,8 @@
       "release-type": "rust"
     },
     "gradle-plugin": {
+      "draft": true,
+      "force-tag-creation": true,
       "component": "gradle-plugin",
       "initial-version": "0.1.0",
       "package-name": "inspequte-gradle-plugin",
