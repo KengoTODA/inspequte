@@ -7,7 +7,7 @@
 ## Methodology
 - Benchmark metric: median runtime (`hyperfine` JSON `median`).
 - Parameters: `--warmup 1`, `--min-runs 5`.
-- Generated at (UTC): `2026-10-11T08:26:51Z`.
+- Generated at (UTC): `2026-10-17T09:44:14Z`.
 
 ## Datasets
 - Library: Guava `33.7.2-jre`.
@@ -35,18 +35,18 @@ Environment:
 ## Results: Guava
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| inspequte | 0.372 s | 0.373 s | 0.368 s | 0.382 s |
-| nullaway | 1.592 s | 1.593 s | 1.560 s | 1.628 s |
-| checker-framework | 2.449 s | 2.462 s | 2.435 s | 2.506 s |
-| pmd | 6.635 s | 6.639 s | 6.520 s | 6.718 s |
-| spotbugs | 29.346 s | 29.228 s | 27.615 s | 30.493 s |
+| inspequte | 0.367 s | 0.367 s | 0.364 s | 0.375 s |
+| nullaway | 1.623 s | 1.626 s | 1.611 s | 1.644 s |
+| checker-framework | 2.495 s | 2.490 s | 2.451 s | 2.523 s |
+| pmd | 6.509 s | 6.493 s | 6.323 s | 6.608 s |
+| spotbugs | 30.335 s | 29.629 s | 27.507 s | 30.715 s |
 
 ## Results: SonarQube
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| pmd | 17.408 s | 17.412 s | 17.154 s | 17.667 s |
-| inspequte | 18.456 s | 18.448 s | 18.188 s | 18.736 s |
-| spotbugs | 984.985 s | 992.693 s | 950.835 s | 1036.751 s |
+| pmd | 16.731 s | 16.701 s | 16.434 s | 16.877 s |
+| inspequte | 17.810 s | 17.893 s | 17.715 s | 18.159 s |
+| spotbugs | 929.415 s | 933.892 s | 918.679 s | 947.984 s |
 
 ## Caveats and Fairness
 - Rule sets are aligned to nullness intent, not full one-to-one semantic equivalence.
