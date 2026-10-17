@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.2.3...inspequte-v1.3.0) (2026-10-17)
+
+
+### Features
+
+* **ci:** add SLSA L3 release builders and verification ([3a4a970](https://github.com/KengoTODA/inspequte/commit/3a4a9705234633b7b0aadec1027c2315f9ec988a))
+* **ci:** attest Gradle publication files and publish without regeneration ([c947913](https://github.com/KengoTODA/inspequte/commit/c947913c41664458dc94559b4b128b2c9dcccf78))
+* **ci:** build and attest final CLI archives in a reusable workflow ([91e3c7d](https://github.com/KengoTODA/inspequte/commit/91e3c7d9f7dfc2f3fbf0c98561cfd41f01675feb))
+
+
+### Bug Fixes
+
+* **ci:** gate publication on verified bytes and least-privilege jobs ([2304e23](https://github.com/KengoTODA/inspequte/commit/2304e234d7d1071cd0922773cc646c969c7fc697))
+* **deps:** update opentelemetry-rust monorepo to v0.33.1 ([#409](https://github.com/KengoTODA/inspequte/issues/409)) ([1d375aa](https://github.com/KengoTODA/inspequte/commit/1d375aafed9d0a7d5d810bda59c671882be987f0))
+* **docs:** link the release plan outside the MkDocs tree ([3ecea59](https://github.com/KengoTODA/inspequte/commit/3ecea59628563aa5d826a5168b49b813c8b0660d))
+
 ## [1.2.3](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.2.2...inspequte-v1.2.3) (2026-10-11)
 
 

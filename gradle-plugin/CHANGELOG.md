@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.6.2...gradle-plugin-v0.7.0) (2026-10-17)
+
+
+### Features
+
+* **ci:** add SLSA L3 release builders and verification ([3a4a970](https://github.com/KengoTODA/inspequte/commit/3a4a9705234633b7b0aadec1027c2315f9ec988a))
+* **ci:** attest Gradle publication files and publish without regeneration ([c947913](https://github.com/KengoTODA/inspequte/commit/c947913c41664458dc94559b4b128b2c9dcccf78))
+
+
+### Bug Fixes
+
+* **gradle:** build only archives attached to release publications ([9ad2627](https://github.com/KengoTODA/inspequte/commit/9ad26278f958133e5d97d40f71da697e3e005945))
+* **gradle:** resolve publication dependencies from the project ([f3d69e3](https://github.com/KengoTODA/inspequte/commit/f3d69e321cc02074e54e5e1f48262269629f38f5))
+
 ## [0.6.2](https://github.com/KengoTODA/inspequte/compare/gradle-plugin-v0.6.1...gradle-plugin-v0.6.2) (2026-09-04)
 
 
