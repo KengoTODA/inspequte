@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: bash scripts/validate-release-source.sh cli "$RELEASE_TAG" "$RELEASE_SHA"
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.target }}
       - name: Build release binary
