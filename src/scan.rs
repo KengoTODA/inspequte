@@ -593,9 +593,9 @@ fn manifest_classpath_entries_from_archive<R: Read + Seek>(
             continue;
         }
         let mut content = String::new();
-        entry.read_to_string(&mut content).with_context(|| {
-            format!("failed to read {}:{}", jar_display, "META-INF/MANIFEST.MF")
-        })?;
+        entry
+            .read_to_string(&mut content)
+            .with_context(|| format!("failed to read {}:META-INF/MANIFEST.MF", jar_display))?;
         return Ok(parse_manifest_classpath_entries(&content));
     }
     Ok(Vec::new())
@@ -761,7 +761,7 @@ fn manifest_classpath(path: &Path) -> Result<Vec<PathBuf>> {
         let mut content = String::new();
         entry
             .read_to_string(&mut content)
-            .with_context(|| "failed to read META-INF/MANIFEST.MF".to_string())?;
+            .context("failed to read META-INF/MANIFEST.MF")?;
         return Ok(parse_manifest_classpath(path, &content));
     }
 
@@ -2968,6 +2968,51 @@ mod tests {
         writer.write_all(class_bytes).context("write class bytes")?;
         writer.finish().context("finish jar")?;
         Ok(buffer)
+    }
+
+    #[test]
+    fn jar_scanning_rejects_invalid_utf8_entry_names() -> Result<()> {
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        writer.start_file("é.class", SimpleFileOptions::default())?;
+        writer.write_all(b"class bytes")?;
+        let mut bytes = writer.finish()?.into_inner();
+        // Keep the UTF-8 flag while corrupting both copies of the entry name.
+        let name = "é.class".as_bytes();
+        let positions: Vec<usize> = bytes
+            .windows(name.len())
+            .enumerate()
+            .filter_map(|(index, value)| (value == name).then_some(index))
+            .collect();
+        assert_eq!(positions.len(), 2);
+        for position in positions {
+            bytes[position] = 0xff;
+        }
+        let mut archive = ZipArchive::new(Cursor::new(&bytes))?;
+        let error = jar_entries("invalid.jar", &mut archive)
+            .err()
+            .expect("invalid entry name");
+        assert!(
+            error
+                .to_string()
+                .contains("failed to decode entry name in invalid.jar")
+        );
+        let error = manifest_classpath_entries_from_archive(&mut archive, "invalid.jar")
+            .expect_err("invalid manifest entry name");
+        assert!(
+            error
+                .to_string()
+                .contains("failed to decode JAR entry name")
+        );
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("invalid.jar");
+        fs::write(&path, bytes)?;
+        let error = manifest_classpath(&path).expect_err("invalid entry name on disk");
+        assert!(
+            error
+                .to_string()
+                .contains("failed to decode JAR entry name")
+        );
+        Ok(())
     }
 
     fn create_outer_jar_with_entries(path: &Path, entries: &[(&str, Vec<u8>)]) -> Result<()> {
