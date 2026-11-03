@@ -65,7 +65,7 @@ workflows:
         - 'actions/download-artifact@v8.0.2'
         - 'actions/setup-java@v6.0.1'
         - 'actions/upload-artifact@v7.0.2'
-        - 'anthropics/claude-code-action@v1.0.183'
+        - 'anthropics/claude-code-action@v1.0.266'
         - 'dtolnay/rust-toolchain@v1'
         - 'swatinem/rust-cache@v2.9.2'
     '.github/workflows/verify-lockfile.yml':
@@ -138,9 +138,9 @@ dependencies:
         repo_id: 496012378
         uses:
             - 'actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f'
-    'anthropics/claude-code-action@v1.0.183':
-        ref: 'v1.0.183'
-        commit: 'sha1-be7b93b1907a4abad570368f3c74b6fe3807510b'
+    'anthropics/claude-code-action@v1.0.266':
+        ref: 'v1.0.266'
+        commit: 'sha1-d535f5172dec02b204866b393d6b20b9b2aaf98d'
         owner_id: 76263028
         repo_id: 986421638
         uses:
