@@ -13,7 +13,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version-file: '.java-version'
@@ -41,7 +41,7 @@ jobs:
         with:
           save-if: false
       - name: Setup Java 26
-        uses: actions/setup-java@v6.0.1
+        uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version: '26'
@@ -75,7 +75,7 @@ jobs:
         run: |
           cargo build --release
           echo "$GITHUB_WORKSPACE/target/release" >> "$GITHUB_PATH"
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version-file: '.java-version'
@@ -110,7 +110,7 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@v2.9.2
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version-file: '.java-version'
@@ -212,7 +212,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: 'temurin'
           java-version-file: '.java-version'
