@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-11T08:26:51Z",
+  "generated_at_utc": "2026-11-03T11:06:29Z",
   "dataset": "all",
   "benchmark": {
     "warmup": 1,
@@ -7,9 +7,9 @@
   },
   "environment": {
     "os": "Linux",
-    "kernel": "6.17.0-1022-azure",
-    "cpu": "AMD EPYC 7763 64-Core Processor",
-    "java": "openjdk version \"21.0.12.1\" 2026-08-18 LTS"
+    "kernel": "7.0.0-1017-azure",
+    "cpu": "AMD EPYC 9V45 96-Core Processor",
+    "java": "openjdk version \"21.0.13\" 2026-10-20 LTS"
   },
   "datasets": {
     "guava": {
