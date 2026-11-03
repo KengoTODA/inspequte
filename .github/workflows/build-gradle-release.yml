@@ -32,7 +32,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version-file: '.java-version'
-      - uses: gradle/actions/setup-gradle@v6.4.0
+      - uses: gradle/actions/setup-gradle@v6.4.1
         with:
           cache-disabled: true
       - name: Prepare final publication files
