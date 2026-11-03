@@ -362,7 +362,7 @@ fn jar_entries<R: Read + Seek>(
         }
         let name = entry
             .name()
-            .with_context(|| format!("failed to decode entry name in {}", jar_display))?
+            .context("failed to decode JAR entry name")?
             .into_owned();
         // TODO: Handle multi-release entries under META-INF/versions/ in a future release.
         let is_class = name.ends_with(".class")
@@ -2993,12 +2993,12 @@ mod tests {
     }
 
     #[test]
-    fn jar_scanning_rejects_invalid_utf8_entry_names() -> Result<()> {
+    fn jar_scanning_accepts_cp437_entry_names() -> Result<()> {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         writer.start_file("é.class", SimpleFileOptions::default())?;
         writer.write_all(b"class bytes")?;
         let mut bytes = writer.finish()?.into_inner();
-        // Keep the UTF-8 flag while corrupting both copies of the entry name.
+        // Exercise ZIP's CP437 fallback by replacing both copies of the entry name.
         let name = "é.class".as_bytes();
         let positions: Vec<usize> = bytes
             .windows(name.len())
@@ -3010,30 +3010,15 @@ mod tests {
             bytes[position] = 0xff;
         }
         let mut archive = ZipArchive::new(Cursor::new(&bytes))?;
-        let error = jar_entries("invalid.jar", &mut archive)
-            .err()
-            .expect("invalid entry name");
-        assert!(
-            error
-                .to_string()
-                .contains("failed to decode entry name in invalid.jar")
-        );
-        let error = manifest_classpath_entries_from_archive(&mut archive, "invalid.jar")
-            .expect_err("invalid manifest entry name");
-        assert!(
-            error
-                .to_string()
-                .contains("failed to decode JAR entry name")
-        );
+        let entries = jar_entries("cp437.jar", &mut archive)?;
+        assert_eq!(entries.class_entries.len(), 1);
+        assert!(entries.class_entries[0].ends_with(".class"));
+        assert!(!entries.class_entries[0].contains('\u{fffd}'));
+        assert!(manifest_classpath_entries_from_archive(&mut archive, "cp437.jar")?.is_empty());
         let dir = tempfile::tempdir()?;
-        let path = dir.path().join("invalid.jar");
+        let path = dir.path().join("cp437.jar");
         fs::write(&path, bytes)?;
-        let error = manifest_classpath(&path).expect_err("invalid entry name on disk");
-        assert!(
-            error
-                .to_string()
-                .contains("failed to decode JAR entry name")
-        );
+        assert!(manifest_classpath(&path)?.is_empty());
         Ok(())
     }
 
