@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -28,11 +28,11 @@ jobs:
           RELEASE_TAG: ${{ inputs.release-tag }}
           RELEASE_SHA: ${{ inputs.release-sha }}
         run: bash scripts/validate-release-source.sh gradle "$RELEASE_TAG" "$RELEASE_SHA"
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+      - uses: actions/setup-java@v6.0.1
         with:
           distribution: 'temurin'
           java-version-file: '.java-version'
-      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+      - uses: gradle/actions/setup-gradle@v6.4.0
         with:
           cache-disabled: true
       - name: Prepare final publication files
@@ -44,7 +44,7 @@ jobs:
           ./gradlew clean prepareReleaseArtifacts --no-daemon --no-configuration-cache \
             -PpluginVersion="${RELEASE_TAG#gradle-plugin-v}"
       - name: Transfer publication files
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: gradle-release
           path: gradle-plugin/build/release-artifacts/
@@ -60,12 +60,12 @@ jobs:
       attestations: write
     steps:
       - name: Download files from this builder
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@v8.0.2
         with:
           name: gradle-release
           path: release
       - name: Attest publication files
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        uses: actions/attest@v4.2.2
         with:
           subject-path: release/**/*
           # Storage records are for OCI images, not these publication files.

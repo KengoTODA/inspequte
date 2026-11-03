@@ -27,20 +27,22 @@ jobs:
       recommendation: ${{ steps.meta.outputs.recommendation }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+      - uses: actions/setup-java@v6.0.1
         with:
           distribution: "temurin"
           java-version-file: ".java-version"
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2.9.2
 
       - name: Prepare workspace
         run: |
@@ -93,7 +95,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Run Claude (Opus)
-        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1
+        uses: anthropics/claude-code-action@v1.0.183
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_CLAUDE_KEY }}
           prompt: ${{ steps.prompt.outputs.prompt }}
@@ -146,7 +148,7 @@ jobs:
           git diff --cached --binary > target/opus-workflow/output/authoring-cumulative.patch
 
       - name: Upload authoring artifacts
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: opus-authoring
@@ -169,13 +171,13 @@ jobs:
     steps:
       - name: Create app token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        uses: actions/create-github-app-token@v3.2.0
         with:
           app-id: ${{ vars.APP_ID_CLAUDE }}
           private-key: ${{ secrets.PRIVATE_KEY_CLAUDE }}
 
       - name: Checkout default branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -183,7 +185,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Download authoring artifacts
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@v8.0.2
         with:
           name: opus-authoring
           path: target/opus-workflow/from-authoring

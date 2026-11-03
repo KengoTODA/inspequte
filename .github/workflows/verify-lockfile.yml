@@ -1,0 +1,30 @@
+name: Verify Actions lockfile
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install lockfile verifier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # renovate: datasource=github-releases depName=github/gh-actions-lock
+          ACTIONS_LOCK_VERSION="v0.4.1"
+          gh extension install github/gh-actions-lock --pin "$ACTIONS_LOCK_VERSION"
+      - name: Verify dependency coverage and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh actions-lock --verify

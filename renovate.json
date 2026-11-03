@@ -4,7 +4,8 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^scripts\\/.*\\.sh$/"
+        "/^scripts\\/.*\\.sh$/",
+        "/^\\.github\\/workflows\\/verify-lockfile\\.yml$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s+[A-Za-z0-9_]+=\"(?<currentValue>[^\"]+)\""
@@ -24,6 +25,11 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "Dependabot manages Actions updates together with actions.lock.",
+      "matchManagers": ["github-actions"],
+      "enabled": false
+    },
     {
       "matchUpdateTypes": [
         "minor",
