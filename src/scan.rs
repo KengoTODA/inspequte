@@ -360,7 +360,10 @@ fn jar_entries<R: Read + Seek>(
         if entry.is_dir() {
             continue;
         }
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .with_context(|| format!("failed to decode entry name in {}", jar_display))?
+            .into_owned();
         // TODO: Handle multi-release entries under META-INF/versions/ in a future release.
         let is_class = name.ends_with(".class")
             && !name.ends_with("module-info.class")
@@ -586,13 +589,13 @@ fn manifest_classpath_entries_from_archive<R: Read + Seek>(
         let mut entry = archive
             .by_index(index)
             .with_context(|| format!("failed to read {}", jar_display))?;
-        if entry.name() != "META-INF/MANIFEST.MF" {
+        if entry.name().context("failed to decode JAR entry name")? != "META-INF/MANIFEST.MF" {
             continue;
         }
         let mut content = String::new();
-        entry
-            .read_to_string(&mut content)
-            .with_context(|| format!("failed to read {}:{}", jar_display, entry.name()))?;
+        entry.read_to_string(&mut content).with_context(|| {
+            format!("failed to read {}:{}", jar_display, "META-INF/MANIFEST.MF")
+        })?;
         return Ok(parse_manifest_classpath_entries(&content));
     }
     Ok(Vec::new())
@@ -752,13 +755,13 @@ fn manifest_classpath(path: &Path) -> Result<Vec<PathBuf>> {
         let mut entry = archive
             .by_index(index)
             .with_context(|| format!("failed to read {}", path.display()))?;
-        if entry.name() != "META-INF/MANIFEST.MF" {
+        if entry.name().context("failed to decode JAR entry name")? != "META-INF/MANIFEST.MF" {
             continue;
         }
         let mut content = String::new();
         entry
             .read_to_string(&mut content)
-            .with_context(|| format!("failed to read {}", entry.name()))?;
+            .with_context(|| "failed to read META-INF/MANIFEST.MF".to_string())?;
         return Ok(parse_manifest_classpath(path, &content));
     }
 
@@ -2910,10 +2913,8 @@ mod tests {
             let mut entry = archive
                 .by_index(index)
                 .with_context(|| format!("read {}:{}", jar_path.display(), index))?;
-            if entry.is_dir()
-                || !entry.name().ends_with(".class")
-                || entry.name().ends_with("module-info.class")
-            {
+            let name = entry.name().context("decode JAR entry name")?;
+            if entry.is_dir() || !name.ends_with(".class") || name.ends_with("module-info.class") {
                 continue;
             }
             let mut data = Vec::new();
