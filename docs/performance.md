@@ -7,7 +7,7 @@
 ## Methodology
 - Benchmark metric: median runtime (`hyperfine` JSON `median`).
 - Parameters: `--warmup 1`, `--min-runs 5`.
-- Generated at (UTC): `2026-10-11T08:26:51Z`.
+- Generated at (UTC): `2026-11-03T11:26:27Z`.
 
 ## Datasets
 - Library: Guava `33.7.2-jre`.
@@ -28,25 +28,25 @@
 
 Environment:
 - OS: `Linux`
-- Kernel: `6.17.0-1022-azure`
-- CPU: `AMD EPYC 7763 64-Core Processor`
-- Java: `openjdk version "21.0.12.1" 2026-08-18 LTS`
+- Kernel: `7.0.0-1017-azure`
+- CPU: `AMD EPYC 9V74 80-Core Processor`
+- Java: `openjdk version "21.0.13" 2026-10-20 LTS`
 
 ## Results: Guava
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| inspequte | 0.372 s | 0.373 s | 0.368 s | 0.382 s |
-| nullaway | 1.592 s | 1.593 s | 1.560 s | 1.628 s |
-| checker-framework | 2.449 s | 2.462 s | 2.435 s | 2.506 s |
-| pmd | 6.635 s | 6.639 s | 6.520 s | 6.718 s |
-| spotbugs | 29.346 s | 29.228 s | 27.615 s | 30.493 s |
+| inspequte | 0.313 s | 0.312 s | 0.309 s | 0.316 s |
+| nullaway | 1.521 s | 1.550 s | 1.496 s | 1.622 s |
+| checker-framework | 2.055 s | 2.064 s | 2.034 s | 2.099 s |
+| pmd | 4.733 s | 4.770 s | 4.648 s | 5.029 s |
+| spotbugs | 21.544 s | 21.505 s | 19.643 s | 23.034 s |
 
 ## Results: SonarQube
 | Tool | Median | Mean | Min | Max |
 | --- | ---: | ---: | ---: | ---: |
-| pmd | 17.408 s | 17.412 s | 17.154 s | 17.667 s |
-| inspequte | 18.456 s | 18.448 s | 18.188 s | 18.736 s |
-| spotbugs | 984.985 s | 992.693 s | 950.835 s | 1036.751 s |
+| pmd | 13.208 s | 13.121 s | 12.639 s | 13.422 s |
+| inspequte | 15.762 s | 15.981 s | 15.432 s | 17.415 s |
+| spotbugs | 838.670 s | 834.486 s | 799.379 s | 855.629 s |
 
 ## Caveats and Fairness
 - Rule sets are aligned to nullness intent, not full one-to-one semantic equivalence.
