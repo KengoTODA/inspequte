@@ -26,7 +26,7 @@ jobs:
       gradle_plugin_tag_name: ${{ steps.release.outputs['gradle-plugin--tag_name'] }}
       gradle_plugin_sha: ${{ steps.release.outputs['gradle-plugin--sha'] }}
     steps:
-      - uses: actions/create-github-app-token@v3.2.0
+      - uses: actions/create-github-app-token@v3.3.0
         id: app-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -62,7 +62,7 @@ jobs:
     outputs:
       rust_pr_number: ${{ steps.resolve-pr.outputs.pr_number }}
     steps:
-      - uses: actions/create-github-app-token@v3.2.0
+      - uses: actions/create-github-app-token@v3.3.0
         id: app-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -308,7 +308,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/create-github-app-token@v3.2.0
+      - uses: actions/create-github-app-token@v3.3.0
         id: app-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -399,7 +399,7 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/render-performance-docs.sh
-      - uses: actions/create-github-app-token@v3.2.0
+      - uses: actions/create-github-app-token@v3.3.0
         if: steps.target-pr.outputs.skip != 'true'
         id: app-token-push
         with:
