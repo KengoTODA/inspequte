@@ -2971,6 +2971,28 @@ mod tests {
     }
 
     #[test]
+    fn manifest_reading_reports_invalid_utf8_contents() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("invalid-manifest.jar");
+        create_outer_jar_with_entries(&path, &[("META-INF/MANIFEST.MF", vec![0xff])])?;
+        let mut archive = ZipArchive::new(fs::File::open(&path)?)?;
+        let error = manifest_classpath_entries_from_archive(&mut archive, "invalid-manifest.jar")
+            .expect_err("invalid UTF-8 manifest");
+        assert!(
+            error
+                .to_string()
+                .contains("invalid-manifest.jar:META-INF/MANIFEST.MF")
+        );
+        let error = manifest_classpath(&path).expect_err("invalid UTF-8 manifest on disk");
+        assert!(
+            error
+                .to_string()
+                .contains("failed to read META-INF/MANIFEST.MF")
+        );
+        Ok(())
+    }
+
+    #[test]
     fn jar_scanning_rejects_invalid_utf8_entry_names() -> Result<()> {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         writer.start_file("é.class", SimpleFileOptions::default())?;
