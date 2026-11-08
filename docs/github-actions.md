@@ -33,7 +33,7 @@ jobs:
       - name: Install inspequte
         uses: KengoTODA/setup-inspequte@c18ec2ad0423af57c89d5de7bc3d4e4bf28747f5
       - name: Setup Java
-        uses: actions/setup-java@v6.1.0
+        uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version: "21"
