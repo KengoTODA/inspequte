@@ -241,7 +241,7 @@ Use the Gradle plugin in CI and install the CLI from GitHub Releases:
 - name: Install inspequte
   uses: KengoTODA/setup-inspequte@8d212fa51a56245829f88e60f081c6549e312c57
 - name: Setup Java
-  uses: actions/setup-java@v6.1.0
+  uses: actions/setup-java@v6.2.0
   with:
     distribution: temurin
     java-version: "21"
@@ -250,7 +250,7 @@ Use the Gradle plugin in CI and install the CLI from GitHub Releases:
 - name: Run inspequte tasks
   run: ./gradlew check --no-daemon
 - name: Upload SARIF to GitHub Code Scanning (optional)
-  uses: github/codeql-action/upload-sarif@v4.39.2
+  uses: github/codeql-action/upload-sarif@v4.39.3
   with:
     sarif_file: results.sarif
 ```
