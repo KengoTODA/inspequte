@@ -312,7 +312,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
         if: steps.existing_pr.outputs.found != 'true' && steps.diff.outputs.has_changes == 'true'
 
       - name: Verify dependency update
