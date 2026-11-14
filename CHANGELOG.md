@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.3.0...inspequte-v1.3.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **deps:** update actions/setup-java to v6.2.0 ([4bd4ccc](https://github.com/KengoTODA/inspequte/commit/4bd4ccc7ab47b85612d17d622a83b7d91a64174b))
+* **deps:** update rust crate jsonschema to 0.60.0 ([0a5889e](https://github.com/KengoTODA/inspequte/commit/0a5889e96bd8844cc2c26cddd31e5cdd289d7cbe))
+
 ## [1.3.0](https://github.com/KengoTODA/inspequte/compare/inspequte-v1.2.3...inspequte-v1.3.0) (2026-11-03)
 
 
