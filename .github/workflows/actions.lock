@@ -30,7 +30,7 @@ workflows:
         - 'actions/upload-artifact@v7.0.2'
         - 'codecov/codecov-action@v7.1.1'
         - 'dtolnay/rust-toolchain@v1'
-        - 'github/codeql-action@v4.38.2'
+        - 'github/codeql-action@v4.39.3'
         - 'gradle/actions@v6.4.0'
         - 'swatinem/rust-cache@v2.9.2'
     '.github/workflows/docs.yml':
@@ -157,9 +157,9 @@ dependencies:
         commit: 'sha1-683b588c487a69d01f6c6ddf40f036ff682cc2c8'
         owner_id: 1940490
         repo_id: 260749683
-    'github/codeql-action@v4.38.2':
-        ref: 'v4.38.2'
-        commit: 'sha1-2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2'
+    'github/codeql-action@v4.39.3':
+        ref: 'v4.39.3'
+        commit: 'sha1-33d7b85da1a04171e211befe2c739303b9a4c066'
         owner_id: 9919
         repo_id: 259445878
     'googleapis/release-please-action@v5.0.0':
