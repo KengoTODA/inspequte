@@ -75,7 +75,7 @@ jobs:
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
       - name: Start Jaeger, run spotbugs.jar benchmark, export trace
         id: bench
         shell: bash
@@ -378,7 +378,7 @@ jobs:
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
         if: steps.target-pr.outputs.skip != 'true'
       - name: Install benchmark dependencies
         if: steps.target-pr.outputs.skip != 'true'
@@ -487,7 +487,7 @@ jobs:
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
       - name: Authenticate to crates.io
         id: crates-io-auth
         uses: rust-lang/crates-io-auth-action@v1.0.5
