@@ -22,7 +22,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # renovate: datasource=github-releases depName=github/gh-actions-lock
-          ACTIONS_LOCK_VERSION="v0.5.0"
+          ACTIONS_LOCK_VERSION="v0.5.1"
           gh extension install github/gh-actions-lock --pin "$ACTIONS_LOCK_VERSION"
       - name: Verify dependency coverage and provenance
         env:
